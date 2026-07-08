@@ -1,0 +1,1027 @@
+import { useState, useRef, useEffect, FormEvent } from "react";
+import { GeneratedSite, Proposal, PricingCalculator } from "../types";
+import { 
+  Calculator, FileText, Check, DollarSign, Clock, Calendar, 
+  User, CheckCircle, Shield, Award, Sparkles, Printer, FileDown, 
+  ArrowRight, Trash2, Plus, AlertCircle, Save, Briefcase, FileCheck, 
+  CreditCard, HelpCircle, Layers, Mail, Phone, MapPin, CheckCircle2, RefreshCw
+} from "lucide-react";
+
+interface ProposalGeneratorProps {
+  site: GeneratedSite;
+  userEmail: string;
+  onSave?: (updatedSite: GeneratedSite) => Promise<void>;
+  sitesList?: GeneratedSite[];
+  onSelectSite?: (site: GeneratedSite) => void;
+}
+
+export default function ProposalGenerator({ 
+  site, 
+  userEmail, 
+  onSave,
+  sitesList = [],
+  onSelectSite
+}: ProposalGeneratorProps) {
+  // Try loading saved proposal from site first, otherwise use professional defaults
+  const initialProposal = site.proposal;
+
+  const [clientName, setClientName] = useState(initialProposal?.clientName || "Owner / Principal Manager");
+  const [clientEmail, setClientEmail] = useState(initialProposal?.clientEmail || `${site.businessName.toLowerCase().replace(/[^a-z0-9]/g, "")}@gmail.com`);
+  const [businessName, setBusinessName] = useState(initialProposal?.businessName || site.businessName);
+  const [clientAddress, setClientAddress] = useState(site.address || "Local Area");
+  const [clientPhone, setClientPhone] = useState(site.phone || "No Contact Phone");
+  
+  const [projectOverview, setProjectOverview] = useState(
+    initialProposal?.terms?.split("\n\n---OVERVIEW---\n")[1]?.split("\n---ENDOVERVIEW---\n")[0] ||
+    `High-fidelity design proposal to publish a bespoke, mobile-optimized digital homepage and services presentation layout tailored specifically to the unique business standards of ${site.businessName}. This project establishes a premium web presence to capture local high-intent search traffic in the ${site.address || "local"} region and maximize direct mobile call leads.`
+  );
+
+  const [timeline, setTimeline] = useState(initialProposal?.timeline || "7 - 10 Business Days");
+  
+  // Custom Timeline Phases state
+  const [timelinePhases, setTimelinePhases] = useState<{ phase: string; duration: string; task: string }[]>([
+    { phase: "Phase 1: Brand Concept & Copy Reviews", duration: "Days 1-2", task: "Collate high-res logos, customize content copy, map out services, and finalise theme colors." },
+    { phase: "Phase 2: Responsive Assembly & Layouts", duration: "Days 3-5", task: "Configure the multi-section visual layouts, test contact forms, and activate click-to-chat features." },
+    { phase: "Phase 3: Search Engine Grounding", duration: "Days 6-7", task: "Verify localized SEO parameters, map out location grounding, and optimize meta headers." },
+    { phase: "Phase 4: Domain Linking & Final Launch", duration: "Days 8-10", task: "Publish the layout live to secure production servers and link client-provided custom domains." }
+  ]);
+
+  const [status, setStatus] = useState<"draft" | "sent" | "approved" | "rejected">(initialProposal?.status || "draft");
+  const [signedName, setSignedName] = useState(site.clientApprovedBy || "");
+  const [signedDate, setSignedDate] = useState(site.clientApprovedAt ? new Date(site.clientApprovedAt).toLocaleDateString() : "");
+  const [isApproved, setIsApproved] = useState(site.clientApproved || false);
+
+  // Pricing setup
+  const [pricing, setPricing] = useState<PricingCalculator>(
+    initialProposal?.pricing || {
+      packageName: "Standard Small Business Package",
+      packagePrice: 699,
+      hostingPrice: 29,
+      maintenancePrice: 49,
+      domainPrice: 15,
+      emailPrice: 10,
+      seoPrice: 150,
+      gbpOtpPrice: 99,
+      logoPrice: 120,
+      supportMonthlyPrice: 50,
+      isRecurring: true
+    }
+  );
+
+  // Features checkboxes/toggles
+  const [features, setFeatures] = useState<string[]>(
+    initialProposal?.features || [
+      "Custom Homepage with Premium Theme Layout",
+      "Specialized Services Deck & Details",
+      "Interactive Google Maps Location Integration",
+      "Secure HTTPS/SSL Certificate Active",
+      "Mobile-Optimized Responsive Header Navigation",
+      "Live Click-to-Call Hotline & WhatsApp Chat",
+      "Structured Callback & Appointment Booking Forms",
+      "Localized Google SEO Metadata Schema Setup"
+    ]
+  );
+  const [newFeature, setNewFeature] = useState("");
+
+  // Deliverables toggles/items
+  const [deliverables, setDeliverables] = useState<string[]>([
+    "Complete ownership of all generated visual layout codes & copy assets",
+    "Active SSL security protocol setup on secure production hosting servers",
+    "Configured custom domains link (e.g. yourbusiness.com)",
+    "Weekly automated database backups & security log monitoring",
+    "2 hours of complimentary design and text copy updates per month"
+  ]);
+  const [newDeliverable, setNewDeliverable] = useState("");
+
+  // Terms and conditions
+  const [contractTerms, setContractTerms] = useState(
+    initialProposal?.terms?.split("\n\n---TERMS---\n")[1] ||
+    `1. Retainer & Payment Terms: Client agrees to pay a 50% upfront deposit to secure the development slot and launch asset collation. The remaining 50% balance is due immediately upon layout sign-off and design approval, prior to mapping and activating custom domain endpoints.
+
+2. Intellectual Property Rights: Upon final payment clearance, all proprietary visual layouts, copyright copywriting, digital assets, and customized code templates are fully transferred to the sole ownership of the Client.
+
+3. SLA Maintenance Support: The monthly recurring support SLA covers secure high-speed CDN website hosting, automated SSL renewal certifications, weekly complete database backups, and up to 2 hours of monthly text or layout updates.
+
+4. Client Commitments: Client agrees to supply high-resolution logos, professional license credentials, staff images, and custom copy preferences. Delays in supplying assets will extend delivery timelines proportionally.`
+  );
+
+  // Payment details
+  const [paymentDetails, setPaymentDetails] = useState(
+    "Stripe Secure Checkout, Visa/Mastercard Credit Card, Bank Wire Transfer, or ACH Direct Debit.\n\nDeposit Terms: 50% Upfront deposit ($[DEPOSIT_TOTAL]) is required to initiate design setup. 50% Balance due upon design approval."
+  );
+
+  const [saving, setSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Reference for proposal printing
+  const printRef = useRef<HTMLDivElement>(null);
+
+  // Listen to active site prop changes and re-initialize states
+  useEffect(() => {
+    const freshProposal = site.proposal;
+    setClientName(freshProposal?.clientName || "Owner / Principal Manager");
+    setClientEmail(freshProposal?.clientEmail || `${site.businessName.toLowerCase().replace(/[^a-z0-9]/g, "")}@gmail.com`);
+    setBusinessName(freshProposal?.businessName || site.businessName);
+    setClientAddress(site.address || "Local Area");
+    setClientPhone(site.phone || "No Contact Phone");
+    setProjectOverview(
+      freshProposal?.terms?.split("\n\n---OVERVIEW---\n")[1]?.split("\n---ENDOVERVIEW---\n")[0] ||
+      `High-fidelity design proposal to publish a bespoke, mobile-optimized digital homepage and services presentation layout tailored specifically to the unique business standards of ${site.businessName}. This project establishes a premium web presence to capture local high-intent search traffic in the ${site.address || "local"} region and maximize direct mobile call leads.`
+    );
+    setTimeline(freshProposal?.timeline || "7 - 10 Business Days");
+    setStatus(freshProposal?.status || "draft");
+    setSignedName(site.clientApprovedBy || "");
+    setSignedDate(site.clientApprovedAt ? new Date(site.clientApprovedAt).toLocaleDateString() : "");
+    setIsApproved(site.clientApproved || false);
+    setPricing(
+      freshProposal?.pricing || {
+        packageName: "Standard Small Business Package",
+        packagePrice: 699,
+        hostingPrice: 29,
+        maintenancePrice: 49,
+        domainPrice: 15,
+        emailPrice: 10,
+        seoPrice: 150,
+        gbpOtpPrice: 99,
+        logoPrice: 120,
+        supportMonthlyPrice: 50,
+        isRecurring: true
+      }
+    );
+    setFeatures(
+      freshProposal?.features || [
+        "Custom Homepage with Premium Theme Layout",
+        "Specialized Services Deck & Details",
+        "Interactive Google Maps Location Integration",
+        "Secure HTTPS/SSL Certificate Active",
+        "Mobile-Optimized Responsive Header Navigation",
+        "Live Click-to-Call Hotline & WhatsApp Chat",
+        "Structured Callback & Appointment Booking Forms",
+        "Localized Google SEO Metadata Schema Setup"
+      ]
+    );
+    setContractTerms(
+      freshProposal?.terms?.split("\n\n---TERMS---\n")[1] ||
+      `1. Retainer & Payment Terms: Client agrees to pay a 50% upfront deposit to secure the development slot and launch asset collation. The remaining 50% balance is due immediately upon layout sign-off and design approval, prior to mapping and activating custom domain endpoints.
+
+2. Intellectual Property Rights: Upon final payment clearance, all proprietary visual layouts, copyright copywriting, digital assets, and customized code templates are fully transferred to the sole ownership of the Client.
+
+3. SLA Maintenance Support: The monthly recurring support SLA covers secure high-speed CDN website hosting, automated SSL renewal certifications, weekly complete database backups, and up to 2 hours of monthly text or layout updates.
+
+4. Client Commitments: Client agrees to supply high-resolution logos, professional license credentials, staff images, and custom copy preferences. Delays in supplying assets will extend delivery timelines proportionally.`
+    );
+  }, [site.id, site.businessName]);
+
+  // Field change handler
+  const handlePriceChange = (field: keyof PricingCalculator, value: any) => {
+    setPricing({ ...pricing, [field]: value });
+  };
+
+  // Pricing calculations
+  const calculateSetupTotal = () => {
+    return (
+      (pricing.packagePrice || 0) +
+      (pricing.domainPrice || 0) +
+      (pricing.emailPrice || 0) +
+      (pricing.seoPrice || 0) +
+      (pricing.gbpOtpPrice || 0) +
+      (pricing.logoPrice || 0)
+    );
+  };
+
+  const calculateMonthlyTotal = () => {
+    return (
+      (pricing.hostingPrice || 0) +
+      (pricing.maintenancePrice || 0) +
+      (pricing.supportMonthlyPrice || 0)
+    );
+  };
+
+  // Add/remove custom items
+  const handleAddFeature = () => {
+    if (!newFeature.trim()) return;
+    setFeatures([...features, newFeature.trim()]);
+    setNewFeature("");
+  };
+
+  const handleRemoveFeature = (index: number) => {
+    setFeatures(features.filter((_, i) => i !== index));
+  };
+
+  const handleAddDeliverable = () => {
+    if (!newDeliverable.trim()) return;
+    setDeliverables([...deliverables, newDeliverable.trim()]);
+    setNewDeliverable("");
+  };
+
+  const handleRemoveDeliverable = (index: number) => {
+    setDeliverables(deliverables.filter((_, i) => i !== index));
+  };
+
+  // Save Proposal Draft to Firestore
+  const handleSaveProposal = async (eventStatus?: "draft" | "sent" | "approved") => {
+    setSaving(true);
+    setSaveSuccess(false);
+    
+    const targetStatus = eventStatus || status;
+
+    // Bundle overview and terms together into standard terms format to fit schema
+    const combinedTermsString = `---OVERVIEW---\n${projectOverview}\n---ENDOVERVIEW---\n\n---TERMS---\n${contractTerms}`;
+
+    const proposalObj: Proposal = {
+      id: site.id,
+      businessId: site.id,
+      businessName: businessName,
+      clientEmail: clientEmail,
+      clientName: clientName,
+      dateCreated: initialProposal?.dateCreated || new Date().toLocaleDateString(),
+      expiryDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString(),
+      features: features,
+      pricing: pricing,
+      status: targetStatus,
+      timeline: timeline,
+      terms: combinedTermsString
+    };
+
+    const updatedSite: GeneratedSite = {
+      ...site,
+      clientApproved: targetStatus === "approved" ? true : isApproved,
+      clientApprovedBy: targetStatus === "approved" ? signedName : site.clientApprovedBy,
+      clientApprovedAt: targetStatus === "approved" ? new Date().toISOString() : site.clientApprovedAt,
+      proposal: proposalObj
+    };
+
+    try {
+      if (onSave) {
+        await onSave(updatedSite);
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 3000);
+      }
+    } catch (err) {
+      console.error("Failed to save proposal:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Sign contract from signature box
+  const handleSignContract = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!signedName.trim()) return;
+    
+    setIsApproved(true);
+    setStatus("approved");
+    const today = new Date().toLocaleDateString();
+    setSignedDate(today);
+
+    // Save with approved status immediately
+    setSaving(true);
+    const combinedTermsString = `---OVERVIEW---\n${projectOverview}\n---ENDOVERVIEW---\n\n---TERMS---\n${contractTerms}`;
+    
+    const proposalObj: Proposal = {
+      id: site.id,
+      businessId: site.id,
+      businessName: businessName,
+      clientEmail: clientEmail,
+      clientName: clientName,
+      dateCreated: initialProposal?.dateCreated || new Date().toLocaleDateString(),
+      expiryDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString(),
+      features: features,
+      pricing: pricing,
+      status: "approved",
+      timeline: timeline,
+      terms: combinedTermsString
+    };
+
+    const updatedSite: GeneratedSite = {
+      ...site,
+      clientApproved: true,
+      clientApprovedBy: signedName,
+      clientApprovedAt: new Date().toISOString(),
+      proposal: proposalObj
+    };
+
+    try {
+      if (onSave) {
+        await onSave(updatedSite);
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 3000);
+      }
+    } catch (err) {
+      console.error("Failed to sign proposal:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const triggerPrint = () => {
+    window.print();
+  };
+
+  const setupTotal = calculateSetupTotal();
+  const monthlyTotal = calculateMonthlyTotal();
+  const depositAmt = (setupTotal / 2).toFixed(2);
+
+  // Keep dynamic fields up to date with template calculations
+  const renderedPaymentDetails = paymentDetails.replace("$[DEPOSIT_TOTAL]", `$${depositAmt}`);
+
+  return (
+    <div className="space-y-6 text-left">
+      {/* Inject custom print styling so only the high-fidelity contract sheet is visible when exporting/printing */}
+      <style>{`
+        @media print {
+          body {
+            background: white !important;
+            color: black !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          /* Hide all other app elements, buttons, sidebars during print */
+          header, nav, footer, aside, .no-print, button, select, input, textarea, .nav-tabs {
+            display: none !important;
+          }
+          /* Maximize printing target container */
+          .print-container {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 20px !important;
+            border: none !important;
+            box-shadow: none !important;
+            background: white !important;
+          }
+          .page-break {
+            page-break-before: always;
+          }
+        }
+      `}</style>
+
+      {/* Top Banner & Main Heading */}
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between border-b border-slate-100 pb-5 dark:border-slate-800 gap-4 no-print">
+        <div>
+          <h2 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+            <Calculator className="h-6 w-6 text-blue-600 dark:text-blue-400" /> B2B Proposal &amp; Contract Studio
+          </h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+            Configure fully branded PDF proposals, map customized pricing calculators, outline roadmaps, and secure direct digital approvals for <strong className="text-slate-800 dark:text-slate-200">{site.businessName}</strong>.
+          </p>
+
+          {sitesList.length > 0 && onSelectSite && (
+            <div className="mt-3.5 flex items-center gap-2 text-left">
+              <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Switch Project Client:</span>
+              <select
+                value={site.id}
+                onChange={(e) => {
+                  const selected = sitesList.find(s => s.id === e.target.value);
+                  if (selected) onSelectSite(selected);
+                }}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 focus:ring-1 focus:ring-blue-500 outline-none cursor-pointer"
+              >
+                {sitesList.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.businessName}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
+        {/* Global Save Controls */}
+        <div className="flex items-center gap-2 w-full lg:w-auto justify-end">
+          {saveSuccess && (
+            <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1.5 rounded-lg dark:bg-emerald-950/30 dark:text-emerald-400 flex items-center gap-1">
+              <Check className="h-3.5 w-3.5" /> Proposal Saved &amp; Cloud Synced
+            </span>
+          )}
+          
+          <button
+            onClick={() => handleSaveProposal()}
+            disabled={saving}
+            className="px-4 py-2.5 bg-slate-900 hover:bg-slate-850 dark:bg-slate-800 dark:hover:bg-slate-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all disabled:opacity-50 cursor-pointer"
+          >
+            {saving ? (
+              <>
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Saving...
+              </>
+            ) : (
+              <>
+                <Save className="h-3.5 w-3.5" /> Save Proposal Draft
+              </>
+            )}
+          </button>
+
+          <button
+            onClick={triggerPrint}
+            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-md shadow-blue-500/10"
+          >
+            <Printer className="h-3.5 w-3.5" /> Print / Export PDF
+          </button>
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-12 items-start">
+        
+        {/* Left Column: Estimator Pricing Setup (45% width - hidden during print) */}
+        <div className="space-y-6 lg:col-span-5 no-print">
+          
+          {/* Section 1: Client & Delivery Info */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 space-y-4 text-left">
+            <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-50 pb-2 dark:border-slate-850">
+              <User className="h-4 w-4 text-blue-500" /> 1. Client Details &amp; Roadmap
+            </h3>
+            
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">Company / Business Name</label>
+                <input
+                  type="text"
+                  value={businessName}
+                  onChange={(e) => setBusinessName(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-850 dark:text-white font-bold focus:ring-1 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">Owner / Primary Contact</label>
+                <input
+                  type="text"
+                  value={clientName}
+                  onChange={(e) => setClientName(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-850 dark:text-white font-semibold focus:ring-1 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">Client Email Address</label>
+                <input
+                  type="email"
+                  value={clientEmail}
+                  onChange={(e) => setClientEmail(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-850 dark:text-white font-semibold focus:ring-1 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">Project Timeline SLA</label>
+                <input
+                  type="text"
+                  value={timeline}
+                  onChange={(e) => setTimeline(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-850 dark:text-white font-semibold focus:ring-1 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">Proposal Status</label>
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as any)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-850 dark:text-white font-bold focus:ring-1 focus:ring-blue-500 outline-none"
+                >
+                  <option value="draft">Draft (Private)</option>
+                  <option value="sent">Sent to Client</option>
+                  <option value="approved">Approved &amp; Accepted</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 2: Interactive Pricing Calculator */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 space-y-4 text-left">
+            <h3 className="text-xs font-extrabold text-blue-600 dark:text-blue-400 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-50 pb-2 dark:border-slate-850">
+              <DollarSign className="h-4 w-4" /> 2. One-Off Setup Investments
+            </h3>
+            
+            <div className="grid gap-3.5 sm:grid-cols-2">
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">Website Package ($)</label>
+                <input
+                  type="number"
+                  value={pricing.packagePrice}
+                  onChange={(e) => handlePriceChange("packagePrice", Number(e.target.value))}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-850 dark:text-white font-mono font-bold focus:ring-1 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">SEO ($)</label>
+                <input
+                  type="number"
+                  value={pricing.seoPrice}
+                  onChange={(e) => handlePriceChange("seoPrice", Number(e.target.value))}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-850 dark:text-white font-mono font-bold focus:ring-1 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">Logo Design ($)</label>
+                <input
+                  type="number"
+                  value={pricing.logoPrice}
+                  onChange={(e) => handlePriceChange("logoPrice", Number(e.target.value))}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-850 dark:text-white font-mono font-bold focus:ring-1 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">Domain Registration ($)</label>
+                <input
+                  type="number"
+                  value={pricing.domainPrice}
+                  onChange={(e) => handlePriceChange("domainPrice", Number(e.target.value))}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-850 dark:text-white font-mono font-bold focus:ring-1 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">Email Setup ($)</label>
+                <input
+                  type="number"
+                  value={pricing.emailPrice}
+                  onChange={(e) => handlePriceChange("emailPrice", Number(e.target.value))}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-850 dark:text-white font-mono font-bold focus:ring-1 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">Google Business Optimization ($)</label>
+                <input
+                  type="number"
+                  value={pricing.gbpOtpPrice}
+                  onChange={(e) => handlePriceChange("gbpOtpPrice", Number(e.target.value))}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-850 dark:text-white font-mono font-bold focus:ring-1 focus:ring-blue-500 outline-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Section 3: SLA Recurring Support Fees */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 space-y-4 text-left">
+            <h3 className="text-xs font-extrabold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-50 pb-2 dark:border-slate-850">
+              <Clock className="h-4 w-4" /> 3. Monthly Recurring SLA Support
+            </h3>
+            
+            <div className="grid gap-3.5 sm:grid-cols-3">
+              <div>
+                <label className="text-[9px] font-bold text-slate-500 block mb-1">Hosting ($)</label>
+                <input
+                  type="number"
+                  value={pricing.hostingPrice}
+                  onChange={(e) => handlePriceChange("hostingPrice", Number(e.target.value))}
+                  className="w-full rounded-xl border border-slate-200 px-2 py-2 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-850 dark:text-white font-mono font-bold focus:ring-1 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[9px] font-bold text-slate-500 block mb-1">Maintenance ($)</label>
+                <input
+                  type="number"
+                  value={pricing.maintenancePrice}
+                  onChange={(e) => handlePriceChange("maintenancePrice", Number(e.target.value))}
+                  className="w-full rounded-xl border border-slate-200 px-2 py-2 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-850 dark:text-white font-mono font-bold focus:ring-1 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[9px] font-bold text-slate-500 block mb-1">Monthly Support ($)</label>
+                <input
+                  type="number"
+                  value={pricing.supportMonthlyPrice}
+                  onChange={(e) => handlePriceChange("supportMonthlyPrice", Number(e.target.value))}
+                  className="w-full rounded-xl border border-slate-200 px-2 py-2 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-850 dark:text-white font-mono font-bold focus:ring-1 focus:ring-blue-500 outline-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Section 4: Narrative overview, features & deliverables */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 space-y-4 text-left">
+            <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-50 pb-2 dark:border-slate-850">
+              <Sparkles className="h-4 w-4 text-yellow-500" /> 4. Project Scope Narrative
+            </h3>
+
+            <div>
+              <label className="text-[10px] font-bold text-slate-500 block mb-1">Client Project Overview Pitch</label>
+              <textarea
+                value={projectOverview}
+                onChange={(e) => setProjectOverview(e.target.value)}
+                rows={4}
+                className="w-full rounded-xl border border-slate-200 p-3 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-700 dark:text-slate-300 focus:ring-1 focus:ring-blue-500 outline-none leading-relaxed"
+              />
+            </div>
+
+            {/* Custom Features Manager */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-slate-500 block">Design &amp; Layout Features Included</label>
+              <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1 border border-slate-100 p-2 rounded-xl dark:border-slate-850 dark:bg-slate-950/20">
+                {features.map((feat, index) => (
+                  <div key={index} className="flex items-center justify-between text-[11px] font-medium text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-100 dark:border-slate-850 gap-2">
+                    <span className="truncate">✓ {feat}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFeature(index)}
+                      className="text-slate-400 hover:text-red-500 transition-colors"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2 pt-1">
+                <input
+                  type="text"
+                  placeholder="Add custom layout feature..."
+                  value={newFeature}
+                  onChange={(e) => setNewFeature(e.target.value)}
+                  className="flex-grow rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] dark:border-slate-800 dark:bg-slate-950 text-slate-800 dark:text-white outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddFeature}
+                  className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-bold text-xs p-1.5 rounded-lg border border-slate-200 dark:border-slate-750 shrink-0"
+                >
+                  <Plus className="h-4.5 w-4.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Custom Deliverables Manager */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-slate-500 block">Deliverables / Assets list</label>
+              <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1 border border-slate-100 p-2 rounded-xl dark:border-slate-850 dark:bg-slate-950/20">
+                {deliverables.map((del, index) => (
+                  <div key={index} className="flex items-center justify-between text-[11px] font-medium text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-100 dark:border-slate-850 gap-2">
+                    <span className="truncate">✓ {del}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveDeliverable(index)}
+                      className="text-slate-400 hover:text-red-500 transition-colors"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2 pt-1">
+                <input
+                  type="text"
+                  placeholder="Add custom deliverable..."
+                  value={newDeliverable}
+                  onChange={(e) => setNewDeliverable(e.target.value)}
+                  className="flex-grow rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] dark:border-slate-800 dark:bg-slate-950 text-slate-800 dark:text-white outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddDeliverable}
+                  className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-bold text-xs p-1.5 rounded-lg border border-slate-200 dark:border-slate-750 shrink-0"
+                >
+                  <Plus className="h-4.5 w-4.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 5: Legal Terms & Payments */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 space-y-4 text-left">
+            <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-50 pb-2 dark:border-slate-850">
+              <Shield className="h-4 w-4 text-emerald-500" /> 5. Legal Terms &amp; Payment Options
+            </h3>
+
+            <div>
+              <label className="text-[10px] font-bold text-slate-500 block mb-1">Payment Instructions &amp; Milestones</label>
+              <textarea
+                value={paymentDetails}
+                onChange={(e) => setPaymentDetails(e.target.value)}
+                rows={3}
+                className="w-full rounded-xl border border-slate-200 p-3 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-700 dark:text-slate-300 focus:ring-1 focus:ring-blue-500 outline-none leading-relaxed"
+              />
+            </div>
+
+            <div>
+              <label className="text-[10px] font-bold text-slate-500 block mb-1">Contract Rules &amp; Intellectual Property</label>
+              <textarea
+                value={contractTerms}
+                onChange={(e) => setContractTerms(e.target.value)}
+                rows={5}
+                className="w-full rounded-xl border border-slate-200 p-3 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-700 dark:text-slate-300 focus:ring-1 focus:ring-blue-500 outline-none leading-relaxed"
+              />
+            </div>
+          </div>
+
+        </div>
+
+        {/* Right Column: Branded high-fidelity proposal print preview paper sheet (55% width) */}
+        <div className="lg:col-span-7 space-y-6">
+          
+          {/* Action indicator above the paper - hidden in print */}
+          <div className="flex items-center justify-between rounded-xl bg-blue-50/50 p-4 border border-blue-100 dark:bg-blue-950/20 dark:border-blue-900/40 text-xs text-blue-700 dark:text-blue-300 no-print">
+            <div className="flex items-start gap-2 text-left">
+              <Sparkles className="h-4.5 w-4.5 text-blue-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold">Premium High-Fidelity Stationery View</p>
+                <p className="text-[10px] opacity-80 mt-0.5">The document below will be perfectly printed or exported as a clean A4 PDF. Buttons and sidebar configuration controls are completely stripped automatically in the PDF layout.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Beautiful Document Stationery Sheet */}
+          <div 
+            ref={printRef}
+            className="print-container rounded-2xl border border-slate-300 bg-white p-8 md:p-14 shadow-lg dark:border-slate-850 dark:bg-slate-900 text-slate-900 text-left relative overflow-hidden font-sans space-y-8 print:border-none print:shadow-none print:p-0 dark:text-slate-100 min-h-[842px]"
+            id="printable-proposal-sheet"
+          >
+            {/* Branded corporate header stripe */}
+            <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-blue-600 to-indigo-600 no-print" />
+
+            {/* Contract Header Details */}
+            <div className="flex flex-col sm:flex-row items-start justify-between border-b border-slate-100 pb-6 dark:border-slate-800/80 gap-4">
+              <div>
+                <h4 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5">
+                  SiteScout Design Studio <span className="text-[9px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded dark:bg-blue-900/40 dark:text-blue-300 font-extrabold tracking-wider uppercase">AGENCY LEVEL</span>
+                </h4>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5">Representative: {userEmail}</p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500">Document Issued: {new Date().toLocaleDateString()}</p>
+              </div>
+              <div className="text-right sm:text-right">
+                <h2 className="text-xl font-black uppercase text-blue-600 dark:text-blue-400 tracking-wide">DIGITAL WEB PROPOSAL</h2>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5 font-mono">ID: SCOUT-PROPOSAL-{site.id.substring(0, 8).toUpperCase()}</p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-semibold">Valid Until: {new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString()}</p>
+              </div>
+            </div>
+
+            {/* Recipient Coordinates Panel */}
+            <div className="grid gap-6 sm:grid-cols-2 text-xs">
+              <div className="bg-slate-50/50 dark:bg-slate-950/30 p-4 rounded-xl border border-slate-100 dark:border-slate-850">
+                <h5 className="font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1"><Briefcase className="h-3.5 w-3.5 text-blue-500" /> CLIENT INFORMATION</h5>
+                <p className="font-extrabold text-sm text-slate-850 dark:text-slate-200">{businessName}</p>
+                <p className="text-slate-500 dark:text-slate-450 mt-1 flex items-center gap-1"><MapPin className="h-3 w-3 shrink-0" /> {clientAddress}</p>
+                <p className="text-slate-500 dark:text-slate-450 flex items-center gap-1"><Phone className="h-3 w-3 shrink-0" /> {clientPhone}</p>
+              </div>
+              <div className="bg-slate-50/50 dark:bg-slate-950/30 p-4 rounded-xl border border-slate-100 dark:border-slate-850">
+                <h5 className="font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1"><User className="h-3.5 w-3.5 text-blue-500" /> DIRECT RECIPIENT</h5>
+                <p className="font-extrabold text-sm text-slate-850 dark:text-slate-200">{clientName}</p>
+                <p className="text-slate-500 dark:text-slate-450 mt-1 flex items-center gap-1"><Mail className="h-3 w-3 shrink-0" /> {clientEmail}</p>
+                <p className="text-slate-500 dark:text-slate-450 flex items-center gap-1"><Clock className="h-3 w-3 shrink-0" /> Target Timeline: <strong className="text-blue-600 dark:text-blue-400">{timeline}</strong></p>
+              </div>
+            </div>
+
+            {/* Section 1: Project Overview */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-black text-slate-900 dark:text-white border-b border-slate-100 pb-2 dark:border-slate-800 uppercase tracking-widest flex items-center gap-1.5">
+                <span className="h-5 w-5 rounded-md bg-blue-600 text-white flex items-center justify-center text-[10px] font-extrabold">01</span> Project Overview
+              </h4>
+              <p className="text-xs text-slate-600 dark:text-slate-350 leading-relaxed whitespace-pre-line text-justify">
+                {projectOverview}
+              </p>
+            </div>
+
+            {/* Section 2: Website Layout Features */}
+            <div className="space-y-4">
+              <h4 className="text-xs font-black text-slate-900 dark:text-white border-b border-slate-100 pb-2 dark:border-slate-800 uppercase tracking-widest flex items-center gap-1.5">
+                <span className="h-5 w-5 rounded-md bg-blue-600 text-white flex items-center justify-center text-[10px] font-extrabold">02</span> Layout &amp; Interactive Features
+              </h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                The bespoke website layout is engineered for speed, secure browsing, and local lead conversion. The following elements will be fully integrated:
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2 text-xs text-slate-700 dark:text-slate-300 font-medium">
+                {features.map((feat, index) => (
+                  <div key={index} className="flex items-start gap-2 bg-slate-50/40 p-2 rounded-lg border border-slate-100/50 dark:bg-slate-950/20 dark:border-slate-850">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                    <span>{feat}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Page break during printing for a perfectly formatted clean multi-page document */}
+            <div className="page-break" />
+
+            {/* Section 3: Structured Delivery Timeline */}
+            <div className="space-y-4 pt-4 print:pt-0">
+              <h4 className="text-xs font-black text-slate-900 dark:text-white border-b border-slate-100 pb-2 dark:border-slate-800 uppercase tracking-widest flex items-center gap-1.5">
+                <span className="h-5 w-5 rounded-md bg-blue-600 text-white flex items-center justify-center text-[10px] font-extrabold">03</span> Delivery Timeline &amp; Milestones
+              </h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                We employ an agile design roadmap to complete copy mapping and live server connections. Below is our phased timeline:
+              </p>
+              <div className="space-y-3">
+                {timelinePhases.map((phaseItem, index) => (
+                  <div key={index} className="flex gap-3 items-start">
+                    <div className="flex flex-col items-center shrink-0">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-50 text-[10px] font-bold text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 font-mono">
+                        {index + 1}
+                      </span>
+                    </div>
+                    <div>
+                      <h5 className="text-xs font-bold text-slate-850 dark:text-white">
+                        {phaseItem.phase} <span className="text-[10px] font-bold text-blue-600 bg-blue-50/80 px-2 py-0.2 rounded ml-1.5 dark:bg-blue-950/40 dark:text-blue-300">{phaseItem.duration}</span>
+                      </h5>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">{phaseItem.task}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Section 4: Project Deliverables */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-black text-slate-900 dark:text-white border-b border-slate-100 pb-2 dark:border-slate-800 uppercase tracking-widest flex items-center gap-1.5">
+                <span className="h-5 w-5 rounded-md bg-blue-600 text-white flex items-center justify-center text-[10px] font-extrabold">04</span> Contract Deliverables
+              </h4>
+              <ul className="space-y-2 text-xs text-slate-700 dark:text-slate-350 pl-1">
+                {deliverables.map((del, index) => (
+                  <li key={index} className="flex items-start gap-2.5">
+                    <span className="text-blue-500 shrink-0 select-none font-extrabold">▪</span>
+                    <span className="leading-relaxed">{del}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Section 5: Dynamic Investment & Pricing */}
+            <div className="space-y-4">
+              <h4 className="text-xs font-black text-slate-900 dark:text-white border-b border-slate-100 pb-2 dark:border-slate-800 uppercase tracking-widest flex items-center gap-1.5">
+                <span className="h-5 w-5 rounded-md bg-blue-600 text-white flex items-center justify-center text-[10px] font-extrabold">05</span> Investment Schedule
+              </h4>
+              
+              <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
+                <table className="w-full text-left border-collapse text-[11px]">
+                  <thead>
+                    <tr className="bg-slate-50 text-[9px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider border-b border-slate-200 dark:bg-slate-950 dark:border-slate-800">
+                      <th className="p-3">Deliverable Item Details</th>
+                      <th className="p-3 text-center">Billing Frequency</th>
+                      <th className="p-3 text-right">Investment Quote</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-700 dark:text-slate-300">
+                    {pricing.packagePrice > 0 && (
+                      <tr>
+                        <td className="p-3">
+                          <p className="font-extrabold text-slate-900 dark:text-white">{pricing.packageName}</p>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-normal mt-0.5">Professional custom layout configuration, mobile theme, content reviews.</p>
+                        </td>
+                        <td className="p-3 text-center text-slate-500 uppercase text-[9px]">One-Off Design</td>
+                        <td className="p-3 text-right font-mono font-bold">${pricing.packagePrice}</td>
+                      </tr>
+                    )}
+                    {(pricing.seoPrice > 0 || pricing.gbpOtpPrice > 0) && (
+                      <tr>
+                        <td className="p-3">
+                          <p className="font-extrabold text-slate-900 dark:text-white">Local Search SEO &amp; Google Map Grounding</p>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-normal mt-0.5">Custom localized meta titles, keywords indexing tag schemas, and map syncing.</p>
+                        </td>
+                        <td className="p-3 text-center text-slate-500 uppercase text-[9px]">One-Off SEO</td>
+                        <td className="p-3 text-right font-mono font-bold">${pricing.seoPrice + pricing.gbpOtpPrice}</td>
+                      </tr>
+                    )}
+                    {pricing.logoPrice > 0 && (
+                      <tr>
+                        <td className="p-3">
+                          <p className="font-extrabold text-slate-900 dark:text-white">Branded Logo Design &amp; Asset Deliverables</p>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-normal mt-0.5">Vector source assets, color configurations, favicon assets.</p>
+                        </td>
+                        <td className="p-3 text-center text-slate-500 uppercase text-[9px]">One-Off Logo</td>
+                        <td className="p-3 text-right font-mono font-bold">${pricing.logoPrice}</td>
+                      </tr>
+                    )}
+                    {(pricing.domainPrice > 0 || pricing.emailPrice > 0) && (
+                      <tr>
+                        <td className="p-3">
+                          <p className="font-extrabold text-slate-900 dark:text-white">Domain Acquisition &amp; Business Email Setups</p>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-normal mt-0.5">Custom domain registrations and MX mail server routing set up.</p>
+                        </td>
+                        <td className="p-3 text-center text-slate-500 uppercase text-[9px]">One-Off Setup</td>
+                        <td className="p-3 text-right font-mono font-bold">${pricing.domainPrice + pricing.emailPrice}</td>
+                      </tr>
+                    )}
+                    {pricing.hostingPrice > 0 && (
+                      <tr>
+                        <td className="p-3">
+                          <p className="font-extrabold text-slate-900 dark:text-white">Secure Hosting, SSL Certificates, &amp; CDN Edge Serving</p>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-normal mt-0.5">SSL secure padlock protection, ultra-low latency global site deliveries.</p>
+                        </td>
+                        <td className="p-3 text-center text-slate-500 uppercase text-[9px]">Monthly Recurring</td>
+                        <td className="p-3 text-right font-mono font-bold">${pricing.hostingPrice}/mo</td>
+                      </tr>
+                    )}
+                    {(pricing.maintenancePrice > 0 || pricing.supportMonthlyPrice > 0) && (
+                      <tr>
+                        <td className="p-3">
+                          <p className="font-extrabold text-slate-900 dark:text-white">Weekly Backups &amp; Support SLA Updates</p>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-normal mt-0.5">Continuous security updates, weekly copies backup, and up to 2 monthly maintenance SLA hours.</p>
+                        </td>
+                        <td className="p-3 text-center text-slate-500 uppercase text-[9px]">Monthly Recurring</td>
+                        <td className="p-3 text-right font-mono font-bold">${pricing.maintenancePrice + pricing.supportMonthlyPrice}/mo</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Cost Totals block */}
+              <div className="rounded-xl bg-slate-50 p-4 border border-slate-150 dark:bg-slate-950 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="text-left">
+                  <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider block">Investment Totals Summary</span>
+                  <p className="text-[10px] text-slate-500 mt-0.5">All quotes are subject to final agreement of scope.</p>
+                </div>
+                <div className="flex items-center gap-5 text-right">
+                  <div>
+                    <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider block">Total Setup (One-Off)</span>
+                    <p className="text-lg font-black text-slate-900 dark:text-white font-mono">${setupTotal}</p>
+                  </div>
+                  <div className="border-l border-slate-200 h-8 dark:border-slate-800" />
+                  <div>
+                    <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider block">SLA Support Monthly</span>
+                    <p className="text-lg font-black text-blue-600 dark:text-blue-400 font-mono">${monthlyTotal}/mo</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 6: Payment Instructions */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-black text-slate-900 dark:text-white border-b border-slate-100 pb-2 dark:border-slate-800 uppercase tracking-widest flex items-center gap-1.5">
+                <span className="h-5 w-5 rounded-md bg-blue-600 text-white flex items-center justify-center text-[10px] font-extrabold">06</span> Payment Instructions &amp; Setup Details
+              </h4>
+              <p className="text-xs text-slate-600 dark:text-slate-350 leading-relaxed whitespace-pre-wrap">
+                {renderedPaymentDetails}
+              </p>
+            </div>
+
+            {/* Section 7: Terms of Agreement */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-black text-slate-900 dark:text-white border-b border-slate-100 pb-2 dark:border-slate-800 uppercase tracking-widest flex items-center gap-1.5">
+                <span className="h-5 w-5 rounded-md bg-blue-600 text-white flex items-center justify-center text-[10px] font-extrabold">07</span> Terms of Service &amp; Agreement
+              </h4>
+              <div className="rounded-xl bg-slate-50 p-4 border border-slate-150 dark:bg-slate-950 dark:border-slate-800 max-h-[180px] overflow-y-auto leading-relaxed text-[11px] text-slate-500 dark:text-slate-400 text-justify whitespace-pre-wrap font-medium">
+                {contractTerms}
+              </div>
+            </div>
+
+            {/* Section 8: Interactive Acceptance Signatures */}
+            <div className="border-t border-slate-100 pt-6 dark:border-slate-800/80 space-y-4">
+              <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-1.5">
+                <span className="h-5 w-5 rounded-md bg-blue-600 text-white flex items-center justify-center text-[10px] font-extrabold">08</span> Execution of Agreement (Signatures)
+              </h4>
+              
+              <div className="grid gap-6 sm:grid-cols-2 text-xs">
+                {/* Agency Signature */}
+                <div className="space-y-2 border-r border-slate-100 pr-4 dark:border-slate-800/60 text-left">
+                  <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">SiteScout Representative</p>
+                  <div className="h-12 flex items-center border-b border-slate-200/80 dark:border-slate-800">
+                    <span className="font-serif italic text-lg text-blue-600 dark:text-blue-400 select-none">SiteScout Studio Representative</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 font-medium">Authorized Lead Agent • {userEmail}</p>
+                </div>
+
+                {/* Client Signature */}
+                <div className="space-y-2 text-left">
+                  <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Client Sign-off &amp; Approval</p>
+                  
+                  {isApproved ? (
+                    <div className="space-y-1">
+                      <div className="h-12 flex items-center border-b border-slate-200/80 dark:border-slate-800">
+                        <span className="font-serif italic text-lg text-emerald-600 dark:text-emerald-400 select-none">/s/ {signedName}</span>
+                      </div>
+                      <p className="text-[10px] text-emerald-600 font-extrabold flex items-center gap-1 uppercase tracking-wider pt-1">
+                        <CheckCircle2 className="h-3 w-3" /> Signed Digitally on {signedDate}
+                      </p>
+                    </div>
+                  ) : (
+                    /* Signature Form - hidden in print unless signed */
+                    <form onSubmit={handleSignContract} className="space-y-2.5 no-print">
+                      <input
+                        type="text"
+                        required
+                        placeholder="Type Full Name to Sign Digitally"
+                        value={signedName}
+                        onChange={(e) => setSignedName(e.target.value)}
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-950 text-slate-800 dark:text-white font-bold outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                      <button
+                        type="submit"
+                        className="w-full rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs py-2 px-3 transition-all cursor-pointer shadow-sm text-center"
+                      >
+                        Accept &amp; Approve Design
+                      </button>
+                    </form>
+                  )}
+                  
+                  {!isApproved && (
+                    <p className="text-[10px] text-slate-400 italic pt-1 print:hidden">Waiting for client signature approval.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}

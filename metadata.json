@@ -1,0 +1,6 @@
+{
+  "name": "SiteScout AI",
+  "description": "Discover businesses without websites, analyze their digital presence, generate stunning instant website previews, and close client deals with AI outreach and proposals.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

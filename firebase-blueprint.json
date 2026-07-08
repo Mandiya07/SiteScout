@@ -1,0 +1,39 @@
+{
+  "collections": [
+    {
+      "name": "users",
+      "fields": [
+        {
+          "name": "email",
+          "type": "string",
+          "description": "User's email address"
+        },
+        {
+          "name": "displayName",
+          "type": "string",
+          "description": "User's full name"
+        },
+        {
+          "name": "role",
+          "type": "string",
+          "description": "User role: 'admin' or 'user'"
+        },
+        {
+          "name": "createdAt",
+          "type": "timestamp",
+          "description": "Timestamp when the profile was created"
+        }
+      ],
+      "rules": [
+        {
+          "action": "read",
+          "condition": "request.auth != null && (request.auth.uid == documentId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')"
+        },
+        {
+          "action": "write",
+          "condition": "request.auth != null && (request.auth.uid == documentId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')"
+        }
+      ]
+    }
+  ]
+}

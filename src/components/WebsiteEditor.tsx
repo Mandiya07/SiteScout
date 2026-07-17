@@ -1329,8 +1329,8 @@ export default function WebsiteEditor({
             <div 
               className={`bg-white text-slate-900 rounded-2xl shadow-xl transition-all duration-300 border border-slate-200 overflow-hidden flex flex-col dark:bg-slate-900 dark:border-slate-800 ${
                 viewport === "mobile" 
-                  ? "w-[375px] h-[640px] rounded-[36px] border-[10px] border-slate-900 relative" 
-                  : "w-full h-full max-h-[720px]"
+                  ? "w-[375px] h-[660px] rounded-[36px] border-[10px] border-slate-900 relative" 
+                  : "w-full h-[780px] max-h-[840px]"
               }`}
             >
               {viewport === "mobile" && (
@@ -1339,7 +1339,7 @@ export default function WebsiteEditor({
               )}
 
               {/* Dynamic scroll view (delegated to WebsiteView) */}
-              <div className={`flex-grow flex flex-col overflow-hidden ${viewport === "mobile" ? "pt-4" : ""}`}>
+              <div className={`flex-grow flex flex-col overflow-y-auto ${viewport === "mobile" ? "pt-4" : ""}`}>
                 <WebsiteView site={site} />
               </div>
             </div>

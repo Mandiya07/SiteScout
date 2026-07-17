@@ -482,6 +482,12 @@ export default function TemplateLibrary({ onSelectTemplate, onBack }: TemplateLi
   });
 
   const instantiateTemplate = (tpl: IndustryTemplateMeta) => {
+    const additionalServices = [
+      { title: "Priority Consultation & Assessment", description: "Comprehensive initial review and customized plan tailored to your specific needs.", price: "$99" },
+      { title: "VIP Ongoing Support & Maintenance", description: "Dedicated ongoing assistance, priority booking, and periodic checkups.", price: "$150/mo" }
+    ];
+    const fullServices = [...tpl.sampleServices, ...additionalServices];
+
     const newSite: GeneratedSite = {
       id: `site-${Date.now()}`,
       businessName: tpl.name,
@@ -497,46 +503,55 @@ export default function TemplateLibrary({ onSelectTemplate, onBack }: TemplateLi
       seo: {
         title: tpl.seoTitle,
         description: tpl.seoDesc,
-        keywords: `${tpl.name.toLowerCase()}, ${tpl.category.toLowerCase()}, professional services`
+        keywords: `${tpl.name.toLowerCase()}, ${tpl.category.toLowerCase()}, professional services, expert solutions`
       },
       hero: {
         title: tpl.heroTitle,
         subtitle: tpl.heroSubtitle,
         ctaPrimary: tpl.ctaText,
-        ctaSecondary: "Learn More"
+        ctaSecondary: "Explore Services"
       },
       about: {
         title: `About ${tpl.name}`,
-        history: `Established with a mission to deliver unparalleled quality and excellence in the ${tpl.category} sector.`,
-        mission: `To provide trusted, customer-focused solutions adhering to the highest professional standards.`,
-        pitch: `We pride ourselves on our attention to detail, reliability, and dedication to exceeding customer expectations every single day.`
+        history: `Established with a steadfast commitment to excellence, ${tpl.name} has grown into a trusted leader in the ${tpl.category} industry.`,
+        mission: `Our mission is to deliver uncompromising quality, innovative solutions, and exceptional client satisfaction in every engagement.`,
+        pitch: `With years of specialized expertise, our dedicated team combines industry best practices with personalized service to achieve outstanding outcomes for our clients.`
       },
-      services: tpl.sampleServices,
+      services: fullServices,
       features: [
-        { title: "Responsive & Accessible", icon: "Smartphone", description: "Optimized for seamless performance across mobile, tablet, and desktop screens." },
-        { title: "SEO-Optimized & Fast", icon: "Globe", description: "Built with clean semantic markup and auto-generated sitemaps for maximum search visibility." },
-        { title: "Conversion Focused", icon: "ShieldCheck", description: "Engineered with high-intent CTAs and secure user touchpoints." }
+        { title: "Certified Professional Expertise", icon: "ShieldCheck", description: "Led by industry-certified specialists with a proven track record of top-tier delivery." },
+        { title: "Responsive & Accessible", icon: "Smartphone", description: "Fully optimized for seamless viewing and interaction across mobile, tablet, and desktop screens." },
+        { title: "Fast & Reliable Execution", icon: "Zap", description: "Streamlined operational workflows ensuring rapid turnaround without compromising craftsmanship." },
+        { title: "100% Satisfaction Guarantee", icon: "Award", description: "We stand firmly behind our work with dedicated follow-up and client assurance." }
       ],
-      gallery: [],
+      gallery: [
+        { url: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80", alt: "Professional environment showcase" },
+        { url: "https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=800&q=80", alt: "Team collaboration in action" },
+        { url: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80", alt: "High quality output preview" }
+      ],
       faqs: [
-        { question: "How can I get started?", answer: "Simply contact us via phone or online form to schedule your initial consultation." },
-        { question: "Do you offer satisfaction guarantees?", answer: "Yes, we stand behind our work with a 100% satisfaction guarantee." }
+        { question: "How quickly can we get started?", answer: "We provide rapid onboarding and can initiate your project or service within 24-48 hours." },
+        { question: "What is included in your service packages?", answer: "All packages include professional consultation, premium execution, dedicated support, and our 100% satisfaction guarantee." },
+        { question: "Are your team members licensed and insured?", answer: "Yes, all our professionals hold full industry credentials, active licenses, and comprehensive liability insurance." },
+        { question: "Can I customize the scope of work?", answer: "Absolutely. We tailor every solution to fit your exact requirements, timeline, and budget." }
       ],
       testimonials: [
-        { name: "Sarah M.", review: "Absolute perfection! The level of professionalism and quality exceeded all expectations.", rating: 5 },
-        { name: "David L.", review: "Fast, reliable, and incredibly transparent. Will definitely be returning.", rating: 5 }
+        { name: "Jessica Taylor", review: `Working with ${tpl.name} was an absolute game-changer. Exceptional professionalism and outstanding results!`, rating: 5 },
+        { name: "Marcus Vance", review: "Prompt, incredibly knowledgeable, and truly dedicated to customer satisfaction. Highly recommended.", rating: 5 },
+        { name: "Elena Rostova", review: "The level of care and precision they brought to the table exceeded all our expectations.", rating: 5 }
       ],
       blog: [
-        { title: "Industry Trends to Watch in 2026", summary: "Explore the latest innovations and standards shaping our industry this year.", category: "Insights" }
+        { title: `Top Best Practices in ${tpl.category} for 2026`, summary: "Discover expert strategies and proven methodologies to maximize success and efficiency.", category: "Industry Insights" },
+        { title: `Why Professional Excellence Matters More Than Ever`, summary: "An in-depth look at how premium standards drive long-term client trust and satisfaction.", category: "Expertise" }
       ],
-      whatsappMessage: `Hello ${tpl.name}, I would like to inquire about your services.`,
+      whatsappMessage: `Hello ${tpl.name}, I would like to inquire about your services and schedule a consultation.`,
       contactPage: {
         title: "Get in Touch With Us Today",
         description: "Reach out to our team for inquiries, quotes, or consultations. We are here to help.",
         email: `contact@${tpl.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.com`
       },
-      privacyPolicy: "We protect your privacy with strict data security standards.",
-      termsOfService: "Standard terms and conditions apply to all services.",
+      privacyPolicy: "We protect your privacy with strict data security standards and never share your information.",
+      termsOfService: "Standard terms and conditions apply to all service agreements.",
       notFoundPage: {
         title: "Page Not Found",
         message: "The page you are looking for does not exist or has been relocated."

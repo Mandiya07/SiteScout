@@ -1,0 +1,24 @@
+{
+  "name": "SiteScout AI",
+  "short_name": "SiteScout",
+  "description": "Discover businesses without websites, analyze their digital presence, generate stunning instant website previews, and close client deals with AI outreach and proposals.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#2563eb",
+  "orientation": "portrait-primary",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/sitescout_icon.jpg",
+      "sizes": "1024x1024",
+      "type": "image/jpeg"
+    }
+  ]
+}

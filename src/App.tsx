@@ -370,7 +370,7 @@ export default function App() {
         <div className="flex-1 overflow-hidden flex flex-col py-6">
           {clientViewport === "desktop" ? (
             <div className="flex-1 max-w-7xl w-full mx-auto px-6">
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden flex flex-col h-full dark:bg-slate-900 dark:border-slate-800">
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden flex flex-col h-[740px] max-h-[800px] dark:bg-slate-900 dark:border-slate-800">
                 <div className="h-9 bg-slate-50 border-b border-slate-200 px-4 flex items-center justify-between shrink-0 dark:bg-slate-950 dark:border-slate-850">
                   <div className="flex items-center space-x-1.5">
                     <div className="h-3 w-3 rounded-full bg-red-400" />
@@ -382,7 +382,7 @@ export default function App() {
                   </div>
                   <div className="w-12" />
                 </div>
-                <div className="flex-grow flex flex-col overflow-hidden">
+                <div className="flex-grow flex flex-col overflow-y-auto">
                   <WebsiteView site={publicPreviewSite} />
                 </div>
               </div>

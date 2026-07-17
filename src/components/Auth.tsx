@@ -14,6 +14,7 @@ import {
   serverTimestamp
 } from '../lib/firebase';
 import { Mail, Lock, LogIn, UserPlus, AlertCircle, RefreshCw } from 'lucide-react';
+import Logo from './Logo';
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -97,11 +98,14 @@ export default function Auth() {
   return (
     <div className="flex min-h-[80vh] items-center justify-center p-4">
       <div className="w-full max-w-md space-y-8 rounded-2xl bg-white p-8 shadow-xl dark:bg-slate-900 border border-slate-100 dark:border-slate-800">
-        <div className="text-center">
-          <h2 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+        <div className="text-center flex flex-col items-center">
+          <div className="mb-4">
+            <Logo variant="full" size="md" />
+          </div>
+          <h2 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">
             {isLogin ? 'Welcome back' : 'Create an account'}
           </h2>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
             {isLogin ? 'Sign in to your account to continue' : 'Get started with SiteScout AI'}
           </p>
         </div>

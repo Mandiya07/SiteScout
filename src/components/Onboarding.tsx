@@ -1,4 +1,5 @@
 import { CheckCircle2, Play, Search, ArrowRight, ShieldAlert, FileText, Send, DollarSign, X } from "lucide-react";
+import Logo from "./Logo";
 
 interface OnboardingProps {
   onClose: () => void;
@@ -42,14 +43,9 @@ export default function Onboarding({ onClose, onStartSearch }: OnboardingProps) 
   return (
     <div className="rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50/50 via-indigo-50/20 to-white p-6 shadow-sm dark:border-slate-800 dark:from-slate-900/40 dark:via-indigo-950/10 dark:to-slate-950 transition-colors duration-200">
       <div className="flex items-start justify-between">
-        <div>
-          <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-            Quick Onboarding Guide
-          </span>
-          <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-            Welcome to SiteScout AI – "Find. Build. Close."
-          </h2>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        <div className="space-y-3">
+          <Logo variant="full" size="md" />
+          <p className="text-sm text-slate-600 dark:text-slate-300 max-w-2xl">
             Discover offline local businesses, instantly generate professional website previews, and win paying clients.
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-1.5">

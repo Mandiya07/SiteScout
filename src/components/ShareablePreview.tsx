@@ -199,7 +199,7 @@ export default function ShareablePreview({
             )}
 
             {previewDevice === "desktop" && (
-              <div className="rounded-2xl border border-slate-200 bg-white shadow-md overflow-hidden flex flex-col h-[520px] dark:border-slate-800 dark:bg-slate-900 animate-fade-in">
+              <div className="rounded-2xl border border-slate-200 bg-white shadow-md overflow-hidden flex flex-col h-[740px] dark:border-slate-800 dark:bg-slate-900 animate-fade-in">
                 {/* Simulated browser search/action bar */}
                 <div className="h-9 bg-slate-50 border-b border-slate-200 px-4 flex items-center justify-between shrink-0 dark:bg-slate-950 dark:border-slate-850">
                   <div className="flex items-center space-x-1.5">
@@ -212,7 +212,7 @@ export default function ShareablePreview({
                   </div>
                   <div className="w-12" />
                 </div>
-                <div className="flex-1 overflow-hidden flex flex-col">
+                <div className="flex-1 overflow-y-auto flex flex-col">
                   <WebsiteView site={site} />
                 </div>
               </div>

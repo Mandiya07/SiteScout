@@ -87,6 +87,7 @@ export default function Navbar({
     { id: "templates", label: "Templates" },
     { id: "proposals", label: "Proposals & Pricing" },
     { id: "portal", label: "Client Portal" },
+    { id: "crm", label: "CRM Sync" },
     ...(session.role === "Admin" ? [{ id: "admin", label: "Admin Console" }] : [])
   ];
 

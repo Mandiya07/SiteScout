@@ -41,7 +41,12 @@ export default function Auth() {
       }, { merge: true });
       
     } catch (err: any) {
-      setError(err.message);
+      if (err.code === 'auth/popup-closed-by-user') {
+        setError('');
+        setMessage('Sign-in cancelled. You can try again when you are ready.');
+      } else {
+        setError(err.message || 'An error occurred during sign in.');
+      }
     } finally {
       setLoading(false);
     }

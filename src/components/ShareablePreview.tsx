@@ -212,7 +212,7 @@ export default function ShareablePreview({
                   </div>
                   <div className="w-12" />
                 </div>
-                <div className="flex-1 overflow-y-auto flex flex-col">
+                <div className="flex-1 overflow-hidden flex flex-col">
                   <WebsiteView site={site} />
                 </div>
               </div>

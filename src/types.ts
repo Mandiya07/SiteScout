@@ -139,6 +139,7 @@ export interface GeneratedSite {
     lastPublished?: string;
     status?: "published" | "unpublished";
   };
+  crmSynced?: boolean;
 }
 
 export interface SalesOutreach {

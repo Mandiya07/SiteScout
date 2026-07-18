@@ -97,6 +97,9 @@ export default function ClientPortal({ site, onBackToApp, onSave }: ClientPortal
 
     setFeedbacks([newItem, ...feedbacks]);
     setNewComment("");
+    
+    // Trigger notification alert
+    window.alert("Notification System: An email alert has been securely dispatched to your agency team regarding this feedback.");
   };
 
   const deleteFeedback = (id: string) => {

@@ -246,11 +246,11 @@ export default function WebsiteView({ site }: WebsiteViewProps) {
   };
 
   return (
-    <div className="flex-1 w-full flex flex-col" style={{ backgroundColor: site.backgroundColor, color: site.textColor }}>
+    <div className="flex-1 w-full flex flex-col h-full overflow-hidden" style={{ backgroundColor: site.backgroundColor, color: site.textColor }}>
       {/* Header Nav */}
-      <header className="sticky top-0 z-30 border-b border-slate-100 bg-white/95 backdrop-blur-sm p-4 flex items-center justify-between" style={{ borderBottomColor: `${site.primaryColor}10` }}>
+      <header className="sticky top-0 z-30 border-b border-slate-100 bg-white/95 backdrop-blur-sm p-4 flex items-center justify-between shrink-0" style={{ borderBottomColor: `${site.primaryColor}10` }}>
         {renderHeaderLogo()}
-        <nav className="flex items-center space-x-4 text-[10px] font-bold text-slate-500">
+        <nav className="flex items-center space-x-4 text-[10px] font-bold text-slate-500 overflow-x-auto whitespace-nowrap scrollbar-none max-w-[60%] sm:max-w-full">
           <button onClick={() => setActivePage('home')} className={`hover:text-slate-900 ${activePage === 'home' ? 'text-slate-900 font-extrabold' : ''} cursor-pointer`}>Home</button>
           {sectionsOrder.includes("about") && <button onClick={() => setActivePage('about')} className={`hover:text-slate-900 ${activePage === 'about' ? 'text-slate-900 font-extrabold' : ''} cursor-pointer`}>About</button>}
           {sectionsOrder.includes("services") && <button onClick={() => setActivePage('services')} className={`hover:text-slate-900 ${activePage === 'services' ? 'text-slate-900 font-extrabold' : ''} cursor-pointer`}>Services</button>}
@@ -258,7 +258,7 @@ export default function WebsiteView({ site }: WebsiteViewProps) {
           {sectionsOrder.includes("blog") && <button onClick={() => setActivePage('blog')} className={`hover:text-slate-900 ${activePage === 'blog' ? 'text-slate-900 font-extrabold' : ''} cursor-pointer`}>Blog</button>}
           {sectionsOrder.includes("contact") && <button onClick={() => setActivePage('contact')} className={`hover:text-slate-900 ${activePage === 'contact' ? 'text-slate-900 font-extrabold' : ''} cursor-pointer`}>Contact</button>}
         </nav>
-        <div className="flex items-center space-x-2.5">
+        <div className="flex items-center space-x-2.5 shrink-0">
           <a href={`tel:${site.phone}`} className="flex h-7 w-7 items-center justify-center rounded-lg text-white shadow-xs transition-transform hover:scale-105" style={{ backgroundColor: site.accentColor }}>
             <Phone className="h-3.5 w-3.5" />
           </a>

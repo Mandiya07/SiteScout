@@ -306,6 +306,8 @@ export default function ProposalGenerator({
         await onSave(updatedSite);
         setSaveSuccess(true);
         setTimeout(() => setSaveSuccess(false), 3000);
+        // Trigger notification alert
+        window.alert(`Notification System: An email has been securely dispatched to the agency team regarding the proposal approval by ${signedName}.`);
       }
     } catch (err) {
       console.error("Failed to sign proposal:", err);

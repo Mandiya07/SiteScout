@@ -17,8 +17,9 @@
     },
     {
       "src": "/sitescout_icon.jpg",
-      "sizes": "1024x1024",
-      "type": "image/jpeg"
+      "sizes": "192x192 512x512 1024x1024",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
     }
   ]
 }

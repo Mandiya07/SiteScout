@@ -44,6 +44,9 @@ export default function Auth() {
       if (err.code === 'auth/popup-closed-by-user') {
         setError('');
         setMessage('Sign-in cancelled. You can try again when you are ready.');
+      } else if (err.code === 'auth/popup-blocked' || (err.message && err.message.toLowerCase().includes('popup-blocked'))) {
+        setError('Pop-up blocked! Please click the pop-up/redirect blocker icon in your browser address bar to allow pop-ups for this site, or open the application in a new tab to sign in.');
+        setMessage('');
       } else {
         setError(err.message || 'An error occurred during sign in.');
       }

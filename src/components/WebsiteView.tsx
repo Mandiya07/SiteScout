@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { GeneratedSite } from "../types";
 import { 
-  Phone, MapPin, MessageSquare, ChevronDown, Check, Sparkles, Wrench, Utensils, HeartPulse, Scale, Briefcase, Home, Camera, Scissors, ShieldCheck
+  Phone, MapPin, MessageSquare, ChevronDown, Check, Sparkles, Wrench, Utensils, HeartPulse, Scale, Briefcase, Home, Camera, Scissors, ShieldCheck,
+  GraduationCap, Church, Building2, Zap, TreePine, Trophy, Flag, HeartHandshake, Dumbbell, ShoppingBag, Users
 } from "lucide-react";
 
 interface WebsiteViewProps {
@@ -10,6 +11,22 @@ interface WebsiteViewProps {
 
 export default function WebsiteView({ site }: WebsiteViewProps) {
   const [activePage, setActivePage] = useState<"home" | "about" | "services" | "gallery" | "blog" | "contact" | "privacy" | "terms" | "404">("home");
+
+  // Track view telemetry when viewed in standalone or public preview mode
+  useEffect(() => {
+    if (site && (site.previewToken || site.id)) {
+      const isPublicPreviewRoute = window.location.pathname.includes("/preview/");
+      if (isPublicPreviewRoute) {
+        const token = site.previewToken || site.id;
+        const device = window.innerWidth < 768 ? "mobile" : "desktop";
+        fetch(`/api/preview/${token}/view`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ device, referrer: document.referrer || "direct" })
+        }).catch(() => {});
+      }
+    }
+  }, [site?.id, site?.previewToken]);
 
   const getFontFamilyClass = (style: string) => {
     switch (style) {
@@ -25,7 +42,8 @@ export default function WebsiteView({ site }: WebsiteViewProps) {
     if (logoType === "icon") {
       const iconId = site.logoIcon || "Sparkles";
       const logoIcons: Record<string, any> = {
-        Sparkles, Wrench, Utensils, HeartPulse, Scale, Briefcase, Home, Camera, Scissors, ShieldCheck
+        Sparkles, Wrench, Utensils, HeartPulse, Scale, Briefcase, Home, Camera, Scissors, ShieldCheck,
+        GraduationCap, Church, Building2, Zap, TreePine, Trophy, Flag, HeartHandshake, Dumbbell, ShoppingBag, Users
       };
       const SelectedIcon = logoIcons[iconId] || Sparkles;
       return (

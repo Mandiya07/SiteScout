@@ -3,8 +3,7 @@ const ASSETS = [
   "/",
   "/index.html",
   "/manifest.json",
-  "/icon.svg",
-  "/sitescout_icon.jpg"
+  "/icon.svg"
 ];
 
 // Install Event - cache core static resources

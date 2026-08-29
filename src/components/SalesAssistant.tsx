@@ -56,8 +56,15 @@ export default function SalesAssistant({ site, onBack }: SalesAssistantProps) {
     setTimeout(() => setCopiedSection(""), 2500);
   };
 
+  const getPreviewUrl = () => {
+    return site.previewToken 
+      ? `${window.location.origin}/preview/${site.previewToken}` 
+      : `${window.location.origin}/preview/${site.id}`;
+  };
+
   const getWhatsappHref = (msg: string) => {
-    return `https://wa.me/${site.phone.replace(/[^0-9+]/g, "")}?text=${encodeURIComponent(msg)}`;
+    const cleanPhone = (site.phone || "").replace(/[^0-9]/g, "");
+    return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
   };
 
   // Helper to parse subject and body from the email template
@@ -200,6 +207,40 @@ export default function SalesAssistant({ site, onBack }: SalesAssistantProps) {
             className="px-4 py-2 bg-slate-900 hover:bg-slate-850 dark:bg-slate-800 dark:hover:bg-slate-700 text-white dark:text-slate-100 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} /> Regenerate Playbooks
+          </button>
+        </div>
+      </div>
+
+      {/* Consultative Golden Rule Card */}
+      <div className="rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50/60 via-indigo-50/40 to-slate-50 p-4 dark:border-blue-900/40 dark:from-slate-900 dark:via-blue-950/30 dark:to-slate-900 shadow-xs">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="h-9 w-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <Sparkles className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-700 dark:text-blue-400 bg-blue-100 dark:bg-blue-950/60 px-2 py-0.5 rounded-md">
+                  Consultative Outreach Rule
+                </span>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                  Open a conversation, not a pitch
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                Never ask: <span className="line-through text-red-500 font-medium">"Do you need a website?"</span>. Instead say: <span className="font-bold text-slate-900 dark:text-white bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 px-1.5 py-0.5 rounded">"I noticed something about your online presence and I think I can help you improve it."</span>
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              const hook = `Hi! I noticed something specific about ${site.businessName}'s online presence in ${site.address} and thought I could help you improve it. I put together a live interactive preview customized for your business: ${getPreviewUrl()}`;
+              handleCopy(hook, "rule_hook");
+            }}
+            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors shadow-2xs cursor-pointer"
+          >
+            {copiedSection === "rule_hook" ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5 text-slate-500" />}
+            {copiedSection === "rule_hook" ? "Copied Hook!" : "Copy 'I Noticed...' Hook"}
           </button>
         </div>
       </div>

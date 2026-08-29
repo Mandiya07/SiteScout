@@ -1,5 +1,22 @@
+export interface DigitalDeficitAudit {
+  noWebsite: boolean;
+  outdatedWebsite: boolean;
+  noGooglePresence: boolean;
+  noSocialMedia: boolean;
+  poorBranding: boolean;
+  noWhatsappCta: boolean;
+  noOnlineCatalogue: boolean;
+  noBookingSystem: boolean;
+  noEnquiryForm: boolean;
+  noSeo: boolean;
+  brokenLinks: boolean;
+  poorMobileExperience: boolean;
+  missingContact: boolean;
+}
+
 export interface PresenceMetrics {
   hasWebsite: boolean;
+  websiteUrl?: string;
   hasEmail: boolean;
   facebookStatus: "active" | "weak" | "none";
   instagramStatus: "active" | "weak" | "none";
@@ -9,6 +26,16 @@ export interface PresenceMetrics {
   descriptionQuality: "good" | "fair" | "poor";
   openingHoursStatus: "complete" | "missing";
   contactCompleteness: "complete" | "partial" | "missing";
+  // Detailed 13-point deficit flags
+  deficits?: DigitalDeficitAudit;
+}
+
+export interface AuditEvidence {
+  checkedAt: string;
+  source: string;
+  httpStatus?: number | string;
+  websiteVerified: boolean;
+  notes: string;
 }
 
 export interface Business {
@@ -22,14 +49,47 @@ export interface Business {
   presence: PresenceMetrics;
   description: string;
   presenceScore?: number;
+  opportunityScore?: number;
   analysis?: OpportunityAnalysis;
+  directorySource?: string;
+  deficitCount?: number;
+  evidence?: AuditEvidence;
+  sourceUrl?: string;
+  // Enhanced Tripartite Scoring (Point 43, 44, 45)
+  businessQualityScore?: number;
+  digitalDeficitScore?: number;
+  websiteOpportunityScore?: number;
+  // Prospect pipeline fields
+  prospectStatus?: ProspectStatus;
+  lastContactedAt?: string;
+  nextFollowUpDate?: string;
+  prospectNotes?: string;
+  siteId?: string;
+  previewToken?: string;
+  previewViews?: number;
+  previewLastViewedAt?: string;
+  previewDevice?: "mobile" | "desktop";
 }
+
+export type ProspectStatus = 
+  | "New"
+  | "Analyzed"
+  | "Preview Ready"
+  | "Preview Sent"
+  | "Follow-up 1"
+  | "Follow-up 2"
+  | "Interested"
+  | "Proposal Sent"
+  | "Won"
+  | "Lost";
 
 export interface OpportunityAnalysis {
   presenceScore: number;
+  opportunityScore: number;
   whyWebsiteNeeded: string;
   recommendations: string[];
   competitorPitches: string[];
+  evidenceSummary?: string;
 }
 
 export interface SeoMetadata {
@@ -74,6 +134,7 @@ export interface TestimonialItem {
   name: string;
   review: string;
   rating: number;
+  isVerified?: boolean;
 }
 
 export interface BlogPostItem {
@@ -89,6 +150,11 @@ export interface GalleryImage {
 
 export interface GeneratedSite {
   id: string;
+  businessId?: string;
+  ownerId?: string;
+  previewToken?: string;
+  createdAt?: string;
+  updatedAt?: string;
   businessName: string;
   phone: string;
   address: string;
@@ -129,6 +195,9 @@ export interface GeneratedSite {
   clientApproved?: boolean;
   clientApprovedBy?: string;
   clientApprovedAt?: string;
+  previewViews?: number;
+  previewLastViewedAt?: string;
+  previewHistory?: { timestamp: string; device: "mobile" | "desktop"; referrer?: string }[];
   proposal?: Proposal;
   publishing?: {
     customDomain?: string;
@@ -188,6 +257,22 @@ export interface SearchFilters {
   category: string;
   keywords: string;
   radius: string;
+  directorySource?: string;
+  deficitFilters?: {
+    noWebsite?: boolean;
+    outdatedWebsite?: boolean;
+    noGooglePresence?: boolean;
+    noSocialMedia?: boolean;
+    poorBranding?: boolean;
+    noWhatsappCta?: boolean;
+    noOnlineCatalogue?: boolean;
+    noBookingSystem?: boolean;
+    noEnquiryForm?: boolean;
+    noSeo?: boolean;
+    brokenLinks?: boolean;
+    poorMobileExperience?: boolean;
+    missingContact?: boolean;
+  };
 }
 
 export interface UserSession {
@@ -197,4 +282,30 @@ export interface UserSession {
   role: "Admin" | "User";
   subscription: "Free Trial" | "Pro Plan" | "Agency VIP";
   isVerified: boolean;
+}
+
+export interface PartnerNiche {
+  id: string;
+  name: string;
+  icon: string;
+  tagline: string;
+  whyTheyNeedUs: string;
+  averageClientNeed: string;
+  pitchHook: string;
+  typicalTicketSize: string;
+  suggestedSplit: string;
+  searchQuery: string;
+}
+
+export interface PartnerDeal {
+  id: string;
+  partnerName: string;
+  partnerType: string;
+  partnerEmail: string;
+  partnerPhone: string;
+  status: "Targeted" | "Prospecting" | "Contacted" | "In Negotiation" | "Agreement Signed" | "Active Partner";
+  splitPercentage: number;
+  referredClientCount: number;
+  totalRevenueGenerated: number;
+  notes: string;
 }

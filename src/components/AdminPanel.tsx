@@ -30,7 +30,7 @@ interface IndustryItem {
 }
 
 export default function AdminPanel() {
-  const [activeTab, setActiveTab] = useState<"users" | "subscriptions" | "templates" | "industries" | "prompts" | "analytics" | "announcements" | "security">("users");
+  const [activeTab, setActiveTab] = useState<"users" | "ai_usage" | "searches" | "websites" | "errors">("users");
 
   // Users State
   const [users, setUsers] = useState<UserItem[]>([
@@ -43,52 +43,37 @@ export default function AdminPanel() {
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserPlan, setNewUserPlan] = useState<"Free Trial" | "Pro Plan" | "Agency VIP">("Pro Plan");
 
-  // Subscriptions State
-  const [subscriptions, setSubscriptions] = useState([
-    { id: "sub-1", client: "Sipho M. (Agency VIP)", plan: "Agency VIP ($299/mo)", renewal: "Aug 12, 2026", status: "Active" },
-    { id: "sub-2", client: "Apex Plumbing", plan: "Pro Plan ($79/mo)", renewal: "Jul 28, 2026", status: "Active" },
-    { id: "sub-3", client: "Vance Legal Counsel", plan: "Free Trial ($0)", renewal: "Expired", status: "Trial Expired" },
-    { id: "sub-4", client: "Glow Spa & Wellness", plan: "Pro Plan ($79/mo)", renewal: "Aug 02, 2026", status: "Active" },
-  ]);
+  // AI Usage State
+  const aiStats = {
+    totalRequests: 1248,
+    successfulGenerations: 1192,
+    fallbackActivations: 56,
+    avgLatencyMs: 840,
+    activeModel: "Gemini 2.5 Flash / Flash Lite Multi-Pool",
+    quotaRemaining: "99.4%"
+  };
 
-  // Templates State
-  const [templates, setTemplates] = useState<TemplateItem[]>([
-    { id: "tpl-1", title: "Modern Home Trades", category: "Plumbing / HVAC", swatch: "bg-blue-600", fontStyle: "Space Grotesk" },
-    { id: "tpl-2", title: "Executive Legal & Advisory", category: "Legal & Consulting", swatch: "bg-emerald-700", fontStyle: "Playfair Display" },
-    { id: "tpl-3", title: "Minimalist Wellness Studio", category: "Spa & Salon", swatch: "bg-rose-500", fontStyle: "Inter Sans" },
-    { id: "tpl-4", title: "Gourmet Bistro & Cafe", category: "Food & Hospitality", swatch: "bg-amber-600", fontStyle: "Outfit Modern" },
-  ]);
-  const [newTplTitle, setNewTplTitle] = useState("");
-  const [newTplCategory, setNewTplCategory] = useState("");
+  // Recent Business Searches
+  const recentSearches = [
+    { id: "s-1", category: "Construction & Civil Works", location: "Mbabane, Eswatini", resultsCount: 8, timestamp: "Today, 10:14 AM", status: "Verified" },
+    { id: "s-2", category: "Restaurants & Diners", location: "Manzini, Eswatini", resultsCount: 12, timestamp: "Today, 09:30 AM", status: "Verified" },
+    { id: "s-3", category: "Salons & Spas", location: "Ezulwini, Eswatini", resultsCount: 6, timestamp: "Yesterday, 04:22 PM", status: "Verified" },
+    { id: "s-4", category: "Plumbing & Electrical", location: "Johannesburg, SA", resultsCount: 15, timestamp: "Yesterday, 02:10 PM", status: "Verified" },
+  ];
 
-  // Industries State
-  const [industries, setIndustries] = useState<IndustryItem[]>([
-    { id: "ind-1", name: "Emergency Plumbing & Drain", defaultCategory: "Home Services", activeCount: 142 },
-    { id: "ind-2", name: "HVAC Installation & Repair", defaultCategory: "Home Services", activeCount: 98 },
-    { id: "ind-3", name: "Corporate Legal Counsel", defaultCategory: "Professional Services", activeCount: 64 },
-    { id: "ind-4", name: "Luxury Day Spa & Massage", defaultCategory: "Wellness & Beauty", activeCount: 85 },
-  ]);
-  const [newIndName, setNewIndName] = useState("");
+  // Generated Websites
+  const generatedWebsites = [
+    { id: "w-1", name: "Swazi Peak Construction", category: "Construction", token: "prv_8f29k1", views: 18, status: "Active Preview", date: "Today" },
+    { id: "w-2", name: "Apex Commercial Plumbing", category: "Plumbing", token: "prv_3a91m4", views: 24, status: "Client Approved", date: "Yesterday" },
+    { id: "w-3", name: "Mbabane Auto Mechanical", category: "Auto Repairs", token: "prv_7c44p0", views: 9, status: "Proposal Sent", date: "2 days ago" },
+    { id: "w-4", name: "Ezulwini Sanctuary Spa", category: "Spa & Salon", token: "prv_1e88v9", views: 42, status: "Active Preview", date: "3 days ago" },
+  ];
 
-  // Prompts State
-  const [promptValue, setPromptValue] = useState(
-    "Generate a complete small business website structure. Write high-converting sales copy, localized SEO meta title, description, and keywords based on the local presence audit details..."
-  );
-
-  // Announcements State
-  const [announcementsList, setAnnouncementsList] = useState([
-    { id: "ann-1", text: "Scheduled system upgrade on Saturday from 2:00 AM to 4:00 AM UTC.", date: "Today, 08:30 AM" }
-  ]);
-  const [newAnnouncement, setNewAnnouncement] = useState("");
-  const [announcementSuccess, setAnnouncementSuccess] = useState(false);
-
-  // Audit Logs
-  const logs = [
-    { id: "log-1", ip: "102.14.88.204", event: "Vite dev asset compilation request", status: "success", timestamp: "Today, 12:44:11" },
-    { id: "log-2", ip: "192.168.1.10", event: "Firebase Authentication proxy sync", status: "success", timestamp: "Today, 12:42:05" },
-    { id: "log-3", ip: "85.24.110.15", event: "Gemini AI API Model Flash proxy request", status: "success", timestamp: "Today, 12:35:50" },
-    { id: "log-4", ip: "34.12.8.94", event: "Digital Presence score audit executed", status: "success", timestamp: "Today, 12:30:15" },
-    { id: "log-5", ip: "102.14.88.204", event: "New admin dashboard login authorized", status: "authorized", timestamp: "Today, 12:00:01" }
+  // System Errors & Health Logs
+  const systemErrors = [
+    { id: "err-1", type: "API Warning", code: "503 High Demand", detail: "Gemini upstream spike handled by intelligent retry pool", time: "Today, 08:12:04", severity: "Low (Resolved)" },
+    { id: "err-2", type: "Network Notice", code: "HMR Disabled", detail: "Platform HMR safety lock verified", time: "Today, 07:45:00", severity: "Info" },
+    { id: "err-3", type: "Verification Check", code: "Domain Verify", detail: "Checked SSL certificates and reverse proxy routing", time: "Yesterday, 11:30:19", severity: "Resolved" }
   ];
 
   const handleAddUser = (e: FormEvent) => {
@@ -109,50 +94,6 @@ export default function AdminPanel() {
     setNewUserEmail("");
   };
 
-  const handleAddTemplate = (e: FormEvent) => {
-    e.preventDefault();
-    if (!newTplTitle) return;
-    setTemplates([
-      ...templates,
-      {
-        id: `tpl-${Date.now()}`,
-        title: newTplTitle,
-        category: newTplCategory || "General Trade",
-        swatch: "bg-indigo-600",
-        fontStyle: "Inter Sans"
-      }
-    ]);
-    setNewTplTitle("");
-    setNewTplCategory("");
-  };
-
-  const handleAddIndustry = (e: FormEvent) => {
-    e.preventDefault();
-    if (!newIndName) return;
-    setIndustries([
-      ...industries,
-      {
-        id: `ind-${Date.now()}`,
-        name: newIndName,
-        defaultCategory: "Local Services",
-        activeCount: 1
-      }
-    ]);
-    setNewIndName("");
-  };
-
-  const handleDispatchAnnouncement = (e: FormEvent) => {
-    e.preventDefault();
-    if (!newAnnouncement) return;
-    setAnnouncementsList([
-      { id: `ann-${Date.now()}`, text: newAnnouncement, date: "Just now" },
-      ...announcementsList
-    ]);
-    setAnnouncementSuccess(true);
-    setNewAnnouncement("");
-    setTimeout(() => setAnnouncementSuccess(false), 3000);
-  };
-
   return (
     <div className="space-y-6 text-left">
       {/* Title */}
@@ -162,7 +103,7 @@ export default function AdminPanel() {
             <Settings className="h-6 w-6 text-slate-500" /> Admin Console
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Full enterprise administrative suite: users, subscriptions, templates, industries, AI prompts, analytics, and audit logs.
+            Core system management: platform users, AI token usage, business searches, generated preview websites, and system error diagnostics.
           </p>
         </div>
 
@@ -170,13 +111,10 @@ export default function AdminPanel() {
         <div className="flex flex-wrap items-center gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-900/60 shrink-0">
           {[
             { id: "users", label: "Users", icon: Users },
-            { id: "subscriptions", label: "Subscriptions", icon: CreditCard },
-            { id: "templates", label: "Templates", icon: Layers },
-            { id: "industries", label: "Industries", icon: Briefcase },
-            { id: "prompts", label: "AI Prompts", icon: Sparkles },
-            { id: "analytics", label: "Analytics", icon: BarChart3 },
-            { id: "announcements", label: "Announcements", icon: BellRing },
-            { id: "security", label: "Audit Logs", icon: Terminal },
+            { id: "ai_usage", label: "AI Usage", icon: Sparkles },
+            { id: "searches", label: "Business Searches", icon: BarChart3 },
+            { id: "websites", label: "Generated Websites", icon: Layers },
+            { id: "errors", label: "System Errors", icon: AlertCircle },
           ].map((tab) => {
             const Icon = tab.icon;
             return (
@@ -203,13 +141,11 @@ export default function AdminPanel() {
           
           {activeTab === "users" && (
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                    <Users className="h-5 w-5 text-blue-500" /> Manage Platform Users
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Add, review, edit permissions, or suspend client accounts.</p>
-                </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <Users className="h-5 w-5 text-blue-500" /> Platform Users & Team
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">Manage registered operators, licenses, and account statuses.</p>
               </div>
 
               {/* Add User Form */}
@@ -282,7 +218,7 @@ export default function AdminPanel() {
                         <td className="p-3 text-right">
                           <button 
                             onClick={() => setUsers(users.filter(x => x.id !== u.id))}
-                            className="text-slate-400 hover:text-red-500 p-1"
+                            className="text-slate-400 hover:text-red-500 p-1 cursor-pointer"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -295,276 +231,153 @@ export default function AdminPanel() {
             </div>
           )}
 
-          {activeTab === "subscriptions" && (
+          {activeTab === "ai_usage" && (
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-6">
               <div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <CreditCard className="h-5 w-5 text-emerald-500" /> Manage Subscriptions & Billing Tiers
+                  <Sparkles className="h-5 w-5 text-indigo-500" /> AI Usage &amp; Quota Telemetry
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">Monitor active agency retainers, plan renewals, and payment statuses.</p>
+                <p className="text-xs text-slate-500 mt-0.5">Real-time statistics for Gemini API calls, schema generations, and fallback safety.</p>
               </div>
 
-              <div className="space-y-3">
-                {subscriptions.map(sub => (
-                  <div key={sub.id} className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-950/30 flex items-center justify-between text-xs">
-                    <div className="space-y-1">
-                      <p className="font-bold text-slate-900 dark:text-white">{sub.client}</p>
-                      <p className="text-slate-500">{sub.plan} • Renews: {sub.renewal}</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
-                        sub.status === "Active" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400" : "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
-                      }`}>
-                        {sub.status}
-                      </span>
-                      <button className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 font-bold hover:bg-slate-100 dark:hover:bg-slate-800">
-                        Edit Tier
-                      </button>
-                    </div>
-                  </div>
-                ))}
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-950/30">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">Total API Requests</span>
+                  <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">{aiStats.totalRequests}</p>
+                  <p className="text-[10px] text-emerald-600 font-bold mt-1">✓ 95.5% Success Rate</p>
+                </div>
+                <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-950/30">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">Avg Generation Speed</span>
+                  <p className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-1">{aiStats.avgLatencyMs}ms</p>
+                  <p className="text-[10px] text-slate-500 mt-1">Flash Model Parallel Pool</p>
+                </div>
+                <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-950/30">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">Quota Remaining</span>
+                  <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">{aiStats.quotaRemaining}</p>
+                  <p className="text-[10px] text-emerald-600 font-bold mt-1">High Availability Active</p>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-indigo-50/50 border border-indigo-100 dark:bg-indigo-950/20 dark:border-indigo-900/40 text-xs text-slate-700 dark:text-slate-300">
+                <div className="flex items-center gap-2 mb-1">
+                  <Activity className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                  <span className="font-bold text-indigo-900 dark:text-indigo-300">Intelligent Fallback Architecture</span>
+                </div>
+                <p className="text-[11px] leading-relaxed">
+                  SiteScout AI automatically rotates through Gemini 2.5 Flash, Gemini 2.5 Pro, and Gemini 3.1 Flash Lite with exponential backoff on 503 high-demand events.
+                </p>
               </div>
             </div>
           )}
 
-          {activeTab === "templates" && (
+          {activeTab === "searches" && (
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-6">
               <div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <Layers className="h-5 w-5 text-indigo-500" /> Managed Industry Visual Templates
+                  <BarChart3 className="h-5 w-5 text-amber-500" /> Business Directory Searches
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">Configure default themes, color swatches, and design structures.</p>
+                <p className="text-xs text-slate-500 mt-0.5">Recent business discovery queries, scanned markets, and verified local records.</p>
               </div>
 
-              {/* Add Template Form */}
-              <form onSubmit={handleAddTemplate} className="grid gap-3 sm:grid-cols-3 p-4 rounded-xl border border-slate-100 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-950/30">
-                <input
-                  type="text"
-                  placeholder="Template Title"
-                  required
-                  value={newTplTitle}
-                  onChange={(e) => setNewTplTitle(e.target.value)}
-                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs dark:border-slate-800 dark:bg-slate-900 text-slate-800 dark:text-white"
-                />
-                <input
-                  type="text"
-                  placeholder="Category (e.g., HVAC)"
-                  value={newTplCategory}
-                  onChange={(e) => setNewTplCategory(e.target.value)}
-                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs dark:border-slate-800 dark:bg-slate-900 text-slate-800 dark:text-white"
-                />
-                <button
-                  type="submit"
-                  className="inline-flex items-center justify-center gap-1 px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs cursor-pointer shadow-sm"
-                >
-                  <Plus className="h-4 w-4" /> Add Template
-                </button>
-              </form>
-
-              {/* Grid list of templates */}
-              <div className="grid gap-3.5 sm:grid-cols-2">
-                {templates.map((tpl) => (
-                  <div key={tpl.id} className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-950/25 flex items-center justify-between">
-                    <div className="text-left space-y-1">
-                      <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">{tpl.title}</h4>
-                      <p className="text-[10px] text-slate-500 font-medium">{tpl.category} • Font: {tpl.fontStyle}</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className={`h-6 w-6 rounded-full ${tpl.swatch} border-2 border-white shadow-sm`} />
-                      <button 
-                        onClick={() => setTemplates(templates.filter(t => t.id !== tpl.id))}
-                        className="text-slate-400 hover:text-red-500 p-1"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 dark:bg-slate-950 text-slate-400 uppercase tracking-wider text-[10px]">
+                    <tr>
+                      <th className="p-3">Target Category</th>
+                      <th className="p-3">Location</th>
+                      <th className="p-3">Leads Found</th>
+                      <th className="p-3">Timestamp</th>
+                      <th className="p-3 text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                    {recentSearches.map(s => (
+                      <tr key={s.id}>
+                        <td className="p-3 font-bold text-slate-900 dark:text-white">{s.category}</td>
+                        <td className="p-3 text-slate-600 dark:text-slate-300">{s.location}</td>
+                        <td className="p-3">
+                          <span className="font-mono font-bold text-blue-600 dark:text-blue-400">{s.resultsCount} leads</span>
+                        </td>
+                        <td className="p-3 text-slate-400">{s.timestamp}</td>
+                        <td className="p-3 text-right">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 uppercase">
+                            {s.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
 
-          {activeTab === "industries" && (
+          {activeTab === "websites" && (
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-6">
               <div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <Briefcase className="h-5 w-5 text-amber-500" /> Manage Industries & Trade Sectors
+                  <Layers className="h-5 w-5 text-purple-500" /> Generated Preview Websites
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">Add or configure target trade industries for automated search & prospecting.</p>
+                <p className="text-xs text-slate-500 mt-0.5">Track live generated client previews, viewer traffic, and proposal conversion status.</p>
               </div>
 
-              {/* Add Industry Form */}
-              <form onSubmit={handleAddIndustry} className="flex gap-3 p-4 rounded-xl border border-slate-100 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-950/30">
-                <input
-                  type="text"
-                  placeholder="Industry Name (e.g., Commercial Roofing)"
-                  required
-                  value={newIndName}
-                  onChange={(e) => setNewIndName(e.target.value)}
-                  className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs dark:border-slate-800 dark:bg-slate-900 text-slate-800 dark:text-white"
-                />
-                <button
-                  type="submit"
-                  className="inline-flex items-center gap-1 px-4 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs cursor-pointer shadow-sm"
-                >
-                  <Plus className="h-4 w-4" /> Add Industry
-                </button>
-              </form>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 dark:bg-slate-950 text-slate-400 uppercase tracking-wider text-[10px]">
+                    <tr>
+                      <th className="p-3">Business Prospect</th>
+                      <th className="p-3">Category</th>
+                      <th className="p-3">Preview Token</th>
+                      <th className="p-3">Views</th>
+                      <th className="p-3 text-right">Conversion State</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                    {generatedWebsites.map(w => (
+                      <tr key={w.id}>
+                        <td className="p-3 font-bold text-slate-900 dark:text-white">{w.name}</td>
+                        <td className="p-3 text-slate-500">{w.category}</td>
+                        <td className="p-3 font-mono text-slate-600 dark:text-slate-300">{w.token}</td>
+                        <td className="p-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">{w.views} views</td>
+                        <td className="p-3 text-right">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                            w.status === "Client Approved"
+                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
+                              : "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400"
+                          }`}>
+                            {w.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
-              {/* Industries list */}
-              <div className="space-y-3">
-                {industries.map(ind => (
-                  <div key={ind.id} className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-950/30 flex items-center justify-between text-xs">
+          {activeTab === "errors" && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <AlertCircle className="h-5 w-5 text-rose-500" /> System Health &amp; Error Telemetry
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">Audit log of system runtime events, API spikes, and recovery metrics.</p>
+              </div>
+
+              <div className="space-y-2.5 pt-2">
+                {systemErrors.map(err => (
+                  <div key={err.id} className="p-3.5 rounded-xl border border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-950/30 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                     <div>
-                      <p className="font-bold text-slate-900 dark:text-white">{ind.name}</p>
-                      <p className="text-[10px] text-slate-400">Category: {ind.defaultCategory} • {ind.activeCount} Businesses Indexed</p>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-900 dark:text-white">{err.type}</span>
+                        <span className="font-mono text-[10px] bg-slate-200 dark:bg-slate-800 px-1.5 py-0.2 rounded text-slate-700 dark:text-slate-300">{err.code}</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">{err.detail}</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">{err.time}</p>
                     </div>
-                    <button 
-                      onClick={() => setIndustries(industries.filter(i => i.id !== ind.id))}
-                      className="text-slate-400 hover:text-red-500 p-1"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {activeTab === "prompts" && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <Sparkles className="h-5 w-5 text-blue-500" /> Global AI Generation Prompts
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">Adjust the global instructions passed to Gemini when compiling local website content.</p>
-              </div>
-
-              <div className="space-y-4 pt-2">
-                <div>
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">System Prompt Core Instructions</label>
-                  <textarea
-                    rows={6}
-                    value={promptValue}
-                    onChange={(e) => setPromptValue(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-3.5 py-2.5 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-800 dark:text-white leading-relaxed font-mono focus:outline-none"
-                  />
-                </div>
-
-                <div className="flex items-center justify-end">
-                  <button
-                    onClick={() => alert("Global prompt instructions saved successfully in cloud configuration memory!")}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs py-2 px-4 transition-all shadow-sm shadow-blue-500/10 cursor-pointer"
-                  >
-                    Save Prompts Override
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === "analytics" && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <BarChart3 className="h-5 w-5 text-emerald-500" /> Real-Time Platform Performance & Analytics
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">Inspecting global system search statistics, API load factors, and subscription revenue totals.</p>
-              </div>
-
-              {/* Grid metrics stats layout */}
-              <div className="grid gap-3.5 sm:grid-cols-3 pt-2">
-                <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/35 text-left">
-                  <span className="text-[10px] text-slate-400 font-extrabold uppercase">Monthly API Load</span>
-                  <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">42,804</p>
-                  <p className="text-[10px] text-emerald-600 font-bold mt-1">▲ 14.5% vs. Last Month</p>
-                </div>
-                <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/35 text-left">
-                  <span className="text-[10px] text-slate-400 font-extrabold uppercase">Avg Audit Speed</span>
-                  <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">1.82s</p>
-                  <p className="text-[10px] text-emerald-600 font-bold mt-1">✓ Optimized Node Cache</p>
-                </div>
-                <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/35 text-left">
-                  <span className="text-[10px] text-slate-400 font-extrabold uppercase">Platform Revenue</span>
-                  <p className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-1">$14,690</p>
-                  <p className="text-[10px] text-emerald-600 font-bold mt-1">▲ Recurring active MRR</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === "announcements" && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-6">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <BellRing className="h-5 w-5 text-indigo-500" /> Manage Announcements & Broadcasts
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">Dispatch system-wide announcements or platform updates directly to all active clients' portal dashboards.</p>
-              </div>
-
-              <form onSubmit={handleDispatchAnnouncement} className="space-y-3">
-                <textarea
-                  rows={3}
-                  required
-                  placeholder="E.g., System Maintenance Schedule scheduled on Saturday..."
-                  value={newAnnouncement}
-                  onChange={(e) => setNewAnnouncement(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-800 dark:text-white focus:outline-none"
-                />
-                <button
-                  type="submit"
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs py-2.5 px-4 transition-all cursor-pointer shadow-sm shadow-indigo-500/10"
-                >
-                  <Send className="h-3.5 w-3.5" /> Dispatch Announcement Broadcast
-                </button>
-              </form>
-
-              {announcementSuccess && (
-                <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3 text-center text-xs text-emerald-700 font-bold dark:bg-emerald-950/30 dark:text-emerald-400 flex items-center justify-center gap-1">
-                  <Check className="h-4 w-4" /> Announcement dispatched successfully!
-                </div>
-              )}
-
-              {/* Active Announcements List */}
-              <div className="space-y-3 pt-2">
-                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Broadcast History</h4>
-                {announcementsList.map(ann => (
-                  <div key={ann.id} className="p-3.5 rounded-xl border border-slate-100 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-950/30 text-xs flex items-center justify-between">
-                    <div>
-                      <p className="font-semibold text-slate-800 dark:text-slate-200">{ann.text}</p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">Dispatched: {ann.date}</p>
-                    </div>
-                    <button 
-                      onClick={() => setAnnouncementsList(announcementsList.filter(a => a.id !== ann.id))}
-                      className="text-slate-400 hover:text-red-500 p-1"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {activeTab === "security" && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <Terminal className="h-5 w-5 text-amber-500" /> Platform Security Log Audits
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">Real-time listing of server access indicators, database queries, and credentials lookup trails.</p>
-              </div>
-
-              {/* List of security logs */}
-              <div className="space-y-2 pt-2">
-                {logs.map((log) => (
-                  <div key={log.id} className="rounded-xl border border-slate-100 bg-slate-50/50 p-3.5 dark:border-slate-850 dark:bg-slate-950/20 text-xs font-mono flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-left">
-                    <div className="space-y-0.5">
-                      <p className="font-bold text-slate-800 dark:text-slate-200">{log.event}</p>
-                      <p className="text-[10px] text-slate-400">Host IP: {log.ip} • Timestamp: {log.timestamp}</p>
-                    </div>
-                    <span className="shrink-0 rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/45 dark:text-emerald-400 uppercase tracking-wide">
-                      {log.status}
+                    <span className="rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/45 dark:text-emerald-400">
+                      {err.severity}
                     </span>
                   </div>
                 ))}
@@ -574,48 +387,48 @@ export default function AdminPanel() {
 
         </div>
 
-        {/* Right Column (1/3 size): Quick Stats & Storage */}
+        {/* Right Column (1/3 size): Platform Health Summary */}
         <div className="space-y-6">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
             <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1">
-              <Activity className="h-4 w-4 text-emerald-500" /> Platform Health Summary
+              <Activity className="h-4 w-4 text-emerald-500" /> Platform Overview
             </h3>
             
             <div className="space-y-3 text-xs">
               <div className="flex justify-between">
-                <span className="text-slate-400">Registered Users</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200">{users.length} Active</span>
+                <span className="text-slate-400">Active Operators</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">{users.length} Users</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Managed Templates</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200">{templates.length} Styles</span>
+                <span className="text-slate-400">Total Discovery Searches</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">1,420 Searches</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Target Industries</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200">{industries.length} Sectors</span>
+                <span className="text-slate-400">Live Client Previews</span>
+                <span className="font-bold text-indigo-600 dark:text-indigo-400">{generatedWebsites.length} Active</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">SSL Certificate Status</span>
-                <span className="font-bold text-emerald-500">Auto-Renewed</span>
+                <span className="text-slate-400">API Health Status</span>
+                <span className="font-bold text-emerald-500">100% Operational</span>
               </div>
             </div>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-3.5 text-xs">
             <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
-              <Database className="h-4 w-4 text-blue-500" /> DB Storage Allocation
+              <Database className="h-4 w-4 text-blue-500" /> System Architecture
             </h3>
             <div className="flex justify-between font-semibold">
-              <span className="text-slate-400">Total Queries Run</span>
-              <span className="text-slate-800 dark:text-slate-200">148,409</span>
+              <span className="text-slate-400">Core Loop</span>
+              <span className="text-slate-800 dark:text-slate-200">Discover &rarr; Build &rarr; Close</span>
             </div>
             <div className="flex justify-between font-semibold">
-              <span className="text-slate-400">Active Records</span>
-              <span className="text-slate-800 dark:text-slate-200">2,840 Items</span>
+              <span className="text-slate-400">AI Model</span>
+              <span className="text-slate-800 dark:text-slate-200">Gemini 2.5 Flash</span>
             </div>
             <div className="flex justify-between font-semibold">
-              <span className="text-slate-400">Cache Allocation</span>
-              <span className="text-emerald-500">98% Efficient</span>
+              <span className="text-slate-400">Audit Protocol</span>
+              <span className="text-emerald-500">13-Point Digital Matrix</span>
             </div>
           </div>
         </div>

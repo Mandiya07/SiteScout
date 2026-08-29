@@ -3,7 +3,8 @@ import { GeneratedSite } from "../types";
 import WebsiteView from "./WebsiteView";
 import { 
   Copy, Check, Share2, Mail, MessageSquare, QrCode, 
-  Clock, CheckCircle, ExternalLink, ArrowRight, Settings, Phone, Calendar, ArrowUpRight
+  Clock, CheckCircle, ExternalLink, ArrowRight, Settings, Phone, Calendar, ArrowUpRight,
+  Eye, Smartphone, Monitor, Flame
 } from "lucide-react";
 
 interface ShareablePreviewProps {
@@ -25,7 +26,9 @@ export default function ShareablePreview({
   const [showQr, setShowQr] = useState(false);
   const [expiry, setExpiry] = useState("14");
   const [previewDevice, setPreviewDevice] = useState<"mockup" | "desktop" | "mobile">("mockup");
-  const [customLink] = useState(() => `${window.location.origin}/preview/${site.id}`);
+  const customLink = site.previewToken 
+    ? `${window.location.origin}/preview/${site.previewToken}` 
+    : `${window.location.origin}/preview/${site.id}`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(customLink);
@@ -234,6 +237,52 @@ export default function ShareablePreview({
 
         {/* Right Column (1/3 size): Share methods & Admin Portal details */}
         <div className="space-y-6">
+          {/* Live Client Engagement & View Telemetry (Point 42) */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+                <Eye className="h-4 w-4 text-blue-600" />
+                Live Preview Signals
+              </h3>
+              <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-bold text-blue-800 dark:bg-blue-950/60 dark:text-blue-300">
+                {(site.previewViews || 0) > 0 ? `${site.previewViews} Views` : "Awaiting First View"}
+              </span>
+            </div>
+
+            <div className="mt-3.5 space-y-2.5">
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-150 dark:border-slate-800 text-xs">
+                <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
+                  <span>Total Client Opens:</span>
+                  <span className="font-bold text-slate-900 dark:text-white font-mono text-sm">
+                    {site.previewViews || 0}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-slate-600 dark:text-slate-400 mt-1.5">
+                  <span>Last Activity:</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">
+                    {site.previewLastViewedAt 
+                      ? new Date(site.previewLastViewedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                      : "Not opened yet"}
+                  </span>
+                </div>
+              </div>
+
+              {(site.previewViews || 0) >= 2 ? (
+                <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2">
+                  <Flame className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="font-bold block">🔥 High Intent Sales Signal</strong>
+                    <span>{site.businessName} has viewed this interactive prototype {site.previewViews} times! This is the ideal window to call or WhatsApp them directly.</span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Telemetry automatically captures when the prospect opens this link, on mobile or desktop, giving you actionable timing to follow up.
+                </p>
+              )}
+            </div>
+          </div>
+
           {/* Share Channels */}
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Instant Sharing Actions</h3>

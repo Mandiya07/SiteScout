@@ -71,6 +71,13 @@ export default function CRMSync({ businesses, sites, onBack }: CRMSyncProps) {
         </div>
       </div>
 
+      <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-600 dark:text-slate-400">
+        <div className="flex items-center gap-2">
+          <Database className="h-4 w-4 text-blue-500 shrink-0" />
+          <span><strong>Integration Preview Mode:</strong> Test field mapping & webhook payloads locally before connecting enterprise OAuth credentials.</span>
+        </div>
+      </div>
+
       <div className="grid gap-6 md:grid-cols-3">
         {/* Sync Controls */}
         <div className="md:col-span-2 space-y-6">

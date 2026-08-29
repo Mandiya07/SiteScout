@@ -1,5 +1,11 @@
-import { Check, AlertTriangle, HelpCircle, ChevronRight, Zap, ArrowLeft, Star, HeartCrack, Flame, CheckCircle2 } from "lucide-react";
-import { Business } from "../types";
+import React, { useState } from "react";
+import { 
+  Check, AlertTriangle, ChevronRight, Zap, ArrowLeft, HeartCrack, 
+  Flame, CheckCircle2, XCircle, Globe, MapPin, Layers, Sparkles, 
+  MessageSquare, ShoppingBag, Calendar, Mail, Search, Smartphone, 
+  Phone, TrendingDown, DollarSign, ShieldAlert, RefreshCw, ExternalLink, ShieldCheck
+} from "lucide-react";
+import { Business, DigitalDeficitAudit } from "../types";
 
 interface OpportunityAnalysisProps {
   business: Business;
@@ -8,14 +14,166 @@ interface OpportunityAnalysisProps {
   loading: boolean;
 }
 
+const DEFICIT_DEFINITIONS: { 
+  key: keyof DigitalDeficitAudit; 
+  label: string; 
+  icon: any; 
+  revenueImpact: string; 
+  pitchHook: string;
+}[] = [
+  { 
+    key: "noWebsite", 
+    label: "No Dedicated Website", 
+    icon: Globe, 
+    revenueImpact: "Losing ~65% of searchers who research suppliers online first", 
+    pitchHook: "Build a modern fast-loading web landing page to capture high-intent buyers." 
+  },
+  { 
+    key: "outdatedWebsite", 
+    label: "Terrible / Outdated Web Design", 
+    icon: ShieldAlert, 
+    revenueImpact: "High bounce rates due to poor trust & 2000s era layout", 
+    pitchHook: "Upgrade to a sleek, modern visual design that builds instant authority." 
+  },
+  { 
+    key: "noGooglePresence", 
+    label: "No Google Maps / Profile Presence", 
+    icon: MapPin, 
+    revenueImpact: "Invisible on local 'near me' Google searches & directions", 
+    pitchHook: "Optimize Google Maps positioning with structured schema and business address." 
+  },
+  { 
+    key: "noSocialMedia", 
+    label: "No Active Social Media", 
+    icon: Layers, 
+    revenueImpact: "Missing community trust & organic word-of-mouth validation", 
+    pitchHook: "Integrate direct links to Facebook, Instagram, and LinkedIn company updates." 
+  },
+  { 
+    key: "poorBranding", 
+    label: "Poor / Missing Brand Identity", 
+    icon: Sparkles, 
+    revenueImpact: "Seen as a budget amateur provider rather than an industry authority", 
+    pitchHook: "Deploy high-res vector branding, polished typography, and clean brand colors." 
+  },
+  { 
+    key: "noWhatsappCta", 
+    label: "No WhatsApp Direct CTA Button", 
+    icon: MessageSquare, 
+    revenueImpact: "Losing 40%+ mobile leads who prefer instant direct messaging over email", 
+    pitchHook: "Add a 1-click floating WhatsApp chat button to convert direct inquiries in seconds." 
+  },
+  { 
+    key: "noOnlineCatalogue", 
+    label: "No Online Product/Service Catalogue", 
+    icon: ShoppingBag, 
+    revenueImpact: "Prospects cannot inspect package offerings or inventory pricing", 
+    pitchHook: "Showcase an interactive service and product showcase with clear feature lists." 
+  },
+  { 
+    key: "noBookingSystem", 
+    label: "No Online Booking / Appointment Engine", 
+    icon: Calendar, 
+    revenueImpact: "Friction in scheduling site visits, consultations, or service calls", 
+    pitchHook: "Provide an automated appointment booking request interface." 
+  },
+  { 
+    key: "noEnquiryForm", 
+    label: "No Structured Quote / Enquiry Form", 
+    icon: Mail, 
+    revenueImpact: "After-hours leads drop off without an easy way to submit requests", 
+    pitchHook: "Include an instant quote request form with lead email notifications." 
+  },
+  { 
+    key: "noSeo", 
+    label: "No Local Search SEO Optimization", 
+    icon: Search, 
+    revenueImpact: "Competitors with basic meta tags rank above them on Google", 
+    pitchHook: "Implement targeted local SEO meta tags, OpenGraph data, and fast Core Web Vitals." 
+  },
+  { 
+    key: "brokenLinks", 
+    label: "Broken Links / Insecure Connection", 
+    icon: XCircle, 
+    revenueImpact: "Browser security warnings scare away prospective corporate clients", 
+    pitchHook: "Guarantee modern SSL encryption, zero broken links, and high uptime." 
+  },
+  { 
+    key: "poorMobileExperience", 
+    label: "Poor Smartphone / Mobile Responsiveness", 
+    icon: Smartphone, 
+    revenueImpact: "Over 75% of local African & global traffic is mobile-first", 
+    pitchHook: "Deliver a fluid, responsive mobile layout with tap-to-call and quick actions." 
+  },
+  { 
+    key: "missingContact", 
+    label: "Missing Direct Contact Channels", 
+    icon: Phone, 
+    revenueImpact: "Frustrated customers abandon inquiry when contact info is hard to find", 
+    pitchHook: "Prominently display verified phone numbers, direct email, and map location." 
+  }
+];
+
 export default function OpportunityAnalysis({
   business,
   onBack,
   onGenerateWebsite,
   loading
 }: OpportunityAnalysisProps) {
+  const [testUrl, setTestUrl] = useState<string>("");
+  const [isAuditingUrl, setIsAuditingUrl] = useState<boolean>(false);
+  const [customAuditResult, setCustomAuditResult] = useState<any>(null);
+
   const analysis = business.analysis;
-  const score = analysis?.presenceScore || 45;
+  const score = business.presenceScore || analysis?.presenceScore || 38;
+
+  // Resolve deficits
+  const getBusinessDeficits = (biz: Business): DigitalDeficitAudit => {
+    if (customAuditResult?.audit?.deficits) {
+      return customAuditResult.audit.deficits;
+    }
+    if (biz.presence?.deficits) {
+      return biz.presence.deficits;
+    }
+    return {
+      noWebsite: !biz.presence?.hasWebsite,
+      outdatedWebsite: false,
+      noGooglePresence: biz.presence?.googleProfileQuality === 'poor',
+      noSocialMedia: biz.presence?.facebookStatus === 'none' && biz.presence?.instagramStatus === 'none',
+      poorBranding: biz.presence?.photosStatus === 'missing' || biz.presence?.photosStatus === 'outdated',
+      noWhatsappCta: true,
+      noOnlineCatalogue: !biz.presence?.hasWebsite,
+      noBookingSystem: true,
+      noEnquiryForm: !biz.presence?.hasEmail,
+      noSeo: !biz.presence?.hasWebsite,
+      brokenLinks: !biz.presence?.hasWebsite,
+      poorMobileExperience: !biz.presence?.hasWebsite,
+      missingContact: !biz.presence?.hasEmail || biz.presence?.contactCompleteness === 'missing'
+    };
+  };
+
+  const deficits = getBusinessDeficits(business);
+  const activeDeficitsCount = Object.values(deficits).filter(Boolean).length;
+
+  const handleRunLiveAudit = async () => {
+    setIsAuditingUrl(true);
+    try {
+      const target = testUrl.trim() || `${business.name.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`;
+      const res = await fetch("/api/audit-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: target, businessName: business.name })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCustomAuditResult(data);
+      }
+    } catch (e) {
+      console.error("Live audit failed:", e);
+    } finally {
+      setIsAuditingUrl(false);
+    }
+  };
 
   // Helper to resolve scoring badge colors
   const getScoreColor = (num: number) => {
@@ -27,31 +185,35 @@ export default function OpportunityAnalysis({
   const colors = getScoreColor(score);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 text-left">
       {/* Header and Back Link */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <button
           onClick={onBack}
-          className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white transition-colors"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white transition-colors cursor-pointer"
         >
-          <ArrowLeft className="h-4 w-4" /> Back to Business Finder
+          <ArrowLeft className="h-4 w-4" /> Back to Prospecting Directory
         </button>
-        <span className="text-xs text-slate-400 dark:text-slate-500">
-          Auditing ID: {business.id}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-slate-400 dark:text-slate-500">
+            Prospect: <strong className="text-slate-700 dark:text-slate-200">{business.name}</strong> ({business.category})
+          </span>
+        </div>
       </div>
 
       {/* Main Analysis Card Grid */}
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Left Column: Digital Presence Score Circle and Presence parameters */}
+        {/* Left Column: Digital Presence Score Circle and Summary */}
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 transition-colors">
-          <h3 className="text-lg font-bold text-slate-900 dark:text-white">Digital Presence Audit</h3>
+          <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+            Digital Presence Scorecard
+          </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Calculated score based on search visibility indicators, accessibility, and listing completeness.
+            Systematic audit based on the 13 core digital deficit indicators.
           </p>
 
           {/* Circle Gauge Display */}
-          <div className="my-8 flex flex-col items-center justify-center">
+          <div className="my-6 flex flex-col items-center justify-center">
             <div className="relative flex h-36 w-36 items-center justify-center">
               {/* SVG circular track and fill */}
               <svg className="absolute top-0 left-0 h-full w-full -rotate-90">
@@ -77,184 +239,256 @@ export default function OpportunityAnalysis({
               </svg>
               <div className="text-center">
                 <span className="text-4xl font-extrabold text-slate-900 dark:text-white">{score}</span>
-                <span className="text-xs font-semibold text-slate-400 block mt-0.5">Presence Score</span>
+                <span className="text-xs font-bold text-slate-400 block mt-0.5">/ 100 Score</span>
               </div>
             </div>
 
-            <div className={`mt-4 rounded-full px-3.5 py-1 text-xs font-bold ${colors.bg} ${colors.text} border ${colors.border}`}>
-              {score < 40 ? "Critical Vulnerability" : score < 70 ? "Needs Website Optimization" : "Good Standing"}
+            <div className={`mt-3 rounded-full px-3.5 py-1 text-xs font-bold ${colors.bg} ${colors.text} border ${colors.border}`}>
+              {activeDeficitsCount >= 8 ? "🔥 Extreme Sales Opportunity" : activeDeficitsCount >= 5 ? "⚡ High Priority Prospect" : "Moderate Need"}
             </div>
           </div>
 
-          {/* Quick presence checkpoints */}
-          <div className="border-t border-slate-100 pt-5 dark:border-slate-800 space-y-3.5">
+          {/* Quick Opportunity Stats */}
+          <div className="border-t border-slate-100 pt-4 dark:border-slate-800 space-y-3">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-500 dark:text-slate-400">Website URL Status</span>
-              <span className="font-bold text-red-500 flex items-center gap-1.5 bg-red-50 px-2 py-0.5 rounded-full dark:bg-red-950/20">
-                <HeartCrack className="h-3 w-3" /> Missing
+              <span className="text-slate-500 dark:text-slate-400 font-medium">Opportunity Score</span>
+              <span className="font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full font-mono">
+                {business.opportunityScore ?? (100 - score)}% Close Probability
               </span>
             </div>
             <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-500 dark:text-slate-400">Google Listing Quality</span>
-              <span className={`font-bold capitalize px-2 py-0.5 rounded-full ${
-                business.presence.googleProfileQuality === "good" ? "text-emerald-500 bg-emerald-50 dark:bg-emerald-950/20" :
-                business.presence.googleProfileQuality === "fair" ? "text-amber-500 bg-amber-50 dark:bg-amber-950/20" : "text-red-500 bg-red-50 dark:bg-red-950/20"
-              }`}>
-                {business.presence.googleProfileQuality}
+              <span className="text-slate-500 dark:text-slate-400 font-medium">Deficits Identified</span>
+              <span className="font-extrabold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 px-2 py-0.5 rounded-full">
+                {activeDeficitsCount} of 13 Gaps
               </span>
             </div>
             <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-500 dark:text-slate-400">Facebook Page Status</span>
-              <span className={`font-bold capitalize px-2 py-0.5 rounded-full ${
-                business.presence.facebookStatus === "active" ? "text-emerald-500 bg-emerald-50 dark:bg-emerald-950/20" :
-                business.presence.facebookStatus === "weak" ? "text-amber-500 bg-amber-50 dark:bg-amber-950/20" : "text-red-500 bg-red-50 dark:bg-red-950/20"
-              }`}>
-                {business.presence.facebookStatus}
+              <span className="text-slate-500 dark:text-slate-400 font-medium">Estimated Revenue Leak</span>
+              <span className="font-bold text-amber-600 dark:text-amber-400">
+                40% - 60% Monthly Inquiries
+              </span>
+            </div>
+            {business.evidence && !customAuditResult && (
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400">
+                <div className="flex items-center gap-1.5 font-bold text-slate-800 dark:text-slate-200 mb-1">
+                  <ShieldCheck className="h-3.5 w-3.5 text-blue-600" />
+                  Verified Evidence
+                </div>
+                <p>{business.evidence.notes}</p>
+                <div className="mt-1 flex items-center justify-between text-[10px] text-slate-400">
+                  <span>Source: {business.evidence.source}</span>
+                  <span className="font-mono">{business.evidence.httpStatus}</span>
+                </div>
+              </div>
+            )}
+
+            {customAuditResult && (
+              <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 text-[11px] text-emerald-900 dark:text-emerald-300">
+                <div className="flex items-center gap-1.5 font-bold text-emerald-800 dark:text-emerald-200 mb-1">
+                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                  Live HTTP Audit Confirmed
+                </div>
+                <p className="text-[11px]">{customAuditResult.evidence?.notes}</p>
+                <div className="mt-1 flex items-center justify-between text-[10px] text-emerald-700 dark:text-emerald-400 font-mono">
+                  <span>Latency: {customAuditResult.evidence?.responseTimeMs}ms</span>
+                  <span>{customAuditResult.evidence?.httpStatus}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Real-Time Live URL Auditor tool */}
+            <div className="p-3 rounded-xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40">
+              <label className="block text-[11px] font-bold text-blue-950 dark:text-blue-200 mb-1.5">
+                Run Real-Time Live Domain / URL Audit
+              </label>
+              <div className="flex gap-1.5">
+                <input
+                  type="text"
+                  placeholder="e.g. example.com or domain"
+                  value={testUrl}
+                  onChange={(e) => setTestUrl(e.target.value)}
+                  className="flex-1 rounded-lg border border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                />
+                <button
+                  onClick={handleRunLiveAudit}
+                  disabled={isAuditingUrl}
+                  className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-blue-700 transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  <RefreshCw className={`h-3 w-3 ${isAuditingUrl ? 'animate-spin' : ''}`} />
+                  {isAuditingUrl ? "Pinging..." : "Live Audit"}
+                </button>
+              </div>
+              <p className="text-[9px] text-blue-700/80 dark:text-blue-300/80 mt-1">
+                Performs a genuine HTTP ping & DOM inspection to check mobile viewport, SSL, and CTAs.
+              </p>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-500 dark:text-slate-400 font-medium">Phone / WhatsApp</span>
+              <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                {business.phone}
               </span>
             </div>
             <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-500 dark:text-slate-400">Instagram Handle</span>
-              <span className={`font-bold capitalize px-2 py-0.5 rounded-full ${
-                business.presence.instagramStatus === "active" ? "text-emerald-500 bg-emerald-50 dark:bg-emerald-950/20" :
-                business.presence.instagramStatus === "weak" ? "text-amber-500 bg-amber-50 dark:bg-amber-950/20" : "text-red-500 bg-red-50 dark:bg-red-950/20"
-              }`}>
-                {business.presence.instagramStatus}
+              <span className="text-slate-500 dark:text-slate-400 font-medium">Physical Location</span>
+              <span className="text-slate-700 dark:text-slate-300 truncate max-w-[150px]" title={business.address}>
+                {business.address}
               </span>
             </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-500 dark:text-slate-400">Description Quality</span>
-              <span className={`font-bold capitalize px-2 py-0.5 rounded-full ${
-                business.presence.descriptionQuality === "good" ? "text-emerald-500 bg-emerald-50 dark:bg-emerald-950/20" :
-                business.presence.descriptionQuality === "fair" ? "text-amber-500 bg-amber-50 dark:bg-amber-950/20" : "text-red-500 bg-red-50 dark:bg-red-950/20"
-              }`}>
-                {business.presence.descriptionQuality}
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-500 dark:text-slate-400">Photos</span>
-              <span className={`font-bold capitalize px-2 py-0.5 rounded-full ${
-                business.presence.photosStatus === "sufficient" ? "text-emerald-500 bg-emerald-50 dark:bg-emerald-950/20" :
-                business.presence.photosStatus === "outdated" ? "text-amber-500 bg-amber-50 dark:bg-amber-950/20" : "text-red-500 bg-red-50 dark:bg-red-950/20"
-              }`}>
-                {business.presence.photosStatus}
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-500 dark:text-slate-400">Opening Hours</span>
-              <span className={`font-bold capitalize px-2 py-0.5 rounded-full ${
-                business.presence.openingHoursStatus === "complete" ? "text-emerald-500 bg-emerald-50 dark:bg-emerald-950/20" : "text-red-500 bg-red-50 dark:bg-red-950/20"
-              }`}>
-                {business.presence.openingHoursStatus}
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-500 dark:text-slate-400">Review Count</span>
-              <span className={`font-bold capitalize px-2 py-0.5 rounded-full ${
-                business.presence.reviewCountStatus === "many" ? "text-emerald-500 bg-emerald-50 dark:bg-emerald-950/20" :
-                business.presence.reviewCountStatus === "average" ? "text-amber-500 bg-amber-50 dark:bg-amber-950/20" : "text-red-500 bg-red-50 dark:bg-red-950/20"
-              }`}>
-                {business.presence.reviewCountStatus} ({business.reviewsCount})
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-500 dark:text-slate-400">Review Rating</span>
-              <span className={`font-bold capitalize px-2 py-0.5 rounded-full ${
-                business.rating >= 4.5 ? "text-emerald-500 bg-emerald-50 dark:bg-emerald-950/20" :
-                business.rating >= 3.5 ? "text-amber-500 bg-amber-50 dark:bg-amber-950/20" : "text-red-500 bg-red-50 dark:bg-red-950/20"
-              }`}>
-                {business.rating} ★
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-500 dark:text-slate-400">Contact Info</span>
-              <span className={`font-bold capitalize px-2 py-0.5 rounded-full ${
-                business.presence.contactCompleteness === "complete" ? "text-emerald-500 bg-emerald-50 dark:bg-emerald-950/20" :
-                business.presence.contactCompleteness === "partial" ? "text-amber-500 bg-amber-50 dark:bg-amber-950/20" : "text-red-500 bg-red-50 dark:bg-red-950/20"
-              }`}>
-                {business.presence.contactCompleteness}
-              </span>
-            </div>
+          </div>
+
+          {/* Action Button */}
+          <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800">
+            <button
+              onClick={onGenerateWebsite}
+              disabled={loading}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-xs font-bold text-white shadow-md shadow-blue-500/20 hover:bg-blue-500 transition-all cursor-pointer disabled:opacity-60"
+            >
+              {loading ? (
+                <>
+                  <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Building Live Prototype...
+                </>
+              ) : (
+                <>
+                  <Zap className="h-4 w-4 fill-white" /> Generate Custom Solution
+                  <ChevronRight className="h-4 w-4" />
+                </>
+              )}
+            </button>
           </div>
         </div>
 
-        {/* Right Column: AI Analysis details and comparative insights */}
+        {/* Right Column: The 13-Point Digital Deficit Diagnostic Matrix */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Why they need a website */}
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 transition-colors">
-            <h4 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Flame className="h-5 w-5 text-amber-500 animate-pulse" /> Local Opportunity Diagnosis
-            </h4>
-            <div className="mt-3.5 rounded-xl bg-slate-50 p-4 text-sm text-slate-600 dark:bg-slate-950/40 dark:text-slate-300 leading-relaxed border border-slate-100 dark:border-slate-800">
-              {analysis?.whyWebsiteNeeded}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+              <div>
+                <h4 className="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Flame className="h-5 w-5 text-red-500" />
+                  13-Point Digital Deficit Diagnostic Matrix
+                </h4>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Detailed breakdown of every technical and commercial gap holding this business back.
+                </p>
+              </div>
             </div>
 
-            {/* AI Recommendations */}
-            <div className="mt-6">
-              <h5 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">
-                Strategic Digital Action Plan
-              </h5>
-              <ul className="space-y-3">
-                {analysis?.recommendations.map((rec, i) => (
-                  <li key={i} className="flex items-start gap-2.5 text-xs text-slate-700 dark:text-slate-300">
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[10px] font-bold text-blue-600 dark:bg-blue-950/50 dark:text-blue-400 border border-blue-100 dark:border-blue-900/30">
-                      {i + 1}
-                    </span>
-                    <span className="mt-0.5 leading-relaxed">{rec}</span>
-                  </li>
-                ))}
-              </ul>
+            {/* Grid of 13 Deficits */}
+            <div className="grid gap-3 sm:grid-cols-2">
+              {DEFICIT_DEFINITIONS.map(item => {
+                const isDeficit = !!deficits[item.key];
+                const Icon = item.icon;
+
+                return (
+                  <div 
+                    key={item.key} 
+                    className={`rounded-xl p-3.5 border transition-all ${
+                      isDeficit
+                        ? "bg-red-50/40 border-red-100 dark:bg-red-950/20 dark:border-red-900/40"
+                        : "bg-emerald-50/30 border-emerald-100 dark:bg-emerald-950/15 dark:border-emerald-900/30"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <div className={`p-1.5 rounded-lg ${
+                          isDeficit 
+                            ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
+                            : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
+                        }`}>
+                          <Icon className="h-3.5 w-3.5" />
+                        </div>
+                        <span className="text-xs font-bold text-slate-900 dark:text-white">
+                          {item.label}
+                        </span>
+                      </div>
+
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-extrabold uppercase ${
+                        isDeficit 
+                          ? "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300"
+                          : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
+                      }`}>
+                        {isDeficit ? <XCircle className="h-2.5 w-2.5" /> : <CheckCircle2 className="h-2.5 w-2.5" />}
+                        {isDeficit ? "Deficit Detected" : "Optimized"}
+                      </span>
+                    </div>
+
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-2 leading-relaxed">
+                      {isDeficit ? item.revenueImpact : "This channel is currently functioning."}
+                    </p>
+
+                    {isDeficit && (
+                      <div className="mt-2 pt-2 border-t border-red-100/80 dark:border-red-900/30 flex items-start gap-1.5 text-[10px] text-blue-700 dark:text-blue-300 font-semibold">
+                        <span className="font-bold shrink-0">Sales Hook:</span>
+                        <span>{item.pitchHook}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          {/* Competitor Pitches and Call to Action */}
-          <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50/20 to-indigo-50/10 p-6 dark:border-slate-800/80 dark:from-slate-950/40 dark:to-slate-950/10">
-            <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
-              Sales Pitch Angles (Use in Outreach)
-            </h4>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              {analysis?.competitorPitches.map((pitch, i) => (
-                <div key={i} className="rounded-xl border border-white/80 bg-white/70 p-3.5 dark:border-slate-800/60 dark:bg-slate-900/40">
-                  <span className="inline-block rounded-full bg-indigo-50 px-1.5 py-0.5 text-[9px] font-extrabold text-indigo-700 dark:bg-indigo-950/55 dark:text-indigo-300 uppercase tracking-wide mb-1.5">
-                    Angle {i + 1}
-                  </span>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                    "{pitch}"
-                  </p>
-                </div>
-              ))}
+          {/* Actionable Strategy & Pitch Angles */}
+          <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50/40 via-indigo-50/20 to-purple-50/20 p-6 dark:border-slate-800 dark:from-slate-950/60 dark:to-slate-900/40">
+            <div className="flex items-center gap-2 mb-2">
+              <Sparkles className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              <h4 className="text-xs font-extrabold text-blue-900 dark:text-blue-300 uppercase tracking-wider">
+                The Consultative Conversation Formula
+              </h4>
             </div>
 
-            {/* Huge Action trigger */}
-            <div className="mt-6 flex flex-col sm:flex-row items-center justify-between border-t border-slate-100 pt-5 dark:border-slate-800/80 gap-4">
-              <div className="text-left">
-                <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-                  Ready to present an irresistible layout?
-                </p>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  The website generator will write customized copy and theme layout styles based on this audit.
+            <div className="mb-4 rounded-xl border border-blue-200/80 bg-white/90 p-4 dark:border-blue-900/50 dark:bg-slate-900/90 shadow-xs">
+              <div className="grid sm:grid-cols-2 gap-3 text-xs">
+                <div className="rounded-lg bg-red-50/80 dark:bg-red-950/30 p-2.5 border border-red-150 dark:border-red-900/40">
+                  <span className="font-extrabold text-red-700 dark:text-red-300 block mb-1 text-[11px]">
+                    ❌ The Wrong Question (Triggers Resistance):
+                  </span>
+                  <p className="italic text-slate-700 dark:text-slate-300">
+                    "Do you need a website?"
+                  </p>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Triggers instant defensive reaction ("We already have enough clients" / "Too expensive").
+                  </p>
+                </div>
+                <div className="rounded-lg bg-emerald-50/80 dark:bg-emerald-950/30 p-2.5 border border-emerald-150 dark:border-emerald-900/40">
+                  <span className="font-extrabold text-emerald-700 dark:text-emerald-300 block mb-1 text-[11px]">
+                    ✅ The Winning Consultative Hook:
+                  </span>
+                  <p className="font-semibold text-slate-900 dark:text-white">
+                    "I noticed something about your online presence and I think I can help you improve it."
+                  </p>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Opens a collaborative, value-first dialogue and peaks natural owner curiosity.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-400 mb-3 font-medium">
+              Category-tailored "I noticed..." conversation starters for {business.name}:
+            </p>
+
+            <div className="space-y-2.5">
+              <div className="rounded-xl bg-white p-3.5 shadow-xs border border-slate-200/80 dark:bg-slate-900 dark:border-slate-800">
+                <span className="inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 uppercase mb-1">
+                  1. The WhatsApp & Direct Conversion Angle
+                </span>
+                <p className="text-xs text-slate-700 dark:text-slate-300">
+                  "Hi {business.name}, I noticed something specific about your online presence in {business.address.split(',')[0]}—clients searching on mobile can't browse your services or WhatsApp message you directly. I built a live interactive preview so you can see how easily it converts searchers into bookings."
                 </p>
               </div>
 
-              <button
-                onClick={onGenerateWebsite}
-                disabled={loading}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3.5 text-sm font-semibold text-white shadow-md shadow-blue-500/10 hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 dark:bg-blue-600 dark:hover:bg-blue-500 transition-all cursor-pointer group"
-              >
-                {loading ? (
-                  <>
-                    <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                    </svg>
-                    Generating Custom Preview...
-                  </>
-                ) : (
-                  <>
-                    <Zap className="h-4 w-4 fill-white group-hover:scale-110 transition-transform" /> Generate Website Preview
-                    <ChevronRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
-                  </>
-                )}
-              </button>
+              <div className="rounded-xl bg-white p-3.5 shadow-xs border border-slate-200/80 dark:bg-slate-900 dark:border-slate-800">
+                <span className="inline-block rounded-full bg-blue-100 px-2 py-0.5 text-[9px] font-bold text-blue-800 dark:bg-blue-950 dark:text-blue-300 uppercase mb-1">
+                  2. The Local Authority & Trust Angle
+                </span>
+                <p className="text-xs text-slate-700 dark:text-slate-300">
+                  "I was looking at top-rated {business.category.toLowerCase()} providers in {business.address.split(',')[0]} and noticed your great customer reviews. However, you don't currently have a dedicated mobile catalogue to showcase your packages. I drafted a bespoke preview layout for your team to check out."
+                </p>
+              </div>
             </div>
           </div>
         </div>

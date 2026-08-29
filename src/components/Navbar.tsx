@@ -83,12 +83,10 @@ export default function Navbar({
 
   const navItems = [
     { id: "dashboard", label: "Dashboard" },
-    { id: "finder", label: "Business Finder" },
-    { id: "templates", label: "Templates" },
-    { id: "proposals", label: "Proposals & Pricing" },
-    { id: "portal", label: "Client Portal" },
-    { id: "crm", label: "CRM Sync" },
-    ...(session.role === "Admin" ? [{ id: "admin", label: "Admin Console" }] : [])
+    { id: "finder", label: "Find Businesses" },
+    { id: "prospects", label: "Prospects" },
+    { id: "websites", label: "Websites" },
+    { id: "proposals", label: "Proposals" }
   ];
 
   return (
@@ -183,9 +181,9 @@ export default function Navbar({
               <p className="font-semibold text-slate-800 dark:text-slate-200 leading-none">{session.name}</p>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <span className="rounded bg-blue-50 px-1 py-0.2 text-[9px] font-medium text-blue-700 dark:bg-blue-950/45 dark:text-blue-300 flex items-center gap-0.5">
-                  <Zap className="h-2 w-2 text-blue-500" /> {session.subscription}
+                  <Zap className="h-2 w-2 text-blue-500" /> Internal Agency
                 </span>
-                <span className="text-[10px] text-slate-400 dark:text-slate-500">({session.role})</span>
+                <span className="text-[10px] text-slate-400 dark:text-slate-500">(Lead Operator)</span>
               </div>
             </div>
 
@@ -210,7 +208,7 @@ export default function Navbar({
               <p className="text-slate-500 text-[10px]">{session.email}</p>
             </div>
             <span className="rounded bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
-              {session.subscription} Plan
+              Agency Suite
             </span>
           </div>
 

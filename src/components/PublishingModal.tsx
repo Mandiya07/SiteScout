@@ -66,8 +66,8 @@ export default function PublishingModal({ site, onClose, onSavePublish }: Publis
               <Globe className="h-6 w-6" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white">Publishing & Deployment Center</h2>
-              <p className="text-xs text-slate-500">Configure custom domains, subdomains, SSL certificates, and auto-generated sitemaps.</p>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">Publishing & Export Center</h2>
+              <p className="text-xs text-slate-500">Generate production-ready preview packages, custom domain routing parameters, and deploy configurations.</p>
             </div>
           </div>
           <button 
@@ -76,6 +76,16 @@ export default function PublishingModal({ site, onClose, onSavePublish }: Publis
           >
             ✕
           </button>
+        </div>
+
+        {/* Prototype notice banner */}
+        <div className="bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-900 px-6 py-2.5 flex items-center justify-between text-[11px] text-amber-900 dark:text-amber-300">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+            <span>
+              <strong>Preview Pipeline Mode:</strong> Live hosting simulation active. Connect your Vercel/Cloudflare API key or export ZIP for direct production hosting.
+            </span>
+          </div>
         </div>
 
         {/* Navigation Tabs */}

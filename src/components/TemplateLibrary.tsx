@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { GeneratedSite } from "../types";
 import { 
-  Layers, Globe, Sparkles, CheckCircle2, ArrowRight, ShieldCheck, 
+  Layers, Globe, Sparkles, CheckCircle2, ArrowRight, 
   Smartphone, Monitor, Search, Building2, Utensils, HeartPulse, Scale, 
-  Wrench, Camera, Home, ShoppingBag, Dumbbell, GraduationCap, Church as ChurchIcon,
-  TreePine, Trophy, Flag, Users as UsersIcon, Briefcase
+  Wrench, Home, GraduationCap, Church as ChurchIcon,
+  Briefcase, Check, Phone, MessageSquare, MapPin, Scissors, Car
 } from "lucide-react";
 
 interface TemplateLibraryProps {
@@ -20,541 +20,647 @@ export interface IndustryTemplateMeta {
   description: string;
   primaryColor: string;
   secondaryColor: string;
+  accentColor: string;
   fontStyle: "sans" | "serif" | "display" | "modern";
   seoTitle: string;
   seoDesc: string;
+  seoKeywords: string;
   heroTitle: string;
   heroSubtitle: string;
   ctaText: string;
+  ctaSecondaryText: string;
+  conversionHighlights: string[];
+  accessibilityScore: number;
+  seoScore: number;
+  conversionScore: number;
+  galleryUrls: { url: string; alt: string }[];
   sampleServices: { title: string; description: string; price: string }[];
+  featuresList: { title: string; icon: string; description: string }[];
+  faqsList: { question: string; answer: string }[];
+  testimonialsList: { name: string; role: string; review: string; rating: number }[];
+  whatsappPitch: string;
 }
 
 export const ALL_INDUSTRY_TEMPLATES: IndustryTemplateMeta[] = [
+  // 1. Restaurant
   {
     id: "tpl-restaurant",
-    name: "Gourmet Bistro & Cafe",
-    category: "Hospitality & Food",
+    name: "Gourmet Hearth & Kitchen",
+    category: "Restaurant",
     icon: Utensils,
-    description: "Mouthwatering culinary layout featuring online menu cards, table reservations, and daily specials.",
+    description: "Appetizing culinary showcase featuring interactive food menus, 1-click table booking, chef specials, and direct WhatsApp reservations.",
     primaryColor: "#d97706",
     secondaryColor: "#b45309",
+    accentColor: "#f59e0b",
     fontStyle: "serif",
-    seoTitle: "Gourmet Bistro | Fine Dining & Artisanal Coffee",
-    seoDesc: "Experience exquisite artisanal dishes and specialty coffees in a warm, inviting atmosphere. Reserve your table online today.",
-    heroTitle: "Artisanal Flavors Crafted with Passion",
-    heroSubtitle: "Welcome to Gourmet Bistro. Experience hand-selected ingredients, farm-to-table dining, and unforgettable culinary moments.",
+    seoTitle: "Gourmet Hearth | Fresh Local Cuisine & Table Reservations",
+    seoDesc: "Experience artisanal seasonal dishes made from organic local produce. View our dinner menu and reserve your table online today.",
+    seoKeywords: "restaurant, dining, table reservation, artisanal dinner, bistro, local eatery",
+    heroTitle: "Farm-to-Table Flavors with Heart & Soul",
+    heroSubtitle: "Handcrafted seasonal dishes, wood-fired specialties, and an inviting atmosphere in the heart of town.",
     ctaText: "Reserve a Table",
+    ctaSecondaryText: "View Dinner Menu",
+    conversionHighlights: ["1-Click Table Booking", "Interactive Food Menu with Pricing", "WhatsApp Reservation Concierge", "Map Location & Hours"],
+    accessibilityScore: 100,
+    seoScore: 98,
+    conversionScore: 97,
+    galleryUrls: [
+      { url: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80", alt: "Restaurant dining room" },
+      { url: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=800&q=80", alt: "Gourmet dinner dish" }
+    ],
     sampleServices: [
-      { title: "Chef's Tasting Menu 5-Course", description: "An exquisite journey through local seasonal flavors paired with fine wines.", price: "$85" },
-      { title: "Artisanal Weekend Brunch", description: "Freshly baked pastries, organic farm eggs, and signature mimosas.", price: "$32" }
-    ]
+      { title: "Chef's 4-Course Tasting", description: "Seasonal harvest dishes with curated wine pairings.", price: "$65/person" },
+      { title: "Private Dining & Events", description: "Exclusive banquet room with dedicated kitchen staff.", price: "Custom Quote" },
+      { title: "Weekend Hearth Brunch", description: "Organic farm eggs, artisanal pastries, and freshly squeezed juices.", price: "$28" }
+    ],
+    featuresList: [
+      { title: "Farm-Fresh Sourcing", icon: "Check", description: "Daily harvests delivered directly from regional growers." },
+      { title: "Instant WhatsApp Booking", icon: "Check", description: "Direct reservation confirmations in under 2 minutes." }
+    ],
+    faqsList: [
+      { question: "Do you cater for dietary restrictions?", answer: "Yes, our culinary team prepares gluten-free, vegan, and nut-free dishes on request." }
+    ],
+    testimonialsList: [
+      { name: "Sophia Reynolds", role: "Local Food Critic", review: "The culinary craftsmanship and warm atmosphere make this the best dining experience in town.", rating: 5 }
+    ],
+    whatsappPitch: "Hi Gourmet Hearth! I would like to reserve a table for tonight. Could you confirm table availability?"
   },
-  {
-    id: "tpl-church",
-    name: "Grace Community Church",
-    category: "Faith & Community",
-    icon: ChurchIcon,
-    description: "Uplifting spiritual sanctuary layout featuring sermon archives, live streams, and community fellowship groups.",
-    primaryColor: "#0284c7",
-    secondaryColor: "#0369a1",
-    fontStyle: "serif",
-    seoTitle: "Grace Community Church | Worship & Fellowship",
-    seoDesc: "Join our welcoming congregation every Sunday for uplifting worship, inspirational messages, and vibrant community programs.",
-    heroTitle: "A Welcoming Home for Faith & Fellowship",
-    heroSubtitle: "Join us this Sunday at 10:00 AM as we explore faith, community, and service together in an inspiring environment.",
-    ctaText: "Plan Your Visit",
-    sampleServices: [
-      { title: "Sunday Morning Worship", description: "In-person and live-streamed contemporary worship service with choir and message.", price: "Free" },
-      { title: "Youth Ministry & Teens", description: "Engaging weekly programs designed to nurture youth faith and leadership.", price: "Free" }
-    ]
-  },
-  {
-    id: "tpl-school",
-    name: "Summit Academy & College",
-    category: "Education & Learning",
-    icon: GraduationCap,
-    description: "Academic excellence portal showcasing admissions, course catalogs, student achievements, and campus tours.",
-    primaryColor: "#4f46e5",
-    secondaryColor: "#4338ca",
-    fontStyle: "sans",
-    seoTitle: "Summit Academy | Shaping Tomorrow's Leaders",
-    seoDesc: "Discover world-class academic programs, dedicated faculty, and vibrant campus life at Summit Academy.",
-    heroTitle: "Empowering Minds, Shaping Tomorrow",
-    heroSubtitle: "Welcome to Summit Academy. We cultivate critical thinking, academic rigor, and character development in every student.",
-    ctaText: "Apply For Admissions",
-    sampleServices: [
-      { title: "K-12 College Preparatory", description: "Comprehensive curriculum with AP courses, STEM labs, and arts integration.", price: "Tuition" },
-      { title: "After-School Tutoring & Enrichment", description: "Targeted academic support and extracurricular coding, music, and athletics.", price: "$150/mo" }
-    ]
-  },
-  {
-    id: "tpl-medical",
-    name: "Aura Health & Medical Clinic",
-    category: "Healthcare & Wellness",
-    icon: HeartPulse,
-    description: "Professional medical facility layout with appointment booking, practitioner profiles, and patient care resources.",
-    primaryColor: "#0d9488",
-    secondaryColor: "#0f766e",
-    fontStyle: "sans",
-    seoTitle: "Aura Health Clinic | Trusted Family & Specialized Healthcare",
-    seoDesc: "Providing compassionate, state-of-the-art medical care for individuals and families. Book your consultation online.",
-    heroTitle: "Compassionate Care for Your Family's Health",
-    heroSubtitle: "Aura Health Clinic offers comprehensive primary care, wellness screenings, and specialist consultations with zero waiting times.",
-    ctaText: "Book Appointment",
-    sampleServices: [
-      { title: "Comprehensive Health Checkup", description: "Full blood panel, cardiovascular screening, and consultation with senior physician.", price: "$199" },
-      { title: "Pediatric Wellness Exam", description: "Gentle, expert pediatric care ensuring healthy growth and immunization tracking.", price: "$120" }
-    ]
-  },
-  {
-    id: "tpl-law",
-    name: "Vance & Sterling Legal Counsel",
-    category: "Legal & Advisory",
-    icon: Scale,
-    description: "Authoritative law firm layout featuring practice areas, attorney credentials, and confidential consultation forms.",
-    primaryColor: "#1e3a8a",
-    secondaryColor: "#1e293b",
-    fontStyle: "serif",
-    seoTitle: "Vance & Sterling Law | Experienced Attorneys & Legal Counsel",
-    seoDesc: "Protecting your rights with rigorous representation and strategic legal counsel across corporate law, litigation, and estate planning.",
-    heroTitle: "Uncompromising Legal Defense & Strategic Counsel",
-    heroSubtitle: "When your business or future is on the line, trust Vance & Sterling to deliver results-driven advocacy.",
-    ctaText: "Request Consultation",
-    sampleServices: [
-      { title: "Corporate Contract Review", description: "Detailed risk assessment and drafting for commercial agreements and mergers.", price: "$450" },
-      { title: "Estate Planning & Trusts", description: "Protect your family's assets with airtight wills, trusts, and power of attorney.", price: "$750" }
-    ]
-  },
+
+  // 2. Construction
   {
     id: "tpl-construction",
-    name: "Apex Builders & Civil Contractors",
-    category: "Construction & Engineering",
+    name: "Apex Master Builders & Construction",
+    category: "Construction",
     icon: Building2,
-    description: "Heavy-duty commercial and residential construction portfolio showcasing completed projects and engineering bids.",
+    description: "High-trust building & general contracting layout featuring project galleries, verified licensing credentials, and fast quote estimation forms.",
     primaryColor: "#ea580c",
     secondaryColor: "#c2410c",
-    fontStyle: "modern",
-    seoTitle: "Apex Builders | Commercial & Residential Construction",
-    seoDesc: "Building tomorrow's infrastructure today. Licensed general contractors delivering exceptional quality on time and on budget.",
-    heroTitle: "Building Excellence from Groundbreaking to Finish",
-    heroSubtitle: "Apex Builders brings decades of precision engineering, structural integrity, and architectural mastery to every build.",
-    ctaText: "Request Project Bid",
-    sampleServices: [
-      { title: "Commercial General Contracting", description: "Full turnkey construction management for retail spaces, offices, and warehouses.", price: "Custom Quote" },
-      { title: "Custom Architectural Homes", description: "Luxury residential building crafted to exact specifications with premium materials.", price: "Custom Quote" }
-    ]
-  },
-  {
-    id: "tpl-plumber",
-    name: "FlowMaster Emergency Plumbing",
-    category: "Home Trades & Repair",
-    icon: Wrench,
-    description: "High-conversion home services layout with 24/7 click-to-call buttons and instant repair booking.",
-    primaryColor: "#2563eb",
-    secondaryColor: "#1d4ed8",
+    accentColor: "#f97316",
     fontStyle: "sans",
-    seoTitle: "FlowMaster Plumbing | 24/7 Emergency Repairs & Drain Cleaning",
-    seoDesc: "Experiencing a plumbing emergency? FlowMaster provides rapid 24/7 dispatch across the city for leaks, clogs, and water heaters.",
-    heroTitle: "Fast, Reliable 24/7 Emergency Plumbing Services",
-    heroSubtitle: "Licensed master plumbers ready to tackle leaks, burst pipes, water heaters, and sewer clogs with zero hassle.",
-    ctaText: "Call Dispatch Now",
+    seoTitle: "Apex Master Builders | Commercial & Residential General Contractors",
+    seoDesc: "Licensed general contractor delivering top-quality residential renovations and commercial construction with guaranteed timelines.",
+    seoKeywords: "construction, general contractor, commercial building, home renovation, building contractor",
+    heroTitle: "Built on Precision, Safety & Proven Durability",
+    heroSubtitle: "From architectural planning to turnkey construction, we deliver residential and commercial structures on time and within budget.",
+    ctaText: "Request Free Site Estimate",
+    ctaSecondaryText: "View Completed Projects",
+    conversionHighlights: ["Free Site Estimate Request Form", "Project Before/After Portfolio", "Safety & License Certifications", "Direct WhatsApp Job Inquiry"],
+    accessibilityScore: 98,
+    seoScore: 97,
+    conversionScore: 96,
+    galleryUrls: [
+      { url: "https://images.unsplash.com/photo-1541888946425-d0fbb18086f6?auto=format&fit=crop&w=800&q=80", alt: "Construction project site" },
+      { url: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80", alt: "Architectural building framework" }
+    ],
     sampleServices: [
-      { title: "24/7 Emergency Leak & Pipe Repair", description: "Immediate dispatch for burst pipes, flooding risks, and major plumbing failures.", price: "$149" },
-      { title: "Drain Hydro-Jetting", description: "Advanced high-pressure cleaning clearing stubborn grease, roots, and blockages.", price: "$249" }
-    ]
+      { title: "Residential Turnkey Construction", description: "Full new build execution from foundation to interior finishes.", price: "From $180k" },
+      { title: "Commercial Office Fit-Outs", description: "Modern workspace transformations adhering to all compliance codes.", price: "From $45k" },
+      { title: "Structural Renovations & Additions", description: "Second story extensions, roof rebuilds, and load-bearing alterations.", price: "Custom Quote" }
+    ],
+    featuresList: [
+      { title: "Fully Licensed & Insured", icon: "ShieldCheck", description: "Comprehensive worker liability coverage on every build." },
+      { title: "Strict Schedule Guarantee", icon: "Check", description: "Milestone-based progress delivery with clear project tracking." }
+    ],
+    faqsList: [
+      { question: "How quickly can you provide an on-site estimate?", answer: "Our master engineer visits your site within 48 hours to provide a comprehensive structural breakdown." }
+    ],
+    testimonialsList: [
+      { name: "Marcus Vance", role: "Property Developer", review: "Apex delivered our 12-unit residential build three weeks ahead of schedule and precisely within budget.", rating: 5 }
+    ],
+    whatsappPitch: "Hi Apex Builders! I'm planning a building/renovation project and would like to request an on-site quote."
   },
+
+  // 3. Plumbing
   {
-    id: "tpl-electrician",
-    name: "VoltGuard Electrical Solutions",
-    category: "Home Trades & Repair",
+    id: "tpl-plumbing",
+    name: "Reliable 24/7 Emergency Plumbing",
+    category: "Plumbing",
     icon: Wrench,
-    description: "Certified electrical contractor template highlighting residential wiring, panel upgrades, and EV charger installs.",
-    primaryColor: "#eab308",
-    secondaryColor: "#ca8a04",
-    fontStyle: "sans",
-    seoTitle: "VoltGuard Electrical | Licensed Residential & Commercial Electricians",
-    seoDesc: "Safe, certified electrical installations, panel upgrades, and emergency troubleshooting by master electricians.",
-    heroTitle: "Powering Your Home & Business Safely",
-    heroSubtitle: "From panel upgrades to smart home integrations, VoltGuard delivers certified electrical expertise with strict safety codes.",
-    ctaText: "Book Electrician",
-    sampleServices: [
-      { title: "Electrical Panel Upgrade (200A)", description: "Modernize your breaker box for safe power distribution and appliance loads.", price: "$1,299" },
-      { title: "EV Home Charger Installation", description: "Level 2 high-speed electric vehicle charging station installed and inspected.", price: "$599" }
-    ]
-  },
-  {
-    id: "tpl-mechanic",
-    name: "Precision Auto Care & Repair",
-    category: "Automotive Services",
-    icon: Wrench,
-    description: "Auto repair shop layout with diagnostic services, pricing calculators, and online service booking.",
-    primaryColor: "#475569",
-    secondaryColor: "#334155",
-    fontStyle: "sans",
-    seoTitle: "Precision Auto Care | Expert Diagnostics & Mechanic Repairs",
-    seoDesc: "Trusted auto repair, brake service, engine diagnostics, and routine maintenance by certified master technicians.",
-    heroTitle: "Expert Auto Repairs & Honest Diagnostics",
-    heroSubtitle: "Keep your vehicle running smoothly with Precision Auto Care. Certified mechanics, transparent pricing, and warranty on all repairs.",
-    ctaText: "Schedule Service",
-    sampleServices: [
-      { title: "Full Synthetic Oil & Filter Service", description: "High-grade synthetic oil change, fluid top-off, and 50-point safety inspection.", price: "$79" },
-      { title: "Brake Pad Replacement & Rotor Turn", description: "Premium ceramic brake pads and precision rotor resurfacing.", price: "$229" }
-    ]
-  },
-  {
-    id: "tpl-salon",
-    name: "Lumina Beauty & Spa Salon",
-    category: "Beauty & Wellness",
-    icon: Sparkles,
-    description: "Chic luxury beauty salon layout featuring styling services, appointment scheduler, and photo gallery.",
-    primaryColor: "#f43f5e",
-    secondaryColor: "#e11d48",
-    fontStyle: "modern",
-    seoTitle: "Lumina Beauty Salon | Hair, Skin & Luxury Spa Treatments",
-    seoDesc: "Pamper yourself at Lumina Beauty Salon. Expert hair stylists, rejuvenating facial treatments, and luxury nail care.",
-    heroTitle: "Elevate Your Natural Radiance & Style",
-    heroSubtitle: "Step into Lumina Beauty Spa and experience transformative hair styling, glowing facials, and ultimate relaxation.",
-    ctaText: "Book Your Makeover",
-    sampleServices: [
-      { title: "Signature Balayage & Cut", description: "Custom hand-painted highlights, gloss toner, precision haircut, and blowout.", price: "$180" },
-      { title: "Rejuvenating Hydrafacial", description: "Deep cleansing, exfoliation, and hydration infusion for glowing skin.", price: "$150" }
-    ]
-  },
-  {
-    id: "tpl-photographer",
-    name: "Aperture Dreams Photography",
-    category: "Creative & Arts",
-    icon: Camera,
-    description: "Stunning visual portfolio template highlighting weddings, portraits, and commercial shoots with immersive galleries.",
-    primaryColor: "#0f172a",
-    secondaryColor: "#1e293b",
-    fontStyle: "display",
-    seoTitle: "Aperture Dreams | Professional Wedding & Portrait Photography",
-    seoDesc: "Capturing your most precious moments with artistic vision and timeless elegance. Book your photoshoot session today.",
-    heroTitle: "Capturing Timeless Stories Through the Lens",
-    heroSubtitle: "Award-winning photography capturing authentic emotions, breathtaking weddings, and striking commercial portraits.",
-    ctaText: "View Portfolio",
-    sampleServices: [
-      { title: "Wedding Day Storytelling", description: "Full-day coverage by two lead photographers, online gallery, and heirloom album.", price: "$2,400" },
-      { title: "Professional Brand Headshots", description: "Studio session with professional lighting and digital retouching for LinkedIn/Web.", price: "$250" }
-    ]
-  },
-  {
-    id: "tpl-realestate",
-    name: "PrimeKey Real Estate Group",
-    category: "Real Estate & Housing",
-    icon: Home,
-    description: "Property listings showcase with interactive search, agent profiles, and mortgage estimation tools.",
+    description: "Urgent response layout built for speed with 1-tap emergency dispatch, upfront transparent pricing, and leak detection booking.",
     primaryColor: "#0284c7",
     secondaryColor: "#0369a1",
+    accentColor: "#38bdf8",
     fontStyle: "sans",
-    seoTitle: "PrimeKey Real Estate | Luxury Homes & Commercial Properties",
-    seoDesc: "Find your dream home or commercial property with PrimeKey Real Estate. Expert local agents ready to guide you.",
-    heroTitle: "Your Key to Exceptional Properties",
-    heroSubtitle: "Discover exclusive residential listings, waterfront estates, and prime commercial investments with PrimeKey Group.",
-    ctaText: "Browse Listings",
+    seoTitle: "Reliable 24/7 Plumber | Emergency Drain Cleaning & Leak Repairs",
+    seoDesc: "Fast 30-minute emergency response for burst pipes, blocked drains, geyser replacements, and commercial plumbing.",
+    seoKeywords: "emergency plumber, burst pipes, blocked drains, geyser repair, leak detection",
+    heroTitle: "Fast 24/7 Emergency Plumbing & Drain Solutions",
+    heroSubtitle: "Burst pipes, clogged drains, or water heater failures? Our certified master plumbers arrive within 30 minutes with upfront flat rates.",
+    ctaText: "Call Emergency Dispatch (24/7)",
+    ctaSecondaryText: "Book Inspection Online",
+    conversionHighlights: ["1-Tap Emergency Call Dispatch", "Fixed Upfront Pricing Guide", "30-Min Local Response Guarantee", "WhatsApp Photo Diagnostic"],
+    accessibilityScore: 100,
+    seoScore: 99,
+    conversionScore: 98,
+    galleryUrls: [
+      { url: "https://images.unsplash.com/photo-1585704032915-c3400ca199e7?auto=format&fit=crop&w=800&q=80", alt: "Master plumber at work" }
+    ],
     sampleServices: [
-      { title: "Free Home Valuation Report", description: "Comprehensive market analysis determining your property's maximum resale value.", price: "Free" },
-      { title: "Buyer Representation & Tours", description: "Dedicated agent guiding you through property viewings, negotiations, and closing.", price: "Commission" }
-    ]
+      { title: "Emergency Leak & Pipe Repair", description: "Rapid response acoustic detection and burst pipe replacement.", price: "From $85" },
+      { title: "High-Pressure Hydro Jetting", description: "Heavy-duty clearing of blocked sewer and stormwater lines.", price: "$140" },
+      { title: "Water Heater / Geyser Install", description: "Energy-efficient unit installation with 5-year parts warranty.", price: "From $450" }
+    ],
+    featuresList: [
+      { title: "No Hidden Call-Out Fees", icon: "Check", description: "Clear pricing quoted and approved before work begins." },
+      { title: "100% Workmanship Guarantee", icon: "ShieldCheck", description: "All repairs backed by our comprehensive warranty." }
+    ],
+    faqsList: [
+      { question: "How fast do you arrive in emergencies?", answer: "Our mobile vans are stationed across the city with an average response time of under 30 minutes." }
+    ],
+    testimonialsList: [
+      { name: "David Miller", role: "Homeowner", review: "Woke up to a flooded kitchen at 2 AM. Reliable Plumbing was at my door in 20 minutes and fixed the pipe immediately!", rating: 5 }
+    ],
+    whatsappPitch: "URGENT: I need emergency plumbing assistance right away. Here are the details of the leak:"
   },
+
+  // 4. Beauty & Salon
   {
-    id: "tpl-hotel",
-    name: "Grand Horizon Luxury Hotel",
-    category: "Hospitality & Travel",
-    icon: Home,
-    description: "Boutique hotel template featuring room suites, amenities, online booking engine, and guest reviews.",
-    primaryColor: "#b45309",
-    secondaryColor: "#92400e",
-    fontStyle: "serif",
-    seoTitle: "Grand Horizon Hotel | Luxury Suites & Resort Amenities",
-    seoDesc: "Experience uncompromised luxury at Grand Horizon Hotel. Book elegant suites, fine dining, and spa experiences.",
-    heroTitle: "A Sanctuary of Elegance & Comfort",
-    heroSubtitle: "Welcome to Grand Horizon Hotel. Indulge in world-class accommodations, breathtaking views, and bespoke hospitality.",
-    ctaText: "Check Room Availability",
-    sampleServices: [
-      { title: "Deluxe Oceanview Suite", description: "King bed, private balcony overlooking the coast, marble bath, and room service.", price: "$320/night" },
-      { title: "Executive Penthouse Suite", description: "Spacious luxury living area, panoramic skyline views, and VIP lounge access.", price: "$650/night" }
-    ]
-  },
-  {
-    id: "tpl-guesthouse",
-    name: "Whispering Pines Guest House",
-    category: "Hospitality & Travel",
-    icon: Home,
-    description: "Cozy bed and breakfast retreat layout with room booking, local guides, and breakfast menu.",
-    primaryColor: "#047857",
-    secondaryColor: "#065f46",
-    fontStyle: "serif",
-    seoTitle: "Whispering Pines Guest House | Cozy Countryside Bed & Breakfast",
-    seoDesc: "Escape to Whispering Pines Guest House. Enjoy serene nature surroundings, homemade breakfasts, and cozy rooms.",
-    heroTitle: "Your Peaceful Countryside Escape",
-    heroSubtitle: "Unwind at Whispering Pines Guest House. Warm hospitality, homemade morning breakfasts, and tranquil gardens await.",
-    ctaText: "Book Your Stay",
-    sampleServices: [
-      { title: "Garden View Cottage Room", description: "Cozy queen bed, private ensuite bathroom, and homemade breakfast included.", price: "$145/night" },
-      { title: "Family Suite with Hearth", description: "Two connecting bedrooms, fireplace sitting area, and morning breakfast basket.", price: "$210/night" }
-    ]
-  },
-  {
-    id: "tpl-retail",
-    name: "Urban Chic Boutique & Shop",
-    category: "Retail & E-Commerce",
-    icon: ShoppingBag,
-    description: "Trendy retail shop layout featuring product showcases, seasonal collections, and click-and-collect ordering.",
+    id: "tpl-beauty",
+    name: "Luxe Glow Salon & Day Spa",
+    category: "Beauty",
+    icon: Scissors,
+    description: "Elegant aesthetics showcase with appointment booking, stylist portfolio gallery, treatment menus, and seasonal makeover packages.",
     primaryColor: "#db2777",
     secondaryColor: "#be185d",
-    fontStyle: "modern",
-    seoTitle: "Urban Chic Boutique | Trendy Fashion & Accessories",
-    seoDesc: "Discover the latest fashion trends, accessories, and curated style collections at Urban Chic Boutique.",
-    heroTitle: "Curated Style for the Modern Wardrobe",
-    heroSubtitle: "Explore our new seasonal arrivals at Urban Chic Boutique. Stand out with unique designs and premium quality.",
-    ctaText: "Shop New Collection",
+    accentColor: "#f472b6",
+    fontStyle: "serif",
+    seoTitle: "Luxe Glow Salon & Spa | Hair Styling, Skin Therapies & Bridal Packages",
+    seoDesc: "Transformative beauty experiences with top stylists and organic botanical skin treatments. Book your appointment online today.",
+    seoKeywords: "hair salon, day spa, skin treatments, bridal hair, balayage, beauty parlor",
+    heroTitle: "Artistry, Elegance & Restorative Beauty",
+    heroSubtitle: "Indulge in tailored hair styling, restorative organic facials, and premium bridal beauty packages designed for your radiance.",
+    ctaText: "Book Your Appointment",
+    ctaSecondaryText: "Explore Spa Menu",
+    conversionHighlights: ["Online Appointment Scheduling", "Lookbook & Stylist Portfolio", "WhatsApp Instant Consultation", "Transparent Treatment Pricing"],
+    accessibilityScore: 100,
+    seoScore: 97,
+    conversionScore: 96,
+    galleryUrls: [
+      { url: "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=800&q=80", alt: "Luxury salon interior" },
+      { url: "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80", alt: "Hair styling and makeover" }
+    ],
     sampleServices: [
-      { title: "Personal Styling Session", description: "One-on-one styling consultation with our in-house fashion experts.", price: "$50" },
-      { title: "VIP Loyalty Rewards Club", description: "Earn points on every purchase with exclusive early access to sales.", price: "Free" }
-    ]
+      { title: "Signature Balayage & Cut", description: "Custom hand-painted highlights, gloss toner, and precision styling.", price: "$140" },
+      { title: "Hydra-Radiance Facial", description: "Deep botanical infusion, exfoliation, and lymphatic facial massage.", price: "$85" },
+      { title: "Bridal Party Beauty Package", description: "Complete hair, makeup, and champagne spa treatment for the bridal party.", price: "From $350" }
+    ],
+    featuresList: [
+      { title: "Certified Master Stylists", icon: "Check", description: "Internationally trained artists using ammonia-free organic formulas." },
+      { title: "Sanitized VIP Suites", icon: "ShieldCheck", description: "Private treatment rooms designed for peaceful relaxation." }
+    ],
+    faqsList: [
+      { question: "Do you accept walk-ins?", answer: "Walk-ins are welcomed when available, but we recommend booking in advance to guarantee your preferred artist." }
+    ],
+    testimonialsList: [
+      { name: "Elena Rostova", role: "Client", review: "The balayage and treatment I received here were world-class. My hair has never felt so vibrant!", rating: 5 }
+    ],
+    whatsappPitch: "Hi Luxe Glow! I would like to book a hair styling/facial appointment this week. What slots do you have available?"
   },
+
+  // 5. Professional Services (Law, Accounting, Consulting)
   {
-    id: "tpl-fitness",
-    name: "IronFit Elite Fitness Centre",
-    category: "Sports & Fitness",
-    icon: Dumbbell,
-    description: "High-energy gym template featuring class timetables, personal trainer profiles, and membership signups.",
-    primaryColor: "#ef4444",
-    secondaryColor: "#dc2626",
-    fontStyle: "display",
-    seoTitle: "IronFit Fitness Centre | Strength Training & Group Classes",
-    seoDesc: "Transform your body at IronFit Elite Fitness. State-of-the-art equipment, expert personal trainers, and high-energy classes.",
-    heroTitle: "Forge Your Strength, Push Your Limits",
-    heroSubtitle: "IronFit Centre offers cutting-edge equipment, elite coaching, and a driven community to help you crush your fitness goals.",
-    ctaText: "Claim Free Pass",
-    sampleServices: [
-      { title: "Unlimited Gym & Class Membership", description: "24/7 access to all weights, cardio zones, and unlimited HIIT/Yoga classes.", price: "$69/mo" },
-      { title: "1-on-1 Personal Training", description: "Customized workout blueprints and nutritional coaching with elite trainers.", price: "$75/session" }
-    ]
-  },
-  {
-    id: "tpl-consultant",
-    name: "Nexus Strategic Business Advisory",
-    category: "Business & Consulting",
-    icon: Briefcase,
-    description: "Executive corporate consulting layout featuring case studies, advisory services, and strategy booking.",
-    primaryColor: "#4f46e5",
-    secondaryColor: "#4338ca",
-    fontStyle: "sans",
-    seoTitle: "Nexus Strategic Advisory | Business Growth & Management Consultants",
-    seoDesc: "Accelerate your enterprise growth with expert management consulting, operational streamlining, and strategic planning.",
-    heroTitle: "Strategic Clarity & Accelerated Growth",
-    heroSubtitle: "Nexus Advisory partners with ambitious executives to solve complex operational challenges and scale profitability.",
-    ctaText: "Schedule Strategy Call",
-    sampleServices: [
-      { title: "Operational Efficiency Audit", description: "Comprehensive review of workflows, cost structures, and technological bottlenecks.", price: "$2,500" },
-      { title: "Executive Growth Roadmap", description: "90-day strategic blueprint designed to expand market share and revenue.", price: "$5,000" }
-    ]
-  },
-  {
-    id: "tpl-ngo",
-    name: "Global Hope Foundation (NGO)",
-    category: "NGO & Advocacy",
-    icon: UsersIcon,
-    description: "Impactful non-governmental organization template highlighting humanitarian missions, donation drives, and volunteer signups.",
-    primaryColor: "#059669",
-    secondaryColor: "#047857",
-    fontStyle: "sans",
-    seoTitle: "Global Hope Foundation | Humanitarian Aid & Community Development",
-    seoDesc: "Support our mission to empower vulnerable communities through education, healthcare, and sustainable development.",
-    heroTitle: "Empowering Communities, Inspiring Hope",
-    heroSubtitle: "Join Global Hope Foundation in our mission to deliver education, healthcare, and economic opportunity worldwide.",
-    ctaText: "Donate & Support",
-    sampleServices: [
-      { title: "Community Education Sponsorship", description: "Fund school supplies and textbooks for underprivileged children.", price: "$30/mo" },
-      { title: "Clean Water Initiative Fund", description: "Contribute to building solar-powered clean water wells in rural areas.", price: "$50" }
-    ]
-  },
-  {
-    id: "tpl-agriculture",
-    name: "GreenValley Organic Agriculture",
-    category: "Agriculture & Farming",
-    icon: TreePine,
-    description: "Sustainable farming and agricultural produce template featuring farm-to-table supply, crops, and wholesale orders.",
-    primaryColor: "#16a34a",
-    secondaryColor: "#15803d",
-    fontStyle: "sans",
-    seoTitle: "GreenValley Agriculture | Sustainable Organic Crops & Produce",
-    seoDesc: "Producing premium organic crops and sustainable agricultural goods with regenerative farming practices.",
-    heroTitle: "Sustainable Farming for a Greener Tomorrow",
-    heroSubtitle: "GreenValley Agriculture combines regenerative farming methods with modern crop science to deliver pure, organic produce.",
-    ctaText: "Explore Wholesale",
-    sampleServices: [
-      { title: "Organic Produce Box Delivery", description: "Weekly subscription of freshly harvested seasonal organic vegetables and fruits.", price: "$45/box" },
-      { title: "Agricultural Consulting & Soil Testing", description: "Professional soil nutrient analysis and crop yield optimization guidance.", price: "$350" }
-    ]
-  },
-  {
-    id: "tpl-sports",
-    name: "Apex Athletic Performance Club",
-    category: "Sports & Recreation",
-    icon: Trophy,
-    description: "Active sports club template featuring training programs, tournament schedules, court bookings, and member leagues.",
-    primaryColor: "#2563eb",
-    secondaryColor: "#1d4ed8",
-    fontStyle: "modern",
-    seoTitle: "Apex Athletic Club | Professional Training & Sports Leagues",
-    seoDesc: "Join Apex Athletic Club for premier sports training, competitive leagues, and state-of-the-art courts and pitches.",
-    heroTitle: "Unleash Your Athletic Potential",
-    heroSubtitle: "Apex Athletic Club brings athletes together with professional coaching, premier facilities, and competitive leagues.",
-    ctaText: "Join Club Today",
-    sampleServices: [
-      { title: "Court & Pitch Membership", description: "Unlimited booking access to indoor tennis, badminton, and turf soccer fields.", price: "$89/mo" },
-      { title: "Youth Elite Sports Camp", description: "Intensive summer training camp led by professional athletes and coaches.", price: "$299" }
-    ]
-  },
-  {
-    id: "tpl-football",
-    name: "United FC Pro Football Club",
-    category: "Sports & Recreation",
-    icon: Flag,
-    description: "Professional football club layout with match fixtures, league standings, ticket sales, and youth academy.",
+    id: "tpl-professional",
+    name: "Sterling Advisory & Legal Counsel",
+    category: "Professional services",
+    icon: Scale,
+    description: "Authoritative corporate layout for attorneys, accountants, and consultants with client intake forms, practice areas, and case studies.",
     primaryColor: "#1e3a8a",
     secondaryColor: "#172554",
-    fontStyle: "display",
-    seoTitle: "United FC | Official Football Club & Academy",
-    seoDesc: "Official portal for United FC. Get match schedules, buy season tickets, and join our elite youth football academy.",
-    heroTitle: "Pride, Passion & Victory on the Pitch",
-    heroSubtitle: "Welcome to United FC. Experience the electric atmosphere of match day and support our journey to the championship.",
-    ctaText: "Buy Season Tickets",
+    accentColor: "#3b82f6",
+    fontStyle: "serif",
+    seoTitle: "Sterling Advisory | Corporate Law, Tax Strategy & Business Consulting",
+    seoDesc: "Strategic corporate counsel and certified financial advisory helping businesses navigate regulatory compliance, mergers, and tax optimization.",
+    seoKeywords: "corporate law, business consulting, tax advisor, legal counsel, commercial attorney",
+    heroTitle: "Strategic Legal & Financial Counsel You Can Trust",
+    heroSubtitle: "Protecting your commercial interests and accelerating business growth with experienced corporate attorneys and certified advisors.",
+    ctaText: "Schedule Confidential Consultation",
+    ctaSecondaryText: "Explore Practice Areas",
+    conversionHighlights: ["Confidential Consultation Booking", "Detailed Practice Area Breakdowns", "Case Results & Credibility Stats", "Direct Lawyer Intake Form"],
+    accessibilityScore: 99,
+    seoScore: 98,
+    conversionScore: 95,
+    galleryUrls: [
+      { url: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80", alt: "Corporate office conference room" }
+    ],
     sampleServices: [
-      { title: "Season Ticket Pass 2026/27", description: "Guaranteed entry to all home matches plus exclusive club merchandise discounts.", price: "$499" },
-      { title: "Junior Football Academy", description: "Professional youth training sessions fostering skills, teamwork, and discipline.", price: "$120/mo" }
-    ]
+      { title: "Corporate Governance & M&A", description: "Comprehensive transaction advisory, contract drafting, and due diligence.", price: "$350/hr" },
+      { title: "Tax Strategy & Compliance", description: "Proactive corporate structuring to maximize deductions legally.", price: "Custom Retainer" },
+      { title: "Commercial Litigation Defense", description: "Aggressive courtroom representation and dispute resolution.", price: "Assessment Required" }
+    ],
+    featuresList: [
+      { title: "Decades of Proven Track Record", icon: "ShieldCheck", description: "Over $250M in commercial transactions successfully closed." },
+      { title: "100% Client Confidentiality", icon: "Check", description: "Strict privileged communication protocols protecting your assets." }
+    ],
+    faqsList: [
+      { question: "What is included in the initial consultation?", answer: "A 45-minute confidential session evaluating your legal or financial risk with actionable next steps." }
+    ],
+    testimonialsList: [
+      { name: "Robert Sterling", role: "CEO, TechVentures", review: "Sterling Advisory guided our series-A funding and acquisition flawlessly. Indispensable partners.", rating: 5 }
+    ],
+    whatsappPitch: "Hello Sterling Advisory, I would like to schedule a preliminary confidential consultation regarding corporate advisory."
   },
+
+  // 6. Medical Clinic & Healthcare
   {
-    id: "tpl-nonprofit",
-    name: "Future Horizons Non-Profit Trust",
-    category: "NGO & Advocacy",
-    icon: UsersIcon,
-    description: "Mission-driven non-profit trust template highlighting advocacy campaigns, annual impact reports, and donor portals.",
+    id: "tpl-medical",
+    name: "Beacon Family Health & Medical Centre",
+    category: "Medical",
+    icon: HeartPulse,
+    description: "Trustworthy healthcare portal with online doctor bookings, medical specialties, insurance accepted info, and telehealth inquiry.",
+    primaryColor: "#059669",
+    secondaryColor: "#047857",
+    accentColor: "#10b981",
+    fontStyle: "sans",
+    seoTitle: "Beacon Family Health | General Practice & Preventive Care Clinic",
+    seoDesc: "Compassionate patient-centered medical care with board-certified physicians, on-site diagnostics, and same-day family appointments.",
+    seoKeywords: "medical clinic, family doctor, healthcare centre, pediatric care, general practitioner",
+    heroTitle: "Compassionate, World-Class Care for Your Entire Family",
+    heroSubtitle: "Board-certified doctors, modern diagnostic facilities, and same-day appointments dedicated to your family's health and wellness.",
+    ctaText: "Book Doctor Appointment",
+    ctaSecondaryText: "View Medical Services",
+    conversionHighlights: ["Same-Day Appointment Booking", "Accepted Medical Aid / Insurance Guide", "Doctor Profiles & Credentials", "Emergency Hotline & Map"],
+    accessibilityScore: 100,
+    seoScore: 99,
+    conversionScore: 97,
+    galleryUrls: [
+      { url: "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=800&q=80", alt: "Modern medical clinic reception" }
+    ],
+    sampleServices: [
+      { title: "Comprehensive Family Health Checkup", description: "Vital signs, ECG, blood screening, and preventive health evaluation.", price: "$90" },
+      { title: "Pediatric & Child Wellness", description: "Developmental tracking, vaccinations, and attentive child care.", price: "$75" },
+      { title: "On-Site Laboratory Diagnostics", description: "Fast turnaround bloodwork, rapid tests, and pathology results.", price: "Covered by Insurance" }
+    ],
+    featuresList: [
+      { title: "Board-Certified Medical Staff", icon: "ShieldCheck", description: "Experienced general practitioners and specialist pediatricians." },
+      { title: "Same-Day Emergency Appointments", icon: "Check", description: "Dedicated acute care slots reserved for walk-in patients." }
+    ],
+    faqsList: [
+      { question: "Which medical aids and insurances do you accept?", answer: "We accept all major insurance networks and offer transparent cash rates." }
+    ],
+    testimonialsList: [
+      { name: "Grace Ndlovu", role: "Mother of 3", review: "Dr. Beacon and the nursing staff are so caring and thorough. Best medical clinic in our neighborhood.", rating: 5 }
+    ],
+    whatsappPitch: "Hi Beacon Health! I'd like to book an appointment with a doctor for a general health checkup."
+  },
+
+  // 7. School & Education
+  {
+    id: "tpl-school",
+    name: "Horizon Academy & Early Learning",
+    category: "School",
+    icon: GraduationCap,
+    description: "Inspiring education portal with enrollment applications, academic curriculum, school calendar, and virtual campus tours.",
+    primaryColor: "#4f46e5",
+    secondaryColor: "#4338ca",
+    accentColor: "#6366f1",
+    fontStyle: "sans",
+    seoTitle: "Horizon Academy | Excellence in Academics, Arts & STEM Education",
+    seoDesc: "Nurturing tomorrow's leaders through innovative curriculum, STEM labs, small class sizes, and holistic extracurricular programs.",
+    seoKeywords: "private school, academy, STEM curriculum, kindergarten, high school admissions, early learning",
+    heroTitle: "Nurturing Tomorrow's Leaders Through Innovation & Integrity",
+    heroSubtitle: "Empowering students from Kindergarten to Grade 12 with academic excellence, creative arts, and modern STEM laboratories.",
+    ctaText: "Apply for 2026/27 Enrollment",
+    ctaSecondaryText: "Download Prospectus",
+    conversionHighlights: ["Direct Online Enrollment Application", "Curriculum & Fee Schedule Download", "Book Campus Tour", "Parent & Student Portal Entry"],
+    accessibilityScore: 100,
+    seoScore: 98,
+    conversionScore: 96,
+    galleryUrls: [
+      { url: "https://images.unsplash.com/photo-1580582932707-520aed937b7b?auto=format&fit=crop&w=800&q=80", alt: "Students in bright classroom" }
+    ],
+    sampleServices: [
+      { title: "Early Childhood Foundation (Ages 3-5)", description: "Play-based sensory learning, literacy foundations, and social skills.", price: "$3,200/term" },
+      { title: "Primary & Middle School STEM", description: "Robotics, coding, critical thinking, and integrated science curriculum.", price: "$4,500/term" },
+      { title: "High School University Prep", description: "Advanced placement courses, SAT prep, and leadership mentorship.", price: "$5,800/term" }
+    ],
+    featuresList: [
+      { title: "12:1 Student-to-Teacher Ratio", icon: "Check", description: "Individualized attention ensuring every learner thrives." },
+      { title: "Modern Robotics & Science Labs", icon: "Sparkles", description: "Cutting-edge interactive tech embedded across all grades." }
+    ],
+    faqsList: [
+      { question: "How do we schedule a campus tour?", answer: "Click 'Book Campus Tour' or message us on WhatsApp to join our weekly guided walk-throughs." }
+    ],
+    testimonialsList: [
+      { name: "Patricia Moyo", role: "Parent", review: "Horizon Academy unlocked my daughter's passion for science and mathematics. Outstanding educators!", rating: 5 }
+    ],
+    whatsappPitch: "Hello Horizon Academy Admissions! I am interested in enrolling my child and would like to receive the curriculum prospectus."
+  },
+
+  // 8. Church & Non-Profit
+  {
+    id: "tpl-church",
+    name: "Grace Community Church & Outreach",
+    category: "Church",
+    icon: ChurchIcon,
+    description: "Welcoming community portal with live service streaming, sermon archives, ministry events, and secure online giving.",
     primaryColor: "#7c3aed",
     secondaryColor: "#6d28d9",
-    fontStyle: "sans",
-    seoTitle: "Future Horizons Trust | Non-Profit Advocacy & Social Impact",
-    seoDesc: "Driving systemic social change through advocacy, grants, and community-led programs. Partner with us for a better future.",
-    heroTitle: "Advancing Social Justice & Equal Opportunity",
-    heroSubtitle: "Future Horizons Trust champions policies and programs that empower marginalized communities and protect civil rights.",
-    ctaText: "Partner & Donate",
+    accentColor: "#8b5cf6",
+    fontStyle: "serif",
+    seoTitle: "Grace Community Church | Sunday Worship, Ministries & Community Outreach",
+    seoDesc: "A vibrant, Christ-centered family where all are welcome. Join us for Sunday worship at 9:00 AM and 11:00 AM.",
+    seoKeywords: "church, worship service, sermon archive, youth ministry, online giving, community outreach",
+    heroTitle: "A Place of Hope, Healing & Purpose for Everyone",
+    heroSubtitle: "Join our warm community for uplifting worship, transformative messages, and active outreach programs across our city.",
+    ctaText: "Join Us This Sunday",
+    ctaSecondaryText: "Watch Latest Sermon",
+    conversionHighlights: ["Service Times & Directions Guide", "Online Giving & Tithes Portal", "Sermon Media Player", "Ministry & Volunteer Sign-Up"],
+    accessibilityScore: 100,
+    seoScore: 98,
+    conversionScore: 95,
+    galleryUrls: [
+      { url: "https://images.unsplash.com/photo-1438032005730-c779502df39b?auto=format&fit=crop&w=800&q=80", alt: "Community worship and fellowship" }
+    ],
     sampleServices: [
-      { title: "Community Grant Program", description: "Financial and administrative grants for grassroots social entrepreneurs.", price: "Grant Funded" },
-      { title: "Policy Research & Reports", description: "In-depth investigative whitepapers on economic mobility and education reform.", price: "Free Access" }
-    ]
+      { title: "Sunday Morning Worship (9 AM & 11 AM)", description: "Contemporary praise, heartfelt worship, and inspiring biblical preaching.", price: "Free to All" },
+      { title: "Youth & Young Adults Ministry", description: "Weekly fellowship, leadership training, and discipleship gatherings.", price: "All Welcome" },
+      { title: "Community Food Bank & Outreach", description: "Weekly food parcels and community support for families in need.", price: "Outreach Program" }
+    ],
+    featuresList: [
+      { title: "Caring Kids Church Program", icon: "Check", description: "Safe, engaging children's ministry during both Sunday services." },
+      { title: "Live Streaming Available", icon: "Globe", description: "High-definition broadcast available for remote worshippers." }
+    ],
+    faqsList: [
+      { question: "What should I wear to Sunday service?", answer: "Come exactly as you are! You'll find people in everything from casual jeans to Sunday best." }
+    ],
+    testimonialsList: [
+      { name: "John & Maria Dlamini", role: "Church Members", review: "Grace Community welcomed our family with open arms. It feels like home every single week.", rating: 5 }
+    ],
+    whatsappPitch: "Hi Grace Church! I'm planning to visit this Sunday with my family and wanted to check service times."
   },
+
+  // 9. Real Estate
   {
-    id: "tpl-smallbiz",
-    name: "Cornerstone General Store & Services",
-    category: "Small Business & Retail",
-    icon: Building2,
-    description: "Versatile small business template tailored for local merchants, specialty shops, and community services.",
-    primaryColor: "#0284c7",
-    secondaryColor: "#0369a1",
-    fontStyle: "sans",
-    seoTitle: "Cornerstone General Store | Quality Local Goods & Services",
-    seoDesc: "Your neighborhood favorite for quality goods, friendly service, and community convenience.",
-    heroTitle: "Serving Our Neighborhood with Pride",
-    heroSubtitle: "Cornerstone Store brings you trusted local products, expert friendly advice, and a commitment to our community.",
-    ctaText: "Get in Touch",
+    id: "tpl-realestate",
+    name: "Prestige Prime Real Estate & Estates",
+    category: "Real estate",
+    icon: Home,
+    description: "Luxurious property portal with filterable listings, virtual 3D home tours, agent booking, and instant valuation requests.",
+    primaryColor: "#0f766e",
+    secondaryColor: "#115e59",
+    accentColor: "#14b8a6",
+    fontStyle: "modern",
+    seoTitle: "Prestige Prime Real Estate | Luxury Homes & Commercial Property For Sale",
+    seoDesc: "Discover exclusive residential properties, beachfront villas, and high-yield commercial investments with top licensed brokers.",
+    seoKeywords: "real estate, luxury homes for sale, property valuation, estate agent, houses for rent",
+    heroTitle: "Find Your Dream Property & High-Yield Investments",
+    heroSubtitle: "Connecting discerning buyers, sellers, and investors with premier residential homes and commercial real estate portfolios.",
+    ctaText: "Browse Featured Listings",
+    ctaSecondaryText: "Free Property Valuation",
+    conversionHighlights: ["Filterable Property Search", "Instant Property Valuation Form", "WhatsApp Listing Inquiry", "Direct Agent Call & Tour Scheduler"],
+    accessibilityScore: 99,
+    seoScore: 98,
+    conversionScore: 97,
+    galleryUrls: [
+      { url: "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=800&q=80", alt: "Luxury modern home exterior" },
+      { url: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80", alt: "Designer interior living space" }
+    ],
     sampleServices: [
-      { title: "Local Delivery & Pickup", description: "Same-day doorstep delivery or convenient curbside pickup for all orders.", price: "$5" },
-      { title: "Custom Order Special Request", description: "Looking for a specific item? We source hard-to-find goods for our neighbors.", price: "Varies" }
-    ]
+      { title: "Residential Luxury Sales", description: "Exclusive marketing, professional staging, and qualified buyer matching.", price: "Standard Commission" },
+      { title: "Complimentary Market Valuation", description: "Comprehensive comparative market analysis of your property's value.", price: "Free Assessment" },
+      { title: "Commercial Property Leasing", description: "High-footprint retail and office space tenant placement.", price: "Custom Terms" }
+    ],
+    featuresList: [
+      { title: "Certified Master Brokers", icon: "ShieldCheck", description: "Deep local knowledge with over $120M in closed transactions." },
+      { title: "3D Virtual Tours & Drone Video", icon: "Sparkles", description: "Ultra-high definition marketing showcasing every home." }
+    ],
+    faqsList: [
+      { question: "How do I get an appraisal on my home?", answer: "Submit your address through our valuation tool or message us to schedule an in-person assessment." }
+    ],
+    testimonialsList: [
+      { name: "Alexander Wright", role: "Seller", review: "Prestige sold our home in 14 days above asking price. The photography and marketing were second to none.", rating: 5 }
+    ],
+    whatsappPitch: "Hi Prestige Real Estate! I'm interested in viewing your featured listings or getting a valuation on my property."
+  },
+
+  // 10. Hotel & Hospitality
+  {
+    id: "tpl-hotel",
+    name: "Azure Bay Resort & Boutique Hotel",
+    category: "Hotel",
+    icon: Building2,
+    description: "Alluring hospitality layout with direct room reservation engine, amenity showcases, photo galleries, and guest concierge.",
+    primaryColor: "#0369a1",
+    secondaryColor: "#075985",
+    accentColor: "#0ea5e9",
+    fontStyle: "serif",
+    seoTitle: "Azure Bay Resort | Boutique Luxury Suites, Spa & Oceanfront Dining",
+    seoDesc: "Unwind at Azure Bay Boutique Hotel. Oceanfront suites, infinity pool, artisanal dining, and wellness spa. Book direct for best rates.",
+    seoKeywords: "hotel booking, boutique resort, oceanfront suites, holiday accommodation, luxury stay",
+    heroTitle: "Your Coastal Sanctuary of Serenity & Luxury",
+    heroSubtitle: "Experience breathtaking panoramic views, handcrafted dining, and tailored hospitality at our five-star boutique getaway.",
+    ctaText: "Check Room Availability",
+    ctaSecondaryText: "Explore Suites & Amenities",
+    conversionHighlights: ["Direct Booking Engine with Instant Rates", "Suite Photo Galleries & Amenities", "WhatsApp Concierge Assistance", "Local Attraction & Activity Guide"],
+    accessibilityScore: 100,
+    seoScore: 98,
+    conversionScore: 97,
+    galleryUrls: [
+      { url: "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800&q=80", alt: "Resort swimming pool and lounge" }
+    ],
+    sampleServices: [
+      { title: "Oceanfront Deluxe Suite", description: "King bed, private balcony with sea view, and complimentary breakfast.", price: "From $220/night" },
+      { title: "Penthouse Master Villa", description: "Two bedrooms, private infinity plunge pool, and dedicated butler.", price: "From $480/night" },
+      { title: "Azure Wellness Spa Day Pass", description: "Access to thermal baths, eucalyptus steam room, and relaxation lounge.", price: "$65/day" }
+    ],
+    featuresList: [
+      { title: "Best Rate Direct Guarantee", icon: "Check", description: "Free room upgrades and flexible cancellation when booking direct." },
+      { title: "24/7 Dedicated Concierge", icon: "Sparkles", description: "Bespoke excursion bookings and airport limousine transfers." }
+    ],
+    faqsList: [
+      { question: "What is your check-in and check-out time?", answer: "Check-in begins at 2:00 PM and check-out is at 11:00 AM. Early check-in available on request." }
+    ],
+    testimonialsList: [
+      { name: "Claire & Thomas Hall", role: "Guests", review: "The most relaxing vacation we've ever taken. The ocean views, food, and staff hospitality were impeccable.", rating: 5 }
+    ],
+    whatsappPitch: "Hi Azure Bay Resort! I would like to check room availability and rates for an upcoming stay."
+  },
+
+  // 11. Automotive & Mechanic
+  {
+    id: "tpl-automotive",
+    name: "Precision Auto Care & Diagnostic Centre",
+    category: "Automotive",
+    icon: Car,
+    description: "Reliable auto repair layout featuring service booking, diagnostic cost breakdown, warranty pledges, and emergency towing hotline.",
+    primaryColor: "#dc2626",
+    secondaryColor: "#b91c1c",
+    accentColor: "#ef4444",
+    fontStyle: "sans",
+    seoTitle: "Precision Auto Care | Certified Mechanics, Brake & Engine Diagnostics",
+    seoDesc: "ASE-certified mechanics providing transparent vehicle servicing, computerized engine diagnostics, brakes, tires, and maintenance.",
+    seoKeywords: "auto repair, car mechanic, engine diagnostic, brake replacement, vehicle service",
+    heroTitle: "Expert Auto Repairs & Certified Engine Diagnostics",
+    heroSubtitle: "Honest advice, dealership-grade computerized equipment, and guaranteed parts warranty to keep your vehicle running smoothly.",
+    ctaText: "Book Service Appointment",
+    ctaSecondaryText: "View Pricing Guide",
+    conversionHighlights: ["Online Service Booking Form", "Transparent Repair Cost Estimator", "Emergency Towing Hotline", "WhatsApp Diagnostic Photo Quote"],
+    accessibilityScore: 100,
+    seoScore: 98,
+    conversionScore: 96,
+    galleryUrls: [
+      { url: "https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&w=800&q=80", alt: "Mechanic inspecting modern vehicle" }
+    ],
+    sampleServices: [
+      { title: "Comprehensive Minor Service", description: "Engine oil, filter replacement, 50-point safety inspection and top-up.", price: "$110" },
+      { title: "Computerized Diagnostics", description: "Check engine light scanning, ECU error troubleshooting and reporting.", price: "$45" },
+      { title: "Brake Pad & Rotor Replacement", description: "Premium ceramic brake pads and rotor resurfacing with warranty.", price: "From $160" }
+    ],
+    featuresList: [
+      { title: "ASE Certified Technicians", icon: "ShieldCheck", description: "Trained across all major domestic and imported vehicle makes." },
+      { title: "12-Month / 20,000km Warranty", icon: "Check", description: "Full parts and labor guarantee on every service performed." }
+    ],
+    faqsList: [
+      { question: "Do you provide a written estimate before starting work?", answer: "Always. We never perform any repairs without your explicit authorization on our detailed quote." }
+    ],
+    testimonialsList: [
+      { name: "Kenneth Zulu", role: "Fleet Manager", review: "Precision Auto keeps our entire delivery fleet on the road. Honest, fair pricing and quick turnaround.", rating: 5 }
+    ],
+    whatsappPitch: "Hi Precision Auto! I need to book my car in for a service/diagnostic check. Here are my vehicle details:"
+  },
+
+  // 12. General Business & Retail
+  {
+    id: "tpl-general",
+    name: "Cornerstone Enterprises & Local Retail",
+    category: "General business",
+    icon: Briefcase,
+    description: "Versatile, high-converting layout adaptable for any local shop, service provider, or distributor with clear product catalogs and lead generation.",
+    primaryColor: "#2563eb",
+    secondaryColor: "#1d4ed8",
+    accentColor: "#3b82f6",
+    fontStyle: "sans",
+    seoTitle: "Cornerstone Enterprises | Quality Products, Services & Local Support",
+    seoDesc: "Your trusted local business providing dependable products, personalized customer care, and competitive pricing across the region.",
+    seoKeywords: "local business, retail shop, commercial services, customer support, quality products",
+    heroTitle: "Quality Products & Trusted Service in Your Community",
+    heroSubtitle: "Dedicated to providing high-quality solutions, dependable customer care, and exceptional value for local families and businesses.",
+    ctaText: "Inquire / Request a Quote",
+    ctaSecondaryText: "Browse Offerings",
+    conversionHighlights: ["Quick Quote Request Form", "Product & Service Catalog", "WhatsApp Chat Concierge", "Map Location & Business Hours"],
+    accessibilityScore: 100,
+    seoScore: 98,
+    conversionScore: 96,
+    galleryUrls: [
+      { url: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=800&q=80", alt: "Local retail and business store" }
+    ],
+    sampleServices: [
+      { title: "Standard Service Package", description: "Comprehensive solution designed for everyday needs with prompt turnaround.", price: "$95" },
+      { title: "Premium Commercial Support", description: "Priority handling, dedicated support agent, and tailored delivery schedules.", price: "$240" },
+      { title: "Custom Bulk Order Fulfillment", description: "Discounted rates for high-volume orders and local business partnerships.", price: "Custom Quote" }
+    ],
+    featuresList: [
+      { title: "100% Satisfaction Guarantee", icon: "ShieldCheck", description: "Committed to delivering outstanding quality on every order." },
+      { title: "Local Delivery & Support", icon: "Check", description: "Fast delivery and responsive support across the entire region." }
+    ],
+    faqsList: [
+      { question: "What areas do you service?", answer: "We serve our entire local town and surrounding suburbs within a 30km radius." }
+    ],
+    testimonialsList: [
+      { name: "Themba Lukhele", role: "Local Customer", review: "Cornerstone represents the best of local business: honest, reliable, and always going the extra mile.", rating: 5 }
+    ],
+    whatsappPitch: "Hi Cornerstone! I would like to inquire about your local products/services and get a quick quote."
   }
 ];
 
 export default function TemplateLibrary({ onSelectTemplate, onBack }: TemplateLibraryProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [previewTemplate, setPreviewTemplate] = useState<IndustryTemplateMeta | null>(null);
+  const [previewDevice, setPreviewDevice] = useState<"desktop" | "tablet" | "mobile">("desktop");
+  const [previewTab, setPreviewTab] = useState<"visual" | "audit" | "seo">("visual");
 
-  const categories = ["All", "Hospitality & Food", "Faith & Community", "Education & Learning", "Healthcare & Wellness", "Legal & Advisory", "Construction & Engineering", "Home Trades & Repair", "Automotive Services", "Beauty & Wellness", "Creative & Arts", "Real Estate & Housing", "Retail & E-Commerce", "Sports & Fitness", "Business & Consulting", "NGO & Advocacy", "Agriculture & Farming", "Sports & Recreation", "Small Business & Retail"];
+  const categories = [
+    "All", 
+    "Restaurant", 
+    "Construction", 
+    "Plumbing", 
+    "Beauty", 
+    "Professional services", 
+    "Medical", 
+    "School", 
+    "Church", 
+    "Real estate", 
+    "Hotel", 
+    "Automotive", 
+    "General business"
+  ];
 
   const filteredTemplates = ALL_INDUSTRY_TEMPLATES.filter(tpl => {
-    const matchesSearch = tpl.name.toLowerCase().includes(searchQuery.toLowerCase()) || tpl.description.toLowerCase().includes(searchQuery.toLowerCase()) || tpl.category.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCat = selectedCategory === "All" || tpl.category === selectedCategory;
+    const matchesSearch = 
+      tpl.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      tpl.description.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      tpl.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      tpl.seoKeywords.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCat = selectedCategory === "All" || tpl.category.toLowerCase() === selectedCategory.toLowerCase();
     return matchesSearch && matchesCat;
   });
 
   const instantiateTemplate = (tpl: IndustryTemplateMeta) => {
     const additionalServices = [
-      { title: "Priority Consultation & Assessment", description: "Comprehensive initial review and customized plan tailored to your specific needs.", price: "$99" },
-      { title: "VIP Ongoing Support & Maintenance", description: "Dedicated ongoing assistance, priority booking, and periodic checkups.", price: "$150/mo" }
+      { title: "Priority On-Demand Consultation", description: "Comprehensive initial assessment and customized solution plan tailored to your specific requirements.", price: "$75" },
+      { title: "VIP Ongoing Care & Support", description: "Dedicated priority assistance, periodic checkups, and guaranteed response times.", price: "$120/mo" }
     ];
     const fullServices = [...tpl.sampleServices, ...additionalServices];
 
     const newSite: GeneratedSite = {
       id: `site-${Date.now()}`,
       businessName: tpl.name,
-      phone: "(555) 019-2834",
-      address: "100 Innovation Way, Suite 400",
+      phone: "+268 7600 0000",
+      address: "100 Innovation Boulevard, Central Business District",
       category: tpl.category,
       primaryColor: tpl.primaryColor,
       secondaryColor: tpl.secondaryColor,
-      accentColor: tpl.primaryColor,
+      accentColor: tpl.accentColor,
       backgroundColor: "#ffffff",
       textColor: "#0f172a",
       fontStyle: tpl.fontStyle,
       seo: {
         title: tpl.seoTitle,
         description: tpl.seoDesc,
-        keywords: `${tpl.name.toLowerCase()}, ${tpl.category.toLowerCase()}, professional services, expert solutions`
+        keywords: tpl.seoKeywords
       },
       hero: {
         title: tpl.heroTitle,
         subtitle: tpl.heroSubtitle,
         ctaPrimary: tpl.ctaText,
-        ctaSecondary: "Explore Services"
+        ctaSecondary: tpl.ctaSecondaryText,
+        imageUrl: tpl.galleryUrls[0]?.url
       },
       about: {
         title: `About ${tpl.name}`,
-        history: `Established with a steadfast commitment to excellence, ${tpl.name} has grown into a trusted leader in the ${tpl.category} industry.`,
-        mission: `Our mission is to deliver uncompromising quality, innovative solutions, and exceptional client satisfaction in every engagement.`,
-        pitch: `With years of specialized expertise, our dedicated team combines industry best practices with personalized service to achieve outstanding outcomes for our clients.`
+        history: `Established with a commitment to excellence, ${tpl.name} is a trusted leader in the ${tpl.category} sector.`,
+        mission: `Our mission is to deliver uncompromising quality, reliable solutions, and exceptional client satisfaction.`,
+        pitch: `With years of dedicated expertise, our team combines industry best practices with personalized care to deliver outstanding results.`
       },
       services: fullServices,
-      features: [
-        { title: "Certified Professional Expertise", icon: "ShieldCheck", description: "Led by industry-certified specialists with a proven track record of top-tier delivery." },
-        { title: "Responsive & Accessible", icon: "Smartphone", description: "Fully optimized for seamless viewing and interaction across mobile, tablet, and desktop screens." },
-        { title: "Fast & Reliable Execution", icon: "Zap", description: "Streamlined operational workflows ensuring rapid turnaround without compromising craftsmanship." },
-        { title: "100% Satisfaction Guarantee", icon: "Award", description: "We stand firmly behind our work with dedicated follow-up and client assurance." }
-      ],
-      gallery: [
-        { url: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80", alt: "Professional environment showcase" },
-        { url: "https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=800&q=80", alt: "Team collaboration in action" },
-        { url: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80", alt: "High quality output preview" }
-      ],
-      faqs: [
-        { question: "How quickly can we get started?", answer: "We provide rapid onboarding and can initiate your project or service within 24-48 hours." },
-        { question: "What is included in your service packages?", answer: "All packages include professional consultation, premium execution, dedicated support, and our 100% satisfaction guarantee." },
-        { question: "Are your team members licensed and insured?", answer: "Yes, all our professionals hold full industry credentials, active licenses, and comprehensive liability insurance." },
-        { question: "Can I customize the scope of work?", answer: "Absolutely. We tailor every solution to fit your exact requirements, timeline, and budget." }
-      ],
-      testimonials: [
-        { name: "Jessica Taylor", review: `Working with ${tpl.name} was an absolute game-changer. Exceptional professionalism and outstanding results!`, rating: 5 },
-        { name: "Marcus Vance", review: "Prompt, incredibly knowledgeable, and truly dedicated to customer satisfaction. Highly recommended.", rating: 5 },
-        { name: "Elena Rostova", review: "The level of care and precision they brought to the table exceeded all our expectations.", rating: 5 }
-      ],
+      features: tpl.featuresList.map(f => ({
+        title: f.title,
+        icon: f.icon || "ShieldCheck",
+        description: f.description
+      })),
+      gallery: tpl.galleryUrls,
+      faqs: tpl.faqsList,
+      testimonials: tpl.testimonialsList.map(t => ({
+        name: t.name,
+        review: t.review,
+        rating: t.rating
+      })),
       blog: [
-        { title: `Top Best Practices in ${tpl.category} for 2026`, summary: "Discover expert strategies and proven methodologies to maximize success and efficiency.", category: "Industry Insights" },
-        { title: `Why Professional Excellence Matters More Than Ever`, summary: "An in-depth look at how premium standards drive long-term client trust and satisfaction.", category: "Expertise" }
+        { title: `Top Best Practices in ${tpl.category} for 2026`, summary: "Discover expert strategies and proven methodologies to maximize quality and long-term success.", category: "Industry Insights" },
+        { title: `Why Professional Standards Matter More Than Ever`, summary: "An in-depth look at how reliability and certified excellence protect client investment and peace of mind.", category: "Expertise" }
       ],
-      whatsappMessage: `Hello ${tpl.name}, I would like to inquire about your services and schedule a consultation.`,
+      whatsappMessage: tpl.whatsappPitch,
       contactPage: {
-        title: "Get in Touch With Us Today",
-        description: "Reach out to our team for inquiries, quotes, or consultations. We are here to help.",
+        title: `Get in Touch with ${tpl.name}`,
+        description: "Reach out to our dedicated team today for inquiries, estimates, or bookings. We respond promptly.",
         email: `contact@${tpl.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.com`
       },
-      privacyPolicy: "We protect your privacy with strict data security standards and never share your information.",
-      termsOfService: "Standard terms and conditions apply to all service agreements.",
+      privacyPolicy: "We protect your privacy with strict data security standards and never share your personal information with third parties.",
+      termsOfService: "Standard service agreements and quality guarantees apply to all client engagements.",
       notFoundPage: {
         title: "Page Not Found",
-        message: "The page you are looking for does not exist or has been relocated."
+        message: "The page you requested does not exist or has been relocated."
       }
     };
     onSelectTemplate(newSite);
@@ -562,47 +668,53 @@ export default function TemplateLibrary({ onSelectTemplate, onBack }: TemplateLi
 
   return (
     <div className="space-y-8 text-left py-6 px-4 max-w-7xl mx-auto">
-      {/* Header */}
+      {/* Top Banner & Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-6 gap-4">
         <div>
           <button 
             onClick={onBack}
-            className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline mb-2 cursor-pointer"
+            className="text-xs font-bold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 flex items-center gap-1 mb-2 cursor-pointer transition-colors"
           >
-            ← Back to Dashboard
+            ← Back to Finder
           </button>
-          <h2 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-3">
-            <Layers className="h-8 w-8 text-blue-600 dark:text-blue-400" /> Professional Industry Template Library
-          </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Explore 23+ modern, responsive, accessible, SEO-friendly, and conversion-optimized templates for every major industry.
-          </p>
+          <div className="flex items-center gap-2.5">
+            <div className="p-2.5 rounded-2xl bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400">
+              <Layers className="h-6 w-6" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                Curated Industry Design System (12 Core Blueprints)
+              </h1>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Pre-calibrated conversion architectures ready for instant Gemini AI customization.
+              </p>
+            </div>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <div className="relative flex-1 sm:w-72">
-            <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search templates or industries..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 pl-10 pr-4 py-2.5 text-xs text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+        {/* Search Bar */}
+        <div className="relative w-full sm:w-72">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search templates..."
+            className="w-full pl-10 pr-4 py-2 rounded-xl text-xs border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
         </div>
       </div>
 
-      {/* Category Filter Pills */}
+      {/* Filter Categories Chips */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
         {categories.map((cat) => (
           <button
             key={cat}
             onClick={() => setSelectedCategory(cat)}
-            className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              selectedCategory === cat 
-                ? "bg-blue-600 text-white shadow-md shadow-blue-500/20" 
-                : "bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800"
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+              selectedCategory.toLowerCase() === cat.toLowerCase()
+                ? "bg-blue-600 text-white shadow-sm"
+                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
             }`}
           >
             {cat}
@@ -610,60 +722,290 @@ export default function TemplateLibrary({ onSelectTemplate, onBack }: TemplateLi
         ))}
       </div>
 
-      {/* Templates Grid */}
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Template Cards Grid */}
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {filteredTemplates.map((tpl) => {
-          const Icon = tpl.icon;
+          const Icon = tpl.icon || Building2;
           return (
-            <div 
+            <div
               key={tpl.id}
-              className="group rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm hover:shadow-xl hover:border-blue-500/50 dark:hover:border-blue-500/50 transition-all flex flex-col justify-between space-y-6"
+              className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between group"
             >
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="p-3 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform">
-                    <Icon className="h-6 w-6" />
-                  </div>
-                  <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                    {tpl.category}
-                  </span>
-                </div>
+              {/* Header color accent bar */}
+              <div className="h-2 w-full" style={{ backgroundColor: tpl.primaryColor }} />
 
-                <div className="space-y-1.5">
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white group-hover:text-blue-600 transition-colors">
+              <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span 
+                      className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md"
+                      style={{ backgroundColor: `${tpl.primaryColor}15`, color: tpl.primaryColor }}
+                    >
+                      {tpl.category}
+                    </span>
+                    <div className="p-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                      <Icon className="h-4 w-4" />
+                    </div>
+                  </div>
+
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white mt-2 group-hover:text-blue-600 transition-colors">
                     {tpl.name}
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2">
+
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 leading-relaxed">
                     {tpl.description}
                   </p>
                 </div>
 
-                {/* Badges */}
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold">
-                    <ShieldCheck className="h-3 w-3" /> Responsive
-                  </span>
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-purple-50 dark:bg-purple-950/30 text-purple-600 dark:text-purple-400 text-[10px] font-bold">
-                    <Globe className="h-3 w-3" /> SEO Ready
-                  </span>
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 text-[10px] font-bold">
-                    <Sparkles className="h-3 w-3" /> High Conversion
-                  </span>
+                {/* Conversion Highlights Chips */}
+                <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  {tpl.conversionHighlights.slice(0, 2).map((ch, idx) => (
+                    <div key={idx} className="flex items-center gap-1.5 text-[11px] text-slate-600 dark:text-slate-400">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                      <span className="truncate">{ch}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Audit Badges */}
+                <div className="flex items-center justify-between text-[10px] font-mono font-bold pt-2 border-t border-slate-100 dark:border-slate-800 text-slate-500">
+                  <span>SEO: {tpl.seoScore}%</span>
+                  <span>WCAG: {tpl.accessibilityScore}%</span>
+                  <span>Conv: {tpl.conversionScore}%</span>
+                </div>
+
+                {/* Buttons */}
+                <div className="grid grid-cols-2 gap-2 pt-2">
+                  <button
+                    onClick={() => setPreviewTemplate(tpl)}
+                    className="w-full py-2 px-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer text-center"
+                  >
+                    Inspect
+                  </button>
+                  <button
+                    onClick={() => instantiateTemplate(tpl)}
+                    className="w-full py-2 px-3 rounded-xl text-xs font-bold text-white shadow-sm flex items-center justify-center gap-1 cursor-pointer transition-all hover:opacity-90"
+                    style={{ backgroundColor: tpl.primaryColor }}
+                  >
+                    <span>Use</span>
+                    <ArrowRight className="h-3 w-3" />
+                  </button>
                 </div>
               </div>
-
-              {/* Action Button */}
-              <button
-                onClick={() => instantiateTemplate(tpl)}
-                className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900 hover:bg-blue-600 text-white dark:bg-slate-800 dark:hover:bg-blue-600 text-xs font-bold py-3 transition-all cursor-pointer shadow-sm group-hover:shadow-md"
-              >
-                <span>Use & Customize Template</span>
-                <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-              </button>
             </div>
           );
         })}
       </div>
+
+      {/* Inspect Modal */}
+      {previewTemplate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
+            {/* Modal Header */}
+            <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div 
+                  className="p-3 rounded-2xl text-white font-bold"
+                  style={{ backgroundColor: previewTemplate.primaryColor }}
+                >
+                  <Sparkles className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                    {previewTemplate.name}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Category: {previewTemplate.category} • Palette: {previewTemplate.primaryColor}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="flex rounded-xl bg-slate-100 dark:bg-slate-800 p-1">
+                  <button
+                    onClick={() => setPreviewTab("visual")}
+                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+                      previewTab === "visual" ? "bg-white text-slate-900 dark:bg-slate-700 dark:text-white shadow-xs" : "text-slate-500"
+                    }`}
+                  >
+                    Live Mockup
+                  </button>
+                  <button
+                    onClick={() => setPreviewTab("audit")}
+                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+                      previewTab === "audit" ? "bg-white text-slate-900 dark:bg-slate-700 dark:text-white shadow-xs" : "text-slate-500"
+                    }`}
+                  >
+                    SEO & Audit
+                  </button>
+                </div>
+                <button
+                  onClick={() => setPreviewTemplate(null)}
+                  className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 font-extrabold cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto flex-1">
+              {previewTab === "visual" ? (
+                <div className="space-y-4">
+                  {/* Device Bar */}
+                  <div className="flex items-center justify-between pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-500">Viewport:</span>
+                      <div className="flex rounded-lg bg-slate-100 dark:bg-slate-800 p-0.5">
+                        <button 
+                          onClick={() => setPreviewDevice("desktop")}
+                          className={`p-1.5 rounded-md text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer ${previewDevice === "desktop" ? "bg-blue-600 text-white" : "text-slate-500"}`}
+                        >
+                          <Monitor className="h-3.5 w-3.5" /> Desktop
+                        </button>
+                        <button 
+                          onClick={() => setPreviewDevice("mobile")}
+                          className={`p-1.5 rounded-md text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer ${previewDevice === "mobile" ? "bg-blue-600 text-white" : "text-slate-500"}`}
+                        >
+                          <Smartphone className="h-3.5 w-3.5" /> Mobile
+                        </button>
+                      </div>
+                    </div>
+
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-lg">
+                      ✓ WCAG Contrast AA Pass
+                    </span>
+                  </div>
+
+                  {/* Render Mockup */}
+                  <div className="flex justify-center bg-slate-100/60 dark:bg-slate-950/80 p-4 rounded-3xl border border-slate-200 dark:border-slate-800">
+                    <div 
+                      className={`bg-white dark:bg-slate-900 rounded-2xl shadow-xl overflow-hidden border border-slate-200 dark:border-slate-800 transition-all duration-300 ${
+                        previewDevice === "mobile" ? "w-[360px]" : "w-full"
+                      }`}
+                    >
+                      {/* Fake Browser Top Bar */}
+                      <div className="bg-slate-100 dark:bg-slate-800 px-3 py-2 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2">
+                        <div className="flex items-center gap-1">
+                          <span className="h-2 w-2 rounded-full bg-red-400 inline-block" />
+                          <span className="h-2 w-2 rounded-full bg-amber-400 inline-block" />
+                          <span className="h-2 w-2 rounded-full bg-emerald-400 inline-block" />
+                        </div>
+                        <div className="bg-white dark:bg-slate-900 px-3 py-0.5 rounded-md text-[10px] text-slate-500 font-mono truncate flex-1 text-center">
+                          https://{previewTemplate.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.com
+                        </div>
+                      </div>
+
+                      {/* Header */}
+                      <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                        <div className="font-bold text-sm" style={{ color: previewTemplate.primaryColor }}>
+                          {previewTemplate.name}
+                        </div>
+                        <span className="px-3 py-1 rounded-lg text-white text-[11px] font-bold" style={{ backgroundColor: previewTemplate.primaryColor }}>
+                          {previewTemplate.ctaText}
+                        </span>
+                      </div>
+
+                      {/* Hero Section */}
+                      <div className="p-6 text-center space-y-3" style={{ backgroundColor: `${previewTemplate.primaryColor}08` }}>
+                        <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white leading-tight">
+                          {previewTemplate.heroTitle}
+                        </h2>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 max-w-lg mx-auto leading-relaxed">
+                          {previewTemplate.heroSubtitle}
+                        </p>
+                        <div className="flex items-center justify-center gap-2 pt-2">
+                          <button className="px-4 py-2 rounded-xl text-xs font-bold text-white shadow-md" style={{ backgroundColor: previewTemplate.primaryColor }}>
+                            {previewTemplate.ctaText}
+                          </button>
+                          <button className="px-4 py-2 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200">
+                            {previewTemplate.ctaSecondaryText}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Sample Offerings */}
+                      <div className="p-5 space-y-3">
+                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-400">Featured Offerings & Packages</h4>
+                        <div className="space-y-2">
+                          {previewTemplate.sampleServices.map((srv, idx) => (
+                            <div key={idx} className="p-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 flex items-center justify-between">
+                              <div>
+                                <p className="text-xs font-bold text-slate-900 dark:text-white">{srv.title}</p>
+                                <p className="text-[10px] text-slate-500">{srv.description}</p>
+                              </div>
+                              <span className="font-extrabold text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2.5 py-1 rounded-lg">
+                                {srv.price}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Audit & SEO Tab */
+                <div className="space-y-6">
+                  {/* Scores Grid */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 text-center space-y-1">
+                      <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{previewTemplate.accessibilityScore}/100</div>
+                      <div className="text-xs font-bold text-slate-800 dark:text-slate-200">Accessibility (WCAG AA)</div>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 text-center space-y-1">
+                      <div className="text-2xl font-black text-blue-600 dark:text-blue-400">{previewTemplate.seoScore}/100</div>
+                      <div className="text-xs font-bold text-slate-800 dark:text-slate-200">SEO Score</div>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-900 text-center space-y-1">
+                      <div className="text-2xl font-black text-purple-600 dark:text-purple-400">{previewTemplate.conversionScore}/100</div>
+                      <div className="text-xs font-bold text-slate-800 dark:text-slate-200">Conversion Power</div>
+                    </div>
+                  </div>
+
+                  {/* SEO Metadata Card */}
+                  <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-2">
+                    <h4 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      <Globe className="h-4 w-4 text-blue-500" /> Google Search Preview
+                    </h4>
+                    <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1">
+                      <div className="text-[11px] text-slate-500">https://{previewTemplate.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.com</div>
+                      <div className="text-sm font-bold text-blue-600 dark:text-blue-400">
+                        {previewTemplate.seoTitle}
+                      </div>
+                      <div className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                        {previewTemplate.seoDesc}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 sm:p-6 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-950/50">
+              <button 
+                onClick={() => setPreviewTemplate(null)}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                Close Preview
+              </button>
+
+              <button
+                onClick={() => {
+                  instantiateTemplate(previewTemplate);
+                  setPreviewTemplate(null);
+                }}
+                className="px-6 py-2.5 rounded-xl text-white text-xs font-bold flex items-center gap-2 shadow-md cursor-pointer hover:opacity-90"
+                style={{ backgroundColor: previewTemplate.primaryColor }}
+              >
+                <span>Launch & Customize Template</span>
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

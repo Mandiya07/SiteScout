@@ -14,12 +14,6 @@
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
-    },
-    {
-      "src": "/sitescout_icon.jpg",
-      "sizes": "192x192 512x512 1024x1024",
-      "type": "image/jpeg",
-      "purpose": "any maskable"
     }
   ]
 }

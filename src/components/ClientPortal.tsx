@@ -22,22 +22,26 @@ interface FeedbackItem {
 }
 
 export default function ClientPortal({ site, onBackToApp, onSave }: ClientPortalProps) {
-  const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([
-    {
-      id: "fb-1",
-      section: "Hero Section",
-      comment: "Could we change the main headline to emphasize our 24/7 emergency service? That is our biggest selling point.",
-      status: "pending",
-      date: "Today, 10:15 AM"
-    },
-    {
-      id: "fb-2",
-      section: "Color Scheme",
-      comment: "Looks great, but the accent blue is slightly too bright. Can we use a deeper navy color?",
-      status: "resolved",
-      date: "Yesterday, 2:40 PM"
+  const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>(() => {
+    if (site.clientFeedback && site.clientFeedback.length > 0) {
+      return site.clientFeedback.map((fb, idx) => ({
+        id: `fb-${idx}-${Date.now()}`,
+        section: "Live Design Layout",
+        comment: fb.message,
+        status: (fb.status as any) || "pending",
+        date: new Date(fb.timestamp).toLocaleDateString()
+      }));
     }
-  ]);
+    return [
+      {
+        id: "fb-1",
+        section: "Hero Section",
+        comment: "Could we change the main headline to emphasize our 24/7 emergency service? That is our biggest selling point.",
+        status: "pending",
+        date: "Today, 10:15 AM"
+      }
+    ];
+  });
 
   const [chatMessages, setChatMessages] = useState<{id: string, text: string, sender: "client" | "designer", time: string}[]>([
     {
@@ -97,9 +101,6 @@ export default function ClientPortal({ site, onBackToApp, onSave }: ClientPortal
 
     setFeedbacks([newItem, ...feedbacks]);
     setNewComment("");
-    
-    // Trigger notification alert
-    window.alert("Notification System: An email alert has been securely dispatched to your agency team regarding this feedback.");
   };
 
   const deleteFeedback = (id: string) => {

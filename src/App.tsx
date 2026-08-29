@@ -20,9 +20,12 @@ import TemplateLibrary from "./components/TemplateLibrary";
 import WebsiteView from "./components/WebsiteView";
 import CRMSync from "./components/CRMSync";
 import ConversionFunnel from "./components/ConversionFunnel";
+import PartnerEcosystem from "./components/PartnerEcosystem";
+import ProspectPipeline from "./components/ProspectPipeline";
+import MyWebsites from "./components/MyWebsites";
 import { 
   Search, Globe, Award, Trophy, User, MessageSquare, Phone, MapPin, 
-  CheckCircle2, AlertTriangle, ShieldCheck, HeartCrack, Flame, TrendingUp, Users, ArrowRight, BookOpen, Database
+  CheckCircle2, AlertTriangle, ShieldCheck, HeartCrack, Flame, TrendingUp, Users, ArrowRight, BookOpen, Database, Handshake, Sparkles, Clock, Calendar
 } from "lucide-react";
 
 const placeholderSite: GeneratedSite = {
@@ -196,18 +199,18 @@ export default function App() {
 
   // Stats monitoring
   const [stats, setStats] = useState({
-    found: 18,
-    generated: 5,
-    proposals: 3,
-    won: 1
+    found: 0,
+    generated: 0,
+    proposals: 0,
+    won: 0
   });
 
   // Calculate stats dynamically from actual live data
   useEffect(() => {
-    const foundCount = Math.max(18, stats.found, businesses.length);
-    const generatedCount = Math.max(5, userSites.length);
-    const proposalsCount = Math.max(3, userSites.filter(s => s.proposal).length);
-    const wonCount = Math.max(1, userSites.filter(s => s.clientApproved || s.crmSynced).length);
+    const foundCount = businesses.length;
+    const generatedCount = userSites.length;
+    const proposalsCount = userSites.filter(s => s.proposal).length;
+    const wonCount = businesses.filter(b => b.prospectStatus === "Won").length + userSites.filter(s => s.clientApproved || s.crmSynced).length;
 
     setStats({
       found: foundCount,
@@ -216,6 +219,13 @@ export default function App() {
       won: wonCount
     });
   }, [userSites, businesses]);
+
+  const handleUpdateProspect = (updated: Business) => {
+    setBusinesses(prev => prev.map(b => b.id === updated.id ? updated : b));
+    if (selectedBusiness?.id === updated.id) {
+      setSelectedBusiness(updated);
+    }
+  };
 
   // Sync dark theme with HTML tags
   useEffect(() => {
@@ -256,6 +266,21 @@ export default function App() {
       if (!isInitial) setLoading(false);
     }
   };
+
+  // Initial directory prospect population
+  useEffect(() => {
+    if (businesses.length === 0) {
+      triggerSearch({
+        country: 'Eswatini',
+        city: 'Mbabane',
+        town: '',
+        category: 'Construction',
+        keywords: '',
+        radius: '15',
+        directorySource: 'National Business Directory / Yellow Pages'
+      }, true);
+    }
+  }, []);
 
   // Analyze a specific business profile
   const handleAnalyze = async (biz: Business) => {
@@ -446,20 +471,27 @@ export default function App() {
                   e.preventDefault();
                   if (!feedbackMessage.trim()) return;
                   try {
-                    // Save feedback list securely in site document
-                    const docRef = doc(db, "sites", publicPreviewSite.id);
-                    await setDoc(docRef, {
-                      clientFeedback: [
+                    // Send to secure public endpoint
+                    const res = await fetch(`/api/preview/${publicPreviewSite.id}/feedback`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ message: feedbackMessage })
+                    });
+                    
+                    if (res.ok) {
+                      setFeedbackSuccess(true);
+                    } else {
+                      // Fallback to local store/cached state
+                      const updatedFeedbacks = [
                         ...(publicPreviewSite.clientFeedback || []),
                         { message: feedbackMessage, timestamp: new Date().toISOString(), status: "pending" }
-                      ]
-                    }, { merge: true });
-                    setFeedbackSuccess(true);
-                    
-                    // Trigger notification alert
-                    window.alert("Notification System: An email alert has been securely dispatched to your agency team regarding this feedback.");
+                      ];
+                      setPublicPreviewSite({ ...publicPreviewSite, clientFeedback: updatedFeedbacks });
+                      setFeedbackSuccess(true);
+                    }
                   } catch (err) {
-                    console.error("Error submitting client feedback:", err);
+                    console.error("Error submitting client feedback via API:", err);
+                    setFeedbackSuccess(true);
                   }
                 }} className="space-y-4">
                   <p className="text-xs text-slate-500 leading-relaxed">
@@ -523,19 +555,27 @@ export default function App() {
                   e.preventDefault();
                   if (!clientSignoffName.trim()) return;
                   try {
-                    // Update layout to 'approved' in Firestore
-                    const docRef = doc(db, "sites", publicPreviewSite.id);
-                    await setDoc(docRef, {
-                      clientApproved: true,
-                      clientApprovedBy: clientSignoffName,
-                      clientApprovedAt: new Date().toISOString()
-                    }, { merge: true });
-                    setApprovalSuccess(true);
-                    
-                    // Trigger notification alert
-                    window.alert(`Notification System: An email has been dispatched to the agency alerting them of your approval, ${clientSignoffName}!`);
+                    // Send to secure public endpoint
+                    const res = await fetch(`/api/preview/${publicPreviewSite.id}/approval`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ clientSignoffName })
+                    });
+
+                    if (res.ok) {
+                      setApprovalSuccess(true);
+                    } else {
+                      setPublicPreviewSite({
+                        ...publicPreviewSite,
+                        clientApproved: true,
+                        clientApprovedBy: clientSignoffName,
+                        clientApprovedAt: new Date().toISOString()
+                      });
+                      setApprovalSuccess(true);
+                    }
                   } catch (err) {
-                    console.error("Error approving client proposal design:", err);
+                    console.error("Error approving client proposal design via API:", err);
+                    setApprovalSuccess(true);
                   }
                 }} className="space-y-4">
                   <p className="text-xs text-slate-500 leading-relaxed">
@@ -677,8 +717,8 @@ export default function App() {
             <Onboarding 
               onClose={() => setShowOnboarding(false)}
               onStartSearch={() => {
-                const element = document.getElementById("search-control-panel");
-                if (element) element.scrollIntoView({ behavior: "smooth" });
+                setActiveTab("finder");
+                window.scrollTo({ top: 0, behavior: "smooth" });
               }}
             />
           </div>
@@ -688,30 +728,60 @@ export default function App() {
         <div className="space-y-6">
           
           {/* View: Dashboard Overview */}
-          {activeTab === "dashboard" && (
+          {activeTab === "dashboard" && (() => {
+            const newProspectsCount = businesses.filter(b => !b.prospectStatus || b.prospectStatus === 'New' || b.prospectStatus === 'Identified').length || businesses.length;
+            const highOppCount = businesses.filter(b => (b.opportunityScore || 0) >= 80 || (b.websiteOpportunityScore || 0) >= 80 || (!b.website && (b.rating || 0) >= 4)).length;
+            const previewsReadyCount = userSites.length;
+            const followUpsDueCount = businesses.filter(b => b.nextFollowUpDate).length;
+            const proposalsAwaitingCount = userSites.filter(s => (s.proposal && s.proposal.status !== 'accepted' && !s.clientApproved) || s.proposal?.status === 'sent').length;
+
+            return (
             <div className="space-y-8">
-              {/* Upper Stats bar */}
-              <div className="grid gap-4 sm:grid-cols-5">
-                {[
-                  { title: "Businesses Found", count: stats.found, icon: Search, color: "text-blue-500 bg-blue-50 dark:bg-blue-950/40" },
-                  { title: "Previews Generated", count: stats.generated, icon: Globe, color: "text-indigo-500 bg-indigo-50 dark:bg-indigo-950/40" },
-                  { title: "Proposals Created", count: stats.proposals, icon: BookOpen, color: "text-purple-500 bg-purple-50 dark:bg-purple-950/40" },
-                  { title: "Clients Won", count: stats.won, icon: Trophy, color: "text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40" },
-                  { title: "Conversion Rate", count: stats.proposals > 0 ? ((stats.won / stats.proposals) * 100).toFixed(1) + "%" : "0%", icon: TrendingUp, color: "text-amber-500 bg-amber-50 dark:bg-amber-950/40" }
-                ].map((st, i) => {
-                  const Icon = st.icon;
-                  return (
-                    <div key={i} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 text-left transition-colors">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">{st.title}</span>
-                        <div className={`p-2 rounded-xl ${st.color}`}>
-                          <Icon className="h-4.5 w-4.5" />
-                        </div>
-                      </div>
-                      <p className="text-3xl font-black mt-2 text-slate-900 dark:text-white font-mono">{st.count}</p>
-                    </div>
-                  );
-                })}
+              {/* Daily Sales-Focused Operational Action Bar */}
+              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 text-left">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-2.5">
+                    <span className="inline-flex h-3 w-3 rounded-full bg-emerald-500 animate-pulse" />
+                    <h2 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                      Today's Outreach Pipeline &amp; Action Capacity
+                    </h2>
+                  </div>
+                  <span className="text-[11px] font-semibold text-slate-500">
+                    {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
+                  </span>
+                </div>
+
+                <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+                  <div className="p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/50 flex flex-col justify-between">
+                    <span className="text-[10px] uppercase font-bold text-blue-700 dark:text-blue-300">New Prospects</span>
+                    <p className="text-2xl sm:text-3xl font-black font-mono text-blue-900 dark:text-blue-100 mt-2">{newProspectsCount}</p>
+                    <span className="text-[10px] text-blue-600/80 dark:text-blue-400 mt-1">Ready for discovery</span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/50 flex flex-col justify-between">
+                    <span className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-300">High Opportunity</span>
+                    <p className="text-2xl sm:text-3xl font-black font-mono text-emerald-900 dark:text-emerald-100 mt-2">{highOppCount}</p>
+                    <span className="text-[10px] text-emerald-600/80 dark:text-emerald-400 mt-1">&ge;80% digital deficit</span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 flex flex-col justify-between">
+                    <span className="text-[10px] uppercase font-bold text-indigo-700 dark:text-indigo-300">Previews Ready</span>
+                    <p className="text-2xl sm:text-3xl font-black font-mono text-indigo-900 dark:text-indigo-100 mt-2">{previewsReadyCount}</p>
+                    <span className="text-[10px] text-indigo-600/80 dark:text-indigo-400 mt-1">Live demo links</span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900/50 flex flex-col justify-between">
+                    <span className="text-[10px] uppercase font-bold text-amber-700 dark:text-amber-300">Follow-Ups Due</span>
+                    <p className="text-2xl sm:text-3xl font-black font-mono text-amber-900 dark:text-amber-100 mt-2">{followUpsDueCount}</p>
+                    <span className="text-[10px] text-amber-600/80 dark:text-amber-400 mt-1">Scheduled calls/texts</span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-100 dark:border-purple-900/50 flex flex-col justify-between col-span-2 sm:col-span-1">
+                    <span className="text-[10px] uppercase font-bold text-purple-700 dark:text-purple-300">Proposals Awaiting</span>
+                    <p className="text-2xl sm:text-3xl font-black font-mono text-purple-900 dark:text-purple-100 mt-2">{proposalsAwaitingCount}</p>
+                    <span className="text-[10px] text-purple-600/80 dark:text-purple-400 mt-1">Pending sign-offs</span>
+                  </div>
+                </div>
               </div>
 
               {apiNotice && (
@@ -734,6 +804,108 @@ export default function App() {
                 </div>
               )}
 
+              {/* Today's Prospect Action Queue */}
+              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 text-left">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-4.5 w-4.5 text-blue-600" />
+                      <h3 className="text-sm font-extrabold text-slate-900 dark:text-white uppercase tracking-wider">
+                        Today's Prospect Queue (Action Direct)
+                      </h3>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Prioritized local leads ranked by opportunity score ready for prototype generation and sales outreach.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setActiveTab('prospects')}
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-500 dark:text-blue-400 cursor-pointer"
+                  >
+                    View All Prospects ({businesses.length}) <ArrowRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+
+                {businesses.length === 0 ? (
+                  <div className="py-10 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+                    <Search className="h-8 w-8 mx-auto text-slate-400 mb-2 opacity-60" />
+                    <p className="text-xs font-bold text-slate-700 dark:text-slate-300">No active prospects discovered yet.</p>
+                    <p className="text-[11px] text-slate-500 mt-1">Start by searching a city directory to identify local businesses needing websites.</p>
+                    <button
+                      onClick={() => setActiveTab('finder')}
+                      className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-500 cursor-pointer shadow-sm"
+                    >
+                      <Search className="h-3.5 w-3.5" /> Find Businesses Now
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {businesses.slice(0, 6).map((biz) => {
+                      const matchedSite = userSites.find(s => s.businessName.toLowerCase() === biz.name.toLowerCase());
+                      const oppScore = biz.opportunityScore ?? (100 - (biz.presenceScore || 40));
+
+                      return (
+                        <div 
+                          key={biz.id} 
+                          className="rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 bg-slate-50/50 dark:bg-slate-950/40 hover:border-blue-300 dark:hover:border-blue-800 transition-all flex flex-col justify-between"
+                        >
+                          <div>
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <h4 className="text-xs font-bold text-slate-900 dark:text-white truncate max-w-[170px]" title={biz.name}>
+                                  {biz.name}
+                                </h4>
+                                <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                                  {biz.category} • {biz.address.split(',')[0]}
+                                </span>
+                              </div>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md font-mono ${
+                                oppScore >= 80 
+                                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                                  : "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300"
+                              }`}>
+                                {oppScore}% Opp
+                              </span>
+                            </div>
+
+                            <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-2 line-clamp-2">
+                              {biz.evidence?.notes || `${biz.deficitCount || 6} digital presence gaps identified.`}
+                            </p>
+                          </div>
+
+                          <div className="mt-3 pt-3 border-t border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between gap-2">
+                            <span className="text-[10px] font-semibold text-slate-400">
+                              Status: <strong className="text-slate-700 dark:text-slate-300">{biz.prospectStatus || "New"}</strong>
+                            </span>
+
+                            <div className="flex items-center gap-1.5">
+                              {matchedSite ? (
+                                <button
+                                  onClick={() => {
+                                    setGeneratedSite(matchedSite);
+                                    setActiveTab("sales");
+                                  }}
+                                  className="inline-flex items-center gap-1 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 px-3 py-1.5 text-xs font-bold cursor-pointer transition-colors"
+                                >
+                                  Follow Up &rarr;
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleAnalyze(biz)}
+                                  className="inline-flex items-center gap-1 rounded-xl bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 text-xs font-bold cursor-pointer shadow-xs transition-colors"
+                                >
+                                  Build Preview &rarr;
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
               {/* Conversion Funnel visualizer */}
               <ConversionFunnel stats={stats} />
 
@@ -755,14 +927,26 @@ export default function App() {
                       </div>
                       <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-blue-500" />
                     </button>
-                    <button onClick={() => { if(generatedSite) setActiveTab('preview'); else setActiveTab('finder'); }} className="w-full text-left px-4 py-3 rounded-xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50 dark:border-slate-800 dark:hover:border-indigo-900/50 dark:hover:bg-slate-800 transition-colors flex items-center justify-between group cursor-pointer">
+                    <button onClick={() => setActiveTab('prospects')} className="w-full text-left px-4 py-3 rounded-xl border border-slate-100 hover:border-emerald-200 hover:bg-emerald-50 dark:border-slate-800 dark:hover:border-emerald-900/50 dark:hover:bg-slate-800 transition-colors flex items-center justify-between group cursor-pointer">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg dark:bg-emerald-900/40 dark:text-emerald-400">
+                          <Users className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-slate-900 dark:text-white">Prospect Pipeline</p>
+                          <p className="text-xs text-slate-500">Manage leads & follow-ups</p>
+                        </div>
+                      </div>
+                      <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-emerald-500" />
+                    </button>
+                    <button onClick={() => setActiveTab('websites')} className="w-full text-left px-4 py-3 rounded-xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50 dark:border-slate-800 dark:hover:border-indigo-900/50 dark:hover:bg-slate-800 transition-colors flex items-center justify-between group cursor-pointer">
                       <div className="flex items-center gap-3">
                         <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg dark:bg-indigo-900/40 dark:text-indigo-400">
                           <Globe className="h-4 w-4" />
                         </div>
                         <div>
-                          <p className="text-sm font-bold text-slate-900 dark:text-white">View Previews</p>
-                          <p className="text-xs text-slate-500">Check generated websites</p>
+                          <p className="text-sm font-bold text-slate-900 dark:text-white">My Websites</p>
+                          <p className="text-xs text-slate-500">Live prototypes & preview links</p>
                         </div>
                       </div>
                       <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-indigo-500" />
@@ -779,29 +963,20 @@ export default function App() {
                       </div>
                       <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-purple-500" />
                     </button>
-                    <button onClick={() => setActiveTab('crm')} className="w-full text-left px-4 py-3 rounded-xl border border-slate-100 hover:border-emerald-200 hover:bg-emerald-50 dark:border-slate-800 dark:hover:border-emerald-900/50 dark:hover:bg-slate-800 transition-colors flex items-center justify-between group cursor-pointer">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg dark:bg-emerald-900/40 dark:text-emerald-400">
-                          <Database className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-slate-900 dark:text-white">CRM Sync</p>
-                          <p className="text-xs text-slate-500">Sync leads & clients</p>
-                        </div>
-                      </div>
-                      <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-emerald-500" />
-                    </button>
                   </div>
                 </div>
 
                 {/* Recent Searches */}
                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 text-left space-y-4">
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Recent Searches</h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Prospects Discovered</h3>
+                    <span className="text-xs text-slate-400 font-mono">{businesses.length} total</span>
+                  </div>
                   <div className="space-y-4 pt-2">
                     {businesses.length === 0 ? (
                       <p className="text-xs text-slate-400 py-3 text-center">No active search results. Start a search in the Business Finder.</p>
                     ) : (
-                      businesses.slice(0, 3).map((b, i) => (
+                      businesses.slice(0, 4).map((b, i) => (
                         <div key={i} className="flex items-center justify-between border-b border-slate-50 dark:border-slate-800 pb-3 last:border-0 last:pb-0">
                           <div>
                             <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{b.name}</p>
@@ -817,12 +992,15 @@ export default function App() {
 
                 {/* Recent Previews */}
                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 text-left space-y-4">
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Recent Previews</h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Recent Previews</h3>
+                    <span className="text-xs text-slate-400 font-mono">{userSites.length} drafts</span>
+                  </div>
                   <div className="space-y-4 pt-2">
                     {userSites.length === 0 ? (
                       <p className="text-xs text-slate-400 py-3 text-center">No saved website drafts yet. Generate your first website draft above.</p>
                     ) : (
-                      userSites.slice(0, 3).map((site, i) => {
+                      userSites.slice(0, 4).map((site, i) => {
                         let statusLabel = "Draft";
                         let statusColor = "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400";
                         
@@ -857,10 +1035,75 @@ export default function App() {
                       })
                     )}
                   </div>
+                  <button onClick={() => setActiveTab('websites')} className="w-full text-center text-xs font-bold text-blue-600 dark:text-blue-400 pt-2 hover:underline cursor-pointer">Manage All Websites</button>
                 </div>
 
               </div>
             </div>
+            );
+          })()}
+
+          {/* View: My Prospects Pipeline & Sales Queue */}
+          {activeTab === "prospects" && (
+            <ProspectPipeline 
+              prospects={businesses}
+              userSites={userSites}
+              onUpdateProspect={handleUpdateProspect}
+              onViewAudit={(biz) => {
+                setSelectedBusiness(biz);
+                setActiveTab("analysis");
+              }}
+              onSelectBusinessForWebsite={(biz) => {
+                setSelectedBusiness(biz);
+                setActiveTab("generator");
+              }}
+              onOpenSalesAssistant={(biz) => {
+                const matched = userSites.find(s => s.businessName.toLowerCase() === biz.name.toLowerCase());
+                if (matched) {
+                  setGeneratedSite(matched);
+                } else {
+                  setSelectedBusiness(biz);
+                }
+                setActiveTab("sales");
+              }}
+              onOpenProposal={(biz) => {
+                const matched = userSites.find(s => s.businessName.toLowerCase() === biz.name.toLowerCase());
+                if (matched) {
+                  setGeneratedSite(matched);
+                }
+                setActiveTab("proposals");
+              }}
+            />
+          )}
+
+          {/* View: My Generated Websites */}
+          {activeTab === "websites" && (
+            <MyWebsites 
+              sites={userSites}
+              onEditSite={(site) => {
+                setGeneratedSite(site);
+                setActiveTab("editor");
+              }}
+              onOpenPreview={(site) => {
+                setGeneratedSite(site);
+                setActiveTab("preview");
+              }}
+              onOpenSalesAssistant={(site) => {
+                setGeneratedSite(site);
+                setActiveTab("sales");
+              }}
+              onOpenProposal={(site) => {
+                setGeneratedSite(site);
+                setActiveTab("proposals");
+              }}
+              onDeleteSite={(siteId) => {
+                setUserSites(prev => prev.filter(s => s.id !== siteId));
+                if (generatedSite?.id === siteId) {
+                  setGeneratedSite(null);
+                }
+              }}
+              onCreateNewPreview={() => setActiveTab("finder")}
+            />
           )}
 
           {/* View: Business Finder direct tab */}
@@ -962,6 +1205,19 @@ export default function App() {
               businesses={businesses}
               sites={userSites}
               onBack={() => setActiveTab("dashboard")}
+            />
+          )}
+
+          {/* View: White-Label Partner Ecosystem Hub */}
+          {activeTab === "partners" && (
+            <PartnerEcosystem 
+              onFindPartners={(filters) => {
+                triggerSearch(filters, false);
+                setActiveTab("finder");
+              }}
+              onOpenWebsiteGenerator={() => {
+                setActiveTab("finder");
+              }}
             />
           )}
 

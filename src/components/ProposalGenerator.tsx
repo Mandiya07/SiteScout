@@ -51,19 +51,22 @@ export default function ProposalGenerator({
   const [signedDate, setSignedDate] = useState(site.clientApprovedAt ? new Date(site.clientApprovedAt).toLocaleDateString() : "");
   const [isApproved, setIsApproved] = useState(site.clientApproved || false);
 
+  // Currency setup
+  const [currencySymbol, setCurrencySymbol] = useState<string>("E");
+
   // Pricing setup
   const [pricing, setPricing] = useState<PricingCalculator>(
     initialProposal?.pricing || {
-      packageName: "Standard Small Business Package",
-      packagePrice: 699,
-      hostingPrice: 29,
-      maintenancePrice: 49,
-      domainPrice: 15,
-      emailPrice: 10,
-      seoPrice: 150,
-      gbpOtpPrice: 99,
-      logoPrice: 120,
-      supportMonthlyPrice: 50,
+      packageName: "Website Package & Mobile Design",
+      packagePrice: 4500,
+      hostingPrice: 300,
+      maintenancePrice: 0,
+      domainPrice: 0,
+      emailPrice: 0,
+      seoPrice: 0,
+      gbpOtpPrice: 0,
+      logoPrice: 0,
+      supportMonthlyPrice: 0,
       isRecurring: true
     }
   );
@@ -135,16 +138,16 @@ export default function ProposalGenerator({
     setIsApproved(site.clientApproved || false);
     setPricing(
       freshProposal?.pricing || {
-        packageName: "Standard Small Business Package",
-        packagePrice: 699,
-        hostingPrice: 29,
-        maintenancePrice: 49,
-        domainPrice: 15,
-        emailPrice: 10,
-        seoPrice: 150,
-        gbpOtpPrice: 99,
-        logoPrice: 120,
-        supportMonthlyPrice: 50,
+        packageName: "Website Package & Mobile Design",
+        packagePrice: 4500,
+        hostingPrice: 300,
+        maintenancePrice: 0,
+        domainPrice: 0,
+        emailPrice: 0,
+        seoPrice: 0,
+        gbpOtpPrice: 0,
+        logoPrice: 0,
+        supportMonthlyPrice: 0,
         isRecurring: true
       }
     );
@@ -305,9 +308,7 @@ export default function ProposalGenerator({
       if (onSave) {
         await onSave(updatedSite);
         setSaveSuccess(true);
-        setTimeout(() => setSaveSuccess(false), 3000);
-        // Trigger notification alert
-        window.alert(`Notification System: An email has been securely dispatched to the agency team regarding the proposal approval by ${signedName}.`);
+        setTimeout(() => setSaveSuccess(false), 4000);
       }
     } catch (err) {
       console.error("Failed to sign proposal:", err);
@@ -494,13 +495,69 @@ export default function ProposalGenerator({
 
           {/* Section 2: Interactive Pricing Calculator */}
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 space-y-4 text-left">
-            <h3 className="text-xs font-extrabold text-blue-600 dark:text-blue-400 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-50 pb-2 dark:border-slate-850">
-              <DollarSign className="h-4 w-4" /> 2. One-Off Setup Investments
-            </h3>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-50 pb-2 dark:border-slate-850">
+              <h3 className="text-xs font-extrabold text-blue-600 dark:text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
+                <DollarSign className="h-4 w-4" /> 2. One-Off Setup Investments
+              </h3>
+
+              {/* Currency Selector */}
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] font-bold text-slate-400 mr-1">Currency:</span>
+                {[
+                  { symbol: "E", label: "E (SZ)" },
+                  { symbol: "R", label: "R (ZA)" },
+                  { symbol: "$", label: "$ (USD)" },
+                  { symbol: "£", label: "£ (GBP)" },
+                  { symbol: "€", label: "€ (EUR)" }
+                ].map((cur) => (
+                  <button
+                    key={cur.symbol}
+                    type="button"
+                    onClick={() => setCurrencySymbol(cur.symbol)}
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                      currencySymbol === cur.symbol
+                        ? "bg-blue-600 text-white shadow-xs"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300"
+                    }`}
+                  >
+                    {cur.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Quick 1-Click Preset */}
+            <div className="p-2.5 rounded-xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/50 flex items-center justify-between gap-2">
+              <div>
+                <p className="text-[11px] font-bold text-blue-900 dark:text-blue-200">Recommended Standard Package</p>
+                <p className="text-[10px] text-blue-600 dark:text-blue-400">{currencySymbol}4,500 Setup + {currencySymbol}300/mo Hosting</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setPricing({
+                    packageName: "Website Package & Mobile Design",
+                    packagePrice: 4500,
+                    hostingPrice: 300,
+                    maintenancePrice: 0,
+                    domainPrice: 0,
+                    emailPrice: 0,
+                    seoPrice: 0,
+                    gbpOtpPrice: 0,
+                    logoPrice: 0,
+                    supportMonthlyPrice: 0,
+                    isRecurring: true
+                  });
+                }}
+                className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[10px] transition-all cursor-pointer shrink-0 shadow-xs"
+              >
+                Apply Preset
+              </button>
+            </div>
             
             <div className="grid gap-3.5 sm:grid-cols-2">
               <div>
-                <label className="text-[10px] font-bold text-slate-500 block mb-1">Website Package ($)</label>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">Website Package ({currencySymbol})</label>
                 <input
                   type="number"
                   value={pricing.packagePrice}
@@ -510,7 +567,7 @@ export default function ProposalGenerator({
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-slate-500 block mb-1">SEO ($)</label>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">SEO ({currencySymbol})</label>
                 <input
                   type="number"
                   value={pricing.seoPrice}
@@ -520,7 +577,7 @@ export default function ProposalGenerator({
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-slate-500 block mb-1">Logo Design ($)</label>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">Logo Design ({currencySymbol})</label>
                 <input
                   type="number"
                   value={pricing.logoPrice}
@@ -530,7 +587,7 @@ export default function ProposalGenerator({
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-slate-500 block mb-1">Domain Registration ($)</label>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">Domain Registration ({currencySymbol})</label>
                 <input
                   type="number"
                   value={pricing.domainPrice}
@@ -540,7 +597,7 @@ export default function ProposalGenerator({
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-slate-500 block mb-1">Email Setup ($)</label>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">Email Setup ({currencySymbol})</label>
                 <input
                   type="number"
                   value={pricing.emailPrice}
@@ -550,7 +607,7 @@ export default function ProposalGenerator({
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-slate-500 block mb-1">Google Business Optimization ($)</label>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">Google Business Optimization ({currencySymbol})</label>
                 <input
                   type="number"
                   value={pricing.gbpOtpPrice}
@@ -569,7 +626,7 @@ export default function ProposalGenerator({
             
             <div className="grid gap-3.5 sm:grid-cols-3">
               <div>
-                <label className="text-[9px] font-bold text-slate-500 block mb-1">Hosting ($)</label>
+                <label className="text-[9px] font-bold text-slate-500 block mb-1">Hosting ({currencySymbol})</label>
                 <input
                   type="number"
                   value={pricing.hostingPrice}
@@ -579,7 +636,7 @@ export default function ProposalGenerator({
               </div>
 
               <div>
-                <label className="text-[9px] font-bold text-slate-500 block mb-1">Maintenance ($)</label>
+                <label className="text-[9px] font-bold text-slate-500 block mb-1">Maintenance ({currencySymbol})</label>
                 <input
                   type="number"
                   value={pricing.maintenancePrice}
@@ -589,7 +646,7 @@ export default function ProposalGenerator({
               </div>
 
               <div>
-                <label className="text-[9px] font-bold text-slate-500 block mb-1">Monthly Support ($)</label>
+                <label className="text-[9px] font-bold text-slate-500 block mb-1">Monthly Support ({currencySymbol})</label>
                 <input
                   type="number"
                   value={pricing.supportMonthlyPrice}
@@ -867,7 +924,7 @@ export default function ProposalGenerator({
                           <p className="text-[10px] text-slate-400 dark:text-slate-500 font-normal mt-0.5">Professional custom layout configuration, mobile theme, content reviews.</p>
                         </td>
                         <td className="p-3 text-center text-slate-500 uppercase text-[9px]">One-Off Design</td>
-                        <td className="p-3 text-right font-mono font-bold">${pricing.packagePrice}</td>
+                        <td className="p-3 text-right font-mono font-bold">{currencySymbol}{pricing.packagePrice.toLocaleString()}</td>
                       </tr>
                     )}
                     {(pricing.seoPrice > 0 || pricing.gbpOtpPrice > 0) && (
@@ -877,7 +934,7 @@ export default function ProposalGenerator({
                           <p className="text-[10px] text-slate-400 dark:text-slate-500 font-normal mt-0.5">Custom localized meta titles, keywords indexing tag schemas, and map syncing.</p>
                         </td>
                         <td className="p-3 text-center text-slate-500 uppercase text-[9px]">One-Off SEO</td>
-                        <td className="p-3 text-right font-mono font-bold">${pricing.seoPrice + pricing.gbpOtpPrice}</td>
+                        <td className="p-3 text-right font-mono font-bold">{currencySymbol}{(pricing.seoPrice + pricing.gbpOtpPrice).toLocaleString()}</td>
                       </tr>
                     )}
                     {pricing.logoPrice > 0 && (
@@ -887,7 +944,7 @@ export default function ProposalGenerator({
                           <p className="text-[10px] text-slate-400 dark:text-slate-500 font-normal mt-0.5">Vector source assets, color configurations, favicon assets.</p>
                         </td>
                         <td className="p-3 text-center text-slate-500 uppercase text-[9px]">One-Off Logo</td>
-                        <td className="p-3 text-right font-mono font-bold">${pricing.logoPrice}</td>
+                        <td className="p-3 text-right font-mono font-bold">{currencySymbol}{pricing.logoPrice.toLocaleString()}</td>
                       </tr>
                     )}
                     {(pricing.domainPrice > 0 || pricing.emailPrice > 0) && (
@@ -897,7 +954,7 @@ export default function ProposalGenerator({
                           <p className="text-[10px] text-slate-400 dark:text-slate-500 font-normal mt-0.5">Custom domain registrations and MX mail server routing set up.</p>
                         </td>
                         <td className="p-3 text-center text-slate-500 uppercase text-[9px]">One-Off Setup</td>
-                        <td className="p-3 text-right font-mono font-bold">${pricing.domainPrice + pricing.emailPrice}</td>
+                        <td className="p-3 text-right font-mono font-bold">{currencySymbol}{(pricing.domainPrice + pricing.emailPrice).toLocaleString()}</td>
                       </tr>
                     )}
                     {pricing.hostingPrice > 0 && (
@@ -907,7 +964,7 @@ export default function ProposalGenerator({
                           <p className="text-[10px] text-slate-400 dark:text-slate-500 font-normal mt-0.5">SSL secure padlock protection, ultra-low latency global site deliveries.</p>
                         </td>
                         <td className="p-3 text-center text-slate-500 uppercase text-[9px]">Monthly Recurring</td>
-                        <td className="p-3 text-right font-mono font-bold">${pricing.hostingPrice}/mo</td>
+                        <td className="p-3 text-right font-mono font-bold">{currencySymbol}{pricing.hostingPrice.toLocaleString()}/mo</td>
                       </tr>
                     )}
                     {(pricing.maintenancePrice > 0 || pricing.supportMonthlyPrice > 0) && (
@@ -917,7 +974,7 @@ export default function ProposalGenerator({
                           <p className="text-[10px] text-slate-400 dark:text-slate-500 font-normal mt-0.5">Continuous security updates, weekly copies backup, and up to 2 monthly maintenance SLA hours.</p>
                         </td>
                         <td className="p-3 text-center text-slate-500 uppercase text-[9px]">Monthly Recurring</td>
-                        <td className="p-3 text-right font-mono font-bold">${pricing.maintenancePrice + pricing.supportMonthlyPrice}/mo</td>
+                        <td className="p-3 text-right font-mono font-bold">{currencySymbol}{(pricing.maintenancePrice + pricing.supportMonthlyPrice).toLocaleString()}/mo</td>
                       </tr>
                     )}
                   </tbody>
@@ -933,12 +990,12 @@ export default function ProposalGenerator({
                 <div className="flex items-center gap-5 text-right">
                   <div>
                     <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider block">Total Setup (One-Off)</span>
-                    <p className="text-lg font-black text-slate-900 dark:text-white font-mono">${setupTotal}</p>
+                    <p className="text-lg font-black text-slate-900 dark:text-white font-mono">{currencySymbol}{setupTotal.toLocaleString()}</p>
                   </div>
                   <div className="border-l border-slate-200 h-8 dark:border-slate-800" />
                   <div>
                     <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider block">SLA Support Monthly</span>
-                    <p className="text-lg font-black text-blue-600 dark:text-blue-400 font-mono">${monthlyTotal}/mo</p>
+                    <p className="text-lg font-black text-blue-600 dark:text-blue-400 font-mono">{currencySymbol}{monthlyTotal.toLocaleString()}/mo</p>
                   </div>
                 </div>
               </div>

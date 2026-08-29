@@ -12,15 +12,20 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 );
 
-// Register service worker for installable PWA support
-if ('serviceWorker' in navigator) {
+// Register service worker for installable PWA support in standalone top-level windows
+if ('serviceWorker' in navigator && window.self === window.top) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
-      .then((reg) => {
-        console.log('[PWA] Service Worker registered successfully on scope:', reg.scope);
-      })
-      .catch((err) => {
-        console.error('[PWA] Service Worker registration failed:', err);
-      });
+    try {
+      navigator.serviceWorker.register('/sw.js')
+        .then((reg) => {
+          console.log('[PWA] Service Worker registered successfully on scope:', reg.scope);
+        })
+        .catch((err) => {
+          // Gracefully log as info/warning in restricted environments (e.g. sandbox or disabled browser state)
+          console.info('[PWA] Service Worker registration bypassed:', err?.message || err);
+        });
+    } catch (e) {
+      console.info('[PWA] Service Worker unavailable:', e);
+    }
   });
 }

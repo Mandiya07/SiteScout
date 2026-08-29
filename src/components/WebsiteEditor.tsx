@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { GeneratedSite, ServiceItem, FAQItem } from "../types";
+import { GeneratedSite, ServiceItem, FAQItem, ImageMetadata } from "../types";
 import WebsiteView from "./WebsiteView";
 import PublishingModal from "./PublishingModal";
+import ImagePickerModal from "./ImagePickerModal";
 import { 
   Laptop, Smartphone, Eye, EyeOff, Settings2, Sparkles, Check, 
   Trash2, Plus, ArrowLeft, ArrowRight, Save, Globe, 
@@ -55,6 +56,62 @@ export default function WebsiteEditor({
   const [activePage, setActivePage] = useState<"home" | "about" | "services" | "gallery" | "blog" | "contact" | "privacy" | "terms" | "404">("home");
   const [saveStatus, setSaveStatus] = useState<string>("");
   const [showPublishModal, setShowPublishModal] = useState<boolean>(false);
+  const [imagePicker, setImagePicker] = useState<{
+    isOpen: boolean;
+    target: "hero" | "about" | "services" | "gallery";
+    serviceIndex?: number;
+    galleryIndex?: number;
+    currentUrl?: string;
+    serviceName?: string;
+  }>({ isOpen: false, target: "hero" });
+
+  const handleApplyPickedImage = (img: ImageMetadata) => {
+    const updated = { ...site };
+    const currentAttributions = [...(updated.imageAttributions || [])];
+
+    if (imagePicker.target === "hero") {
+      updated.hero = {
+        ...updated.hero,
+        imageUrl: img.fullUrl,
+        photographer: img.photographer,
+        photographerUrl: img.photographerUrl,
+        license: img.license,
+        imageMetadata: img
+      };
+    } else if (imagePicker.target === "about") {
+      updated.about = {
+        ...updated.about,
+        imageUrl: img.fullUrl,
+        imageMetadata: img
+      };
+    } else if (imagePicker.target === "services" && typeof imagePicker.serviceIndex === "number") {
+      const srvs = [...(updated.services || [])];
+      srvs[imagePicker.serviceIndex] = {
+        ...srvs[imagePicker.serviceIndex],
+        imageUrl: img.fullUrl,
+        imageMetadata: img
+      };
+      updated.services = srvs;
+    } else if (imagePicker.target === "gallery" && typeof imagePicker.galleryIndex === "number") {
+      const g = [...(updated.gallery || [])];
+      g[imagePicker.galleryIndex] = {
+        url: img.fullUrl,
+        alt: img.alt || `${site.category} project`,
+        photographer: img.photographer,
+        photographerUrl: img.photographerUrl,
+        license: img.license,
+        relevanceScore: img.relevanceScore,
+        imageMetadata: img
+      };
+      updated.gallery = g;
+    }
+
+    // Add or update in attributions list
+    const filteredAttr = currentAttributions.filter(a => a.id !== img.id && a.fullUrl !== img.fullUrl);
+    updated.imageAttributions = [img, ...filteredAttr];
+
+    handleSiteUpdate(updated, false);
+  };
 
   // Undo / Redo stacks
   const [history, setHistory] = useState<GeneratedSite[]>([
@@ -942,24 +999,39 @@ export default function WebsiteEditor({
                       placeholder="Paste image URL here"
                       className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-medium focus:outline-none"
                     />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const stockImages = [
-                          "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=800&q=80",
-                          "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=800&q=80",
-                          "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80",
-                          "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=800&q=80",
-                          "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80",
-                          "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=800&q=80"
-                        ];
-                        const randomUrl = stockImages[Math.floor(Math.random() * stockImages.length)];
-                        updateField("hero", "imageUrl", randomUrl, false);
-                      }}
-                      className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white py-1.5 px-2 text-[10px] font-bold text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 cursor-pointer"
-                    >
-                      <Sparkles className="h-3 w-3" /> Pick Category Stock Photo
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setImagePicker({
+                            isOpen: true,
+                            target: "hero",
+                            currentUrl: site.hero.imageUrl
+                          });
+                        }}
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-blue-50 border border-blue-200 py-1.5 px-2 text-[10px] font-bold text-blue-700 hover:bg-blue-100 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300 cursor-pointer"
+                      >
+                        <ImageIcon className="h-3 w-3" /> Browse Stock Library
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const stockImages = [
+                            "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=800&q=80",
+                            "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=800&q=80",
+                            "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80",
+                            "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=800&q=80",
+                            "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80",
+                            "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=800&q=80"
+                          ];
+                          const randomUrl = stockImages[Math.floor(Math.random() * stockImages.length)];
+                          updateField("hero", "imageUrl", randomUrl, false);
+                        }}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white py-1.5 px-2 text-[10px] font-bold text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 cursor-pointer"
+                      >
+                        <Sparkles className="h-3 w-3" /> Random
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -976,6 +1048,36 @@ export default function WebsiteEditor({
                     onBlur={() => commitHistory(site)}
                     className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-bold focus:outline-none"
                   />
+                </div>
+
+                {/* About Visual Image */}
+                <div className="p-3 rounded-xl border border-slate-200 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-950/20 space-y-2">
+                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block">About Visual Photo</label>
+                  {site.about.imageUrl && (
+                    <div className="relative aspect-video rounded-lg overflow-hidden border border-slate-200 bg-white">
+                      <img src={site.about.imageUrl} alt="About preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      <button
+                        type="button"
+                        onClick={() => updateField("about", "imageUrl", "", false)}
+                        className="absolute top-1.5 right-1.5 p-1 bg-black/70 rounded-full text-white hover:bg-black cursor-pointer"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImagePicker({
+                        isOpen: true,
+                        target: "about",
+                        currentUrl: site.about.imageUrl
+                      });
+                    }}
+                    className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-blue-50 border border-blue-200 py-1.5 px-2 text-[10px] font-bold text-blue-700 hover:bg-blue-100 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300 cursor-pointer"
+                  >
+                    <ImageIcon className="h-3 w-3" /> Browse Stock Photo for About Section
+                  </button>
                 </div>
 
                 <div>
@@ -1053,6 +1155,33 @@ export default function WebsiteEditor({
                         className="w-full rounded border border-slate-200 bg-white px-2 py-1 text-xs leading-relaxed dark:border-slate-800 dark:bg-slate-900 text-slate-600 dark:text-slate-300"
                         placeholder="Description"
                       />
+
+                      {/* Service Thumbnail Selector */}
+                      <div className="flex items-center justify-between pt-1">
+                        {srv.imageUrl ? (
+                          <div className="flex items-center gap-2">
+                            <img src={srv.imageUrl} alt={srv.title} className="h-7 w-7 rounded object-cover border border-slate-200" referrerPolicy="no-referrer" />
+                            <span className="text-[10px] text-slate-500 line-clamp-1 max-w-[120px]">Has image</span>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-slate-400">No service image</span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setImagePicker({
+                              isOpen: true,
+                              target: "services",
+                              serviceIndex: i,
+                              serviceName: srv.title,
+                              currentUrl: srv.imageUrl
+                            });
+                          }}
+                          className="inline-flex items-center gap-1 rounded bg-white border border-slate-200 px-2 py-0.5 text-[9px] font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 cursor-pointer"
+                        >
+                          <ImageIcon className="h-2.5 w-2.5" /> Choose Stock Image
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1113,7 +1242,7 @@ export default function WebsiteEditor({
                     <ImageIcon className="h-4 w-4" /> Gallery Asset Images
                   </h4>
                   <p className="text-[11px] text-blue-600 dark:text-blue-400/80 mt-1 leading-relaxed">
-                    Review or update the image placeholders generated for the site gallery. Click "Random Stock" to swap in high-res alternatives.
+                    Review or update the image placeholders generated for the site gallery. Use "Browse Library" to select from industry taxonomy stock.
                   </p>
                 </div>
                 
@@ -1122,34 +1251,50 @@ export default function WebsiteEditor({
                      <div key={i} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-950/20 space-y-2">
                        <div className="flex items-center justify-between">
                          <span className="text-[10px] font-bold text-slate-400 uppercase">Gallery Photo {i + 1}</span>
-                         <button
-                           type="button"
-                           onClick={() => {
-                             const newGallery = [...(site.gallery || [])];
-                             const stockImages = [
-                               "https://images.unsplash.com/photo-1542013936693-884638332954?auto=format&fit=crop&w=800&q=80",
-                               "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80",
-                               "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=800&q=80",
-                               "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=800&q=80",
-                               "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=800&q=80",
-                               "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80",
-                               "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=800&q=80",
-                               "https://images.unsplash.com/photo-1507207611509-ec012433ff52?auto=format&fit=crop&w=800&q=80",
-                               "https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&w=800&q=80",
-                               "https://images.unsplash.com/photo-1606811971618-4486d14f3f99?auto=format&fit=crop&w=800&q=80"
-                             ];
-                             newGallery[i].url = stockImages[Math.floor(Math.random() * stockImages.length)];
-                             handleSiteUpdate({ ...site, gallery: newGallery }, false);
-                           }}
-                           className="inline-flex items-center gap-1 rounded bg-blue-50 px-2.5 py-1 text-[9px] font-bold text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 cursor-pointer"
-                         >
-                           <Sparkles className="h-2.5 w-2.5" /> Random Stock
-                         </button>
+                         <div className="flex items-center gap-1.5">
+                           <button
+                             type="button"
+                             onClick={() => {
+                               setImagePicker({
+                                 isOpen: true,
+                                 target: "gallery",
+                                 galleryIndex: i,
+                                 currentUrl: img.url
+                               });
+                             }}
+                             className="inline-flex items-center gap-1 rounded bg-blue-50 px-2.5 py-1 text-[9px] font-bold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 cursor-pointer"
+                           >
+                             <ImageIcon className="h-2.5 w-2.5" /> Browse Library
+                           </button>
+                           <button
+                             type="button"
+                             onClick={() => {
+                               const newGallery = [...(site.gallery || [])];
+                               const stockImages = [
+                                 "https://images.unsplash.com/photo-1542013936693-884638332954?auto=format&fit=crop&w=800&q=80",
+                                 "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80",
+                                 "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=800&q=80",
+                                 "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=800&q=80",
+                                 "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=800&q=80",
+                                 "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80",
+                                 "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=800&q=80",
+                                 "https://images.unsplash.com/photo-1507207611509-ec012433ff52?auto=format&fit=crop&w=800&q=80",
+                                 "https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&w=800&q=80",
+                                 "https://images.unsplash.com/photo-1606811971618-4486d14f3f99?auto=format&fit=crop&w=800&q=80"
+                               ];
+                               newGallery[i].url = stockImages[Math.floor(Math.random() * stockImages.length)];
+                               handleSiteUpdate({ ...site, gallery: newGallery }, false);
+                             }}
+                             className="inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-1 text-[9px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300 cursor-pointer"
+                           >
+                             <Sparkles className="h-2.5 w-2.5" /> Random
+                           </button>
+                         </div>
                        </div>
                        
                        <div className="flex gap-3">
                          <div className="h-14 w-14 shrink-0 rounded-lg overflow-hidden border border-slate-200 bg-white">
-                           <img src={img.url} alt="Thumbnail preview" className="w-full h-full object-cover" />
+                           <img src={img.url} alt="Thumbnail preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                          </div>
                          <div className="flex-1 space-y-1.5">
                            <input
@@ -1356,6 +1501,19 @@ export default function WebsiteEditor({
             onPublish(updated);
             setShowPublishModal(false);
           }} 
+        />
+      )}
+
+      {imagePicker.isOpen && (
+        <ImagePickerModal
+          isOpen={imagePicker.isOpen}
+          onClose={() => setImagePicker(prev => ({ ...prev, isOpen: false }))}
+          onSelectImage={handleApplyPickedImage}
+          currentImageUrl={imagePicker.currentUrl}
+          industry={site.category || "Professional Services"}
+          sectionTarget={imagePicker.target}
+          serviceName={imagePicker.serviceName}
+          location={site.address}
         />
       )}
     </div>

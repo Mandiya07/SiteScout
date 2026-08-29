@@ -3,6 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
+import { imageAssistant, matchIndustryTaxonomy, INDUSTRY_TAXONOMY } from "./server/image/index.js";
 
 dotenv.config();
 
@@ -586,6 +587,61 @@ function generateDefaultTemplateSite(business: any) {
   const phone = business.phone || "+268 7600 0000";
   const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '');
 
+  const taxonomy = matchIndustryTaxonomy(category);
+  const visualProfile = imageAssistant.createVisualProfile(name, category, taxonomy.services, city);
+
+  const curated = taxonomy.curatedImages;
+  const heroImg = curated.find(i => i.section === "hero") || curated[0];
+  const aboutImg = curated.find(i => i.section === "about") || curated[1] || heroImg;
+  const serviceImages = curated.filter(i => i.section === "services");
+  const galleryImages = curated.filter(i => i.section === "gallery");
+
+  const services = taxonomy.services.map((srvTitle, idx) => {
+    const img = serviceImages[idx] || curated[idx % curated.length];
+    return {
+      title: srvTitle,
+      description: `Comprehensive ${srvTitle.toLowerCase()} delivered with professional expertise, quality materials, and transparent rates for ${city} clients.`,
+      price: idx === 0 ? "From E450" : idx === 1 ? "Custom Quote" : "From E1,200",
+      imageUrl: img?.fullUrl,
+      imageMetadata: img
+    };
+  });
+
+  const gallery = (galleryImages.length > 0 ? galleryImages : curated.slice(0, 4)).map(img => ({
+    url: img.fullUrl,
+    alt: img.alt,
+    photographer: img.photographer,
+    photographerUrl: img.photographerUrl,
+    license: img.license,
+    usageType: img.usageType,
+    relevanceScore: img.relevanceScore,
+    explanation: img.explanation,
+    imageMetadata: img
+  }));
+
+  const attributions = [heroImg, aboutImg, ...serviceImages, ...galleryImages].filter(Boolean);
+
+  const industryPalettes: Record<string, { primary: string; secondary: string; accent: string; background: string; text: string; fontStyle: string }> = {
+    Plumbing: { primary: "#2563eb", secondary: "#1e40af", accent: "#0284c7", background: "#ffffff", text: "#0f172a", fontStyle: "Modern Clean Sans" },
+    Electrician: { primary: "#d97706", secondary: "#b45309", accent: "#f59e0b", background: "#ffffff", text: "#0f172a", fontStyle: "Modern Clean Sans" },
+    Construction: { primary: "#ea580c", secondary: "#c2410c", accent: "#f97316", background: "#ffffff", text: "#0f172a", fontStyle: "Geometric Bold" },
+    "Cleaning Services": { primary: "#0891b2", secondary: "#0e7490", accent: "#06b6d4", background: "#ffffff", text: "#0f172a", fontStyle: "Modern Clean Sans" },
+    "Landscaping & Gardening": { primary: "#16a34a", secondary: "#15803d", accent: "#22c55e", background: "#ffffff", text: "#0f172a", fontStyle: "Warm Friendly" },
+    "Auto Repair & Mechanic": { primary: "#dc2626", secondary: "#b91c1c", accent: "#ef4444", background: "#ffffff", text: "#0f172a", fontStyle: "Geometric Bold" },
+    "Hair Salon & Barber": { primary: "#db2777", secondary: "#be185d", accent: "#f43f5e", background: "#ffffff", text: "#0f172a", fontStyle: "Elegant Serif" },
+    "Catering & Restaurant": { primary: "#d97706", secondary: "#92400e", accent: "#b45309", background: "#ffffff", text: "#0f172a", fontStyle: "Warm Friendly" },
+    "Legal Services": { primary: "#1e3a8a", secondary: "#172554", accent: "#3b82f6", background: "#ffffff", text: "#0f172a", fontStyle: "Classic Corporate" },
+    "Accounting & Tax": { primary: "#0f766e", secondary: "#134e4a", accent: "#14b8a6", background: "#ffffff", text: "#0f172a", fontStyle: "Classic Corporate" }
+  };
+  const palette = industryPalettes[taxonomy.industry] || {
+    primary: "#2563eb",
+    secondary: "#1e40af",
+    accent: "#3b82f6",
+    background: "#ffffff",
+    text: "#0f172a",
+    fontStyle: "Modern Clean Sans"
+  };
+
   return {
     id: `site_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
     businessId: business.id || `biz_${Date.now()}`,
@@ -593,69 +649,57 @@ function generateDefaultTemplateSite(business: any) {
     category: category,
     phone: phone,
     address: business.address || "Local Area",
-    primaryColor: "#2563eb",
-    secondaryColor: "#1e293b",
-    accentColor: "#f59e0b",
-    backgroundColor: "#f8fafc",
-    textColor: "#0f172a",
-    fontStyle: "sans",
+    primaryColor: palette.primary,
+    secondaryColor: palette.secondary,
+    accentColor: palette.accent,
+    backgroundColor: palette.background,
+    textColor: palette.text,
+    fontStyle: palette.fontStyle,
+    visualProfile,
+    imageAttributions: attributions,
     seo: {
-      title: `${name} | ${category} in ${city}`,
-      description: `Professional ${category.toLowerCase()} services in ${city}. Contact ${name} for direct quotes and quality assistance.`,
-      keywords: `${category}, ${city}, local business, quotes, contact`
+      title: `${name} | ${taxonomy.industry} in ${city}`,
+      description: `Professional ${taxonomy.industry.toLowerCase()} services in ${city}. Contact ${name} for direct quotes, booking, and certified craftsmanship.`,
+      keywords: `${taxonomy.industry}, ${taxonomy.aliases.join(", ")}, ${city}, local service, quote, booking`
     },
     hero: {
-      title: `Professional ${category} Services in ${city}`,
-      subtitle: `Providing trusted ${category.toLowerCase()} solutions tailored to your requirements with prompt response and clear communication.`,
+      title: `Expert ${taxonomy.industry} Solutions in ${city}`,
+      subtitle: `Providing trusted, dependable ${taxonomy.industry.toLowerCase()} services across ${city} with transparent quotes, emergency response, and verified workmanship.`,
       ctaPrimary: "Request Free Quote",
       ctaSecondary: "Chat on WhatsApp",
-      imageUrl: "https://images.unsplash.com/photo-1541888946425-d0fbb180c5f5?auto=format&fit=crop&w=1200&q=80"
+      imageUrl: heroImg.fullUrl,
+      photographer: heroImg.photographer,
+      photographerUrl: heroImg.photographerUrl,
+      license: heroImg.license,
+      imageMetadata: heroImg
     },
     about: {
       title: `About ${name}`,
-      history: `Proudly providing dedicated ${category.toLowerCase()} services to clients across ${city} and surrounding areas.`,
-      mission: `To deliver consistent, high-standard ${category.toLowerCase()} services with transparent pricing and dependable customer care.`,
-      pitch: `${name} focuses on customer satisfaction, professional execution, and responsive service. Reach out today to discuss how we can assist with your project or service request.`
+      history: `Proudly serving homeowners, commercial properties, and organizations throughout ${city} with dedicated ${taxonomy.industry.toLowerCase()} expertise.`,
+      mission: `To deliver consistent, high-standard ${taxonomy.industry.toLowerCase()} services with transparent pricing, honest communication, and lasting client satisfaction.`,
+      pitch: `${name} focuses on uncompromising quality, prompt dispatch, and transparent pricing. Contact our local team today to discuss your requirements.`,
+      imageUrl: aboutImg.fullUrl,
+      imageMetadata: aboutImg
     },
-    services: [
-      {
-        title: "Standard Consultation & Assessment",
-        description: "On-site assessment, project evaluation, and a transparent itemized quotation tailored to your needs.",
-        price: "Contact for Quote"
-      },
-      {
-        title: "Core Service Delivery & Execution",
-        description: "Professional implementation by experienced staff adhering strictly to safety and industry standards.",
-        price: "Custom Estimate"
-      },
-      {
-        title: "Maintenance & Follow-up Support",
-        description: "Routine servicing, emergency callouts, and ongoing maintenance to keep everything running smoothly.",
-        price: "Flexible Rates"
-      }
-    ],
+    services,
     features: [
       {
         title: "Dedicated Local Service",
         icon: "MapPin",
-        description: `Directly accessible in ${city} for fast turnarounds and responsive communication.`
+        description: `Directly based in ${city} for fast turnarounds, on-time arrivals, and responsive support.`
       },
       {
-        title: "Transparent Pricing",
+        title: "Transparent Fixed Pricing",
         icon: "Shield",
-        description: "Upfront pricing estimates with no hidden fees or surprise charges."
+        description: "Upfront itemized quotes with clear scopes and zero hidden diagnostic fees."
       },
       {
-        title: "Client Satisfaction Focus",
-        icon: "Smile",
-        description: "We work diligently to ensure every client receives attentive, high-quality service."
+        title: "Verified Craftsmanship",
+        icon: "Award",
+        description: `All work conducted by trained professionals adhering strictly to industry safety standards.`
       }
     ],
-    gallery: [
-      { url: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=600&q=80", alt: "Service delivery project" },
-      { url: "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=600&q=80", alt: "Work in progress" },
-      { url: "https://images.unsplash.com/photo-1590381105924-c72589b9ef3f?auto=format&fit=crop&w=600&q=80", alt: "Completed project detail" }
-    ],
+    gallery,
     testimonials: [
       {
         name: "Client Feedback",
@@ -680,15 +724,15 @@ function generateDefaultTemplateSite(business: any) {
     ],
     blog: [
       {
-        title: `Choosing the Right ${category} Partner in ${city}`,
-        summary: `A quick guide on what to look for when selecting local ${category.toLowerCase()} providers.`,
+        title: `Choosing the Right ${taxonomy.industry} Partner in ${city}`,
+        summary: `A quick guide on what to look for when selecting local ${taxonomy.industry.toLowerCase()} providers.`,
         category: "Guide"
       }
     ],
-    whatsappMessage: `Hello ${name}, I saw your profile and would like to inquire about your services.`,
+    whatsappMessage: `Hello ${name}, I saw your profile and would like to inquire about your ${taxonomy.industry.toLowerCase()} services.`,
     contactPage: {
       title: `Get in Touch with ${name}`,
-      description: `Have questions or need a quotation? Contact our team in ${city} today.`,
+      description: `Have questions or need an on-site quotation? Contact our team in ${city} today.`,
       email: `contact@${slug || 'business'}.com`
     },
     privacyPolicy: "We respect your privacy and process personal information strictly to respond to your service requests and inquiries.",
@@ -1152,6 +1196,54 @@ app.post("/api/generate-site", async (req, res) => {
     const text = response.text || "{}";
     const data = JSON.parse(text);
 
+    // Resolve images via Image Intelligence System
+    const visualProfile = imageAssistant.createVisualProfile(
+      business.name,
+      business.category,
+      (data.services || []).map((s: any) => s.title),
+      (business.address || "").split(",")[0]
+    );
+
+    const resolvedImages = await imageAssistant.batchResolveSiteImages(visualProfile);
+
+    // Enrich services with resolved high-fidelity images
+    const enrichedServices = (data.services || []).map((srv: any, idx: number) => {
+      const img = resolvedImages.serviceImages[idx] || resolvedImages.serviceImages[0];
+      return {
+        ...srv,
+        imageUrl: img?.fullUrl,
+        imageMetadata: img
+      };
+    });
+
+    // Enrich gallery with verified taxonomy/provider imagery
+    const enrichedGallery = (resolvedImages.galleryImages.length > 0 ? resolvedImages.galleryImages : data.gallery || []).map((img: any, idx: number) => {
+      if (img.fullUrl) {
+        return {
+          url: img.fullUrl,
+          alt: img.alt,
+          photographer: img.photographer,
+          photographerUrl: img.photographerUrl,
+          license: img.license,
+          usageType: img.usageType,
+          relevanceScore: img.relevanceScore,
+          explanation: img.explanation,
+          imageMetadata: img
+        };
+      }
+      return img;
+    });
+
+    const heroImageMeta = resolvedImages.heroImage;
+    const aboutImageMeta = resolvedImages.aboutImage;
+
+    const allAttributions = [
+      heroImageMeta,
+      aboutImageMeta,
+      ...resolvedImages.serviceImages,
+      ...resolvedImages.galleryImages
+    ].filter(Boolean);
+
     res.json({
       site: {
         id: `site_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
@@ -1160,7 +1252,24 @@ app.post("/api/generate-site", async (req, res) => {
         phone: business.phone,
         address: business.address,
         category: business.category,
-        ...data
+        visualProfile,
+        imageAttributions: allAttributions,
+        ...data,
+        hero: {
+          ...data.hero,
+          imageUrl: heroImageMeta?.fullUrl || data.hero?.imageUrl,
+          photographer: heroImageMeta?.photographer,
+          photographerUrl: heroImageMeta?.photographerUrl,
+          license: heroImageMeta?.license,
+          imageMetadata: heroImageMeta
+        },
+        about: {
+          ...data.about,
+          imageUrl: aboutImageMeta?.fullUrl,
+          imageMetadata: aboutImageMeta
+        },
+        services: enrichedServices,
+        gallery: enrichedGallery
       },
       source: "ai_generated"
     });
@@ -1172,6 +1281,80 @@ app.post("/api/generate-site", async (req, res) => {
       error: error.message
     });
   }
+});
+
+// Image Intelligence API Endpoints
+
+// 1. Get all available industry taxonomies
+app.get("/api/images/taxonomies", (req, res) => {
+  const summaries = Object.entries(INDUSTRY_TAXONOMY).map(([key, item]) => ({
+    key,
+    industry: item.industry,
+    subcategory: item.subcategory,
+    aliases: item.aliases,
+    servicesCount: item.services.length,
+    curatedImagesCount: item.curatedImages.length,
+    defaultStyle: item.defaultStyle
+  }));
+  res.json({ taxonomies: summaries });
+});
+
+// 2. Build or fetch visual profile for category
+app.post("/api/images/visual-profile", (req, res) => {
+  const { businessName = "Local Business", category = "General Business", services = [], location = "" } = req.body;
+  const profile = imageAssistant.createVisualProfile(businessName, category, services, location);
+  res.json({ profile });
+});
+
+// 3. Search and score images with transparent ranking
+app.post("/api/images/search", async (req, res) => {
+  const { query, industry = "General Business", subcategory, section = "gallery", serviceName, orientation, limit = 12, excludeIds = [] } = req.body;
+  
+  if (!query && !industry) {
+    return res.status(400).json({ error: "Query or industry is required." });
+  }
+
+  const effectiveQuery = query || `${industry} ${section}`;
+  try {
+    const results = await imageAssistant.searchImages(effectiveQuery, {
+      industry,
+      subcategory,
+      section,
+      serviceName,
+      orientation,
+      limit: Math.min(Number(limit) || 12, 30),
+      excludeIds
+    });
+
+    res.json({
+      query: effectiveQuery,
+      resultsCount: results.length,
+      images: results
+    });
+  } catch (err: any) {
+    console.error("[Image Search API] Error:", err);
+    res.status(500).json({ error: "Image search failed", details: err.message });
+  }
+});
+
+// 4. Batch resolve images for all sections
+app.post("/api/images/batch-resolve", async (req, res) => {
+  const { businessName = "Local Business", category = "General Business", services = [], location = "" } = req.body;
+  try {
+    const profile = imageAssistant.createVisualProfile(businessName, category, services, location);
+    const resolved = await imageAssistant.batchResolveSiteImages(profile);
+    res.json({ profile, resolved });
+  } catch (err: any) {
+    console.error("[Batch Resolve API] Error:", err);
+    res.status(500).json({ error: "Batch image resolution failed", details: err.message });
+  }
+});
+
+// 5. Expand natural language queries
+app.post("/api/images/expand-query", (req, res) => {
+  const { prompt = "", industry = "General Business", section = "hero" } = req.body;
+  const expanded = imageAssistant.expandNaturalLanguageQuery(prompt, industry, section);
+  res.json({ original: prompt, expanded });
 });
 
 // Module 8 API: AI Sales Outreach Generator

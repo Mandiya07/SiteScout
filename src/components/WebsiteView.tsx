@@ -82,8 +82,18 @@ export default function WebsiteView({ site }: WebsiteViewProps) {
                 {site.hero.subtitle}
               </p>
               {site.hero.imageUrl && (
-                <div className="my-4 max-w-lg mx-auto rounded-xl overflow-hidden shadow-sm aspect-video border border-slate-200 bg-white">
-                  <img src={site.hero.imageUrl} alt="Hero banner illustration" className="w-full h-full object-cover" />
+                <div className="my-4 max-w-lg mx-auto rounded-xl overflow-hidden shadow-sm aspect-video border border-slate-200 bg-white relative group">
+                  <img 
+                    src={site.hero.imageUrl} 
+                    alt={site.hero.title || "Hero banner"} 
+                    className="w-full h-full object-cover" 
+                    referrerPolicy="no-referrer" 
+                  />
+                  {site.hero.photographer && (
+                    <div className="absolute bottom-2 right-2 bg-slate-900/70 backdrop-blur-xs text-white text-[9px] px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                      Photo by {site.hero.photographer}
+                    </div>
+                  )}
                 </div>
               )}
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
@@ -124,10 +134,17 @@ export default function WebsiteView({ site }: WebsiteViewProps) {
             </h3>
             <div className="space-y-4">
               {site.services?.map((srv, i) => (
-                <div key={i} className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm flex items-center justify-between dark:bg-slate-950 dark:border-slate-800">
-                  <div className="text-left space-y-1 pr-4">
-                    <h4 className="text-xs font-bold text-slate-900 dark:text-white font-sans">{srv.title}</h4>
-                    <p className="text-[10px] text-slate-500 leading-relaxed font-sans">{srv.description}</p>
+                <div key={i} className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm flex items-center justify-between gap-4 dark:bg-slate-950 dark:border-slate-800">
+                  <div className="flex items-center gap-3">
+                    {srv.imageUrl && (
+                      <div className="h-12 w-12 rounded-lg overflow-hidden shrink-0 border border-slate-200">
+                        <img src={srv.imageUrl} alt={srv.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      </div>
+                    )}
+                    <div className="text-left space-y-1">
+                      <h4 className="text-xs font-bold text-slate-900 dark:text-white font-sans">{srv.title}</h4>
+                      <p className="text-[10px] text-slate-500 leading-relaxed font-sans line-clamp-2">{srv.description}</p>
+                    </div>
                   </div>
                   <span className="shrink-0 rounded-lg bg-blue-50 px-3 py-1 text-xs font-extrabold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
                     {srv.price}
@@ -143,6 +160,11 @@ export default function WebsiteView({ site }: WebsiteViewProps) {
             <h3 className={`text-base font-bold text-slate-800 ${getFontFamilyClass(site.fontStyle)}`} style={{ color: site.primaryColor }}>
               {site.about.title}
             </h3>
+            {site.about.imageUrl && (
+              <div className="my-3 max-w-md mx-auto rounded-xl overflow-hidden shadow-xs aspect-4/3 border border-slate-200 bg-white">
+                <img src={site.about.imageUrl} alt={site.about.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              </div>
+            )}
             <p className="text-xs text-slate-600 leading-relaxed max-w-lg mx-auto font-sans">
               {site.about.history}
             </p>

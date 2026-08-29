@@ -98,12 +98,76 @@ export interface SeoMetadata {
   keywords: string;
 }
 
+export interface ImageMetadata {
+  id: string;
+  provider: "unsplash" | "pexels" | "pixabay" | "curated_taxonomy" | "user_upload" | "business_asset" | "ai_generated";
+  sourceUrl: string;
+  thumbnailUrl: string;
+  fullUrl: string;
+  width: number;
+  height: number;
+  alt: string;
+  photographer: string;
+  photographerUrl?: string;
+  license: string;
+  licenseUrl?: string;
+  usageType: "stock" | "client_asset" | "user_upload" | "ai_generated";
+  section: "hero" | "about" | "services" | "gallery" | "contact" | "features";
+  query: string;
+  industry: string;
+  subcategory?: string;
+  relevanceScore: number;
+  relevanceBreakdown?: {
+    industryMatch: number;
+    serviceMatch: number;
+    sectionMatch: number;
+    visualQuality: number;
+    composition: number;
+    orientation: number;
+    resolution: number;
+  };
+  explanation?: string;
+  orientation?: "landscape" | "portrait" | "square";
+  createdAt: string;
+}
+
+export interface ImageRequirement {
+  section: "hero" | "about" | "services" | "gallery" | "contact";
+  subject: string;
+  serviceName?: string;
+  style: string;
+  orientation: "landscape" | "portrait" | "square";
+  aspectRatio: "16:9" | "4:3" | "1:1" | "3:2";
+  keywords: string[];
+  negativeKeywords?: string[];
+  purpose?: string;
+}
+
+export interface VisualBusinessProfile {
+  industry: string;
+  subcategory: string;
+  services: string[];
+  audience: string[];
+  visualStyle: string;
+  preferredSubjects: string[];
+  avoidSubjects: string[];
+  localContext?: string;
+  heroRequirement?: ImageRequirement;
+  aboutRequirement?: ImageRequirement;
+  servicesRequirements?: ImageRequirement[];
+  galleryRequirements?: ImageRequirement[];
+}
+
 export interface HeroSection {
   title: string;
   subtitle: string;
   ctaPrimary: string;
   ctaSecondary: string;
   imageUrl?: string;
+  photographer?: string;
+  photographerUrl?: string;
+  license?: string;
+  imageMetadata?: ImageMetadata;
 }
 
 export interface AboutSection {
@@ -111,12 +175,16 @@ export interface AboutSection {
   history: string;
   mission: string;
   pitch: string;
+  imageUrl?: string;
+  imageMetadata?: ImageMetadata;
 }
 
 export interface ServiceItem {
   title: string;
   description: string;
   price: string;
+  imageUrl?: string;
+  imageMetadata?: ImageMetadata;
 }
 
 export interface FeatureItem {
@@ -146,6 +214,13 @@ export interface BlogPostItem {
 export interface GalleryImage {
   url: string;
   alt: string;
+  photographer?: string;
+  photographerUrl?: string;
+  license?: string;
+  usageType?: "stock" | "client_asset" | "user_upload" | "ai_generated";
+  relevanceScore?: number;
+  explanation?: string;
+  imageMetadata?: ImageMetadata;
 }
 
 export interface GeneratedSite {
@@ -209,6 +284,8 @@ export interface GeneratedSite {
     status?: "published" | "unpublished";
   };
   crmSynced?: boolean;
+  visualProfile?: VisualBusinessProfile;
+  imageAttributions?: ImageMetadata[];
 }
 
 export interface SalesOutreach {

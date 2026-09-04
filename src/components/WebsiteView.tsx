@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { GeneratedSite } from "../types";
-import { getCategoryHeroImage } from "../lib/heroImages";
+import { getCategoryHeroImage, resolveHeroImageUrl, CATEGORY_HERO_IMAGES } from "../lib/heroImages";
 import { 
   Phone, MapPin, MessageSquare, ChevronDown, Check, Sparkles, Wrench, Utensils, HeartPulse, Scale, Briefcase, Home, Camera, Scissors, ShieldCheck,
   GraduationCap, Church, Building2, Zap, TreePine, Trophy, Flag, HeartHandshake, Dumbbell, ShoppingBag, Users
@@ -12,6 +12,22 @@ interface WebsiteViewProps {
 
 export default function WebsiteView({ site }: WebsiteViewProps) {
   const [activePage, setActivePage] = useState<"home" | "about" | "services" | "gallery" | "blog" | "contact" | "privacy" | "terms" | "404">("home");
+  const [heroImageSrc, setHeroImageSrc] = useState<string>(() => resolveHeroImageUrl(site));
+
+  // Sync hero image whenever site or its imagery changes
+  useEffect(() => {
+    setHeroImageSrc(resolveHeroImageUrl(site));
+  }, [site?.hero?.imageUrl, site?.category, site?.gallery]);
+
+  const handleHeroImageError = () => {
+    // If current hero image URL fails to load, gracefully step down to first gallery image or category fallback
+    const fallback = site.gallery?.[0]?.url && site.gallery[0].url !== heroImageSrc
+      ? site.gallery[0].url
+      : (site.gallery?.[1]?.url || CATEGORY_HERO_IMAGES.default);
+    if (heroImageSrc !== fallback) {
+      setHeroImageSrc(fallback);
+    }
+  };
 
   // Track view telemetry when viewed in standalone or public preview mode
   useEffect(() => {
@@ -73,37 +89,81 @@ export default function WebsiteView({ site }: WebsiteViewProps) {
   const renderSection = (sectionId: string) => {
     switch (sectionId) {
       case "hero":
-        const heroImgUrl = site.hero?.imageUrl || site.gallery?.[0]?.url || getCategoryHeroImage(site.category);
         return (
-          <section key="hero" className="px-5 py-12 text-center relative overflow-hidden bg-slate-50" style={{ backgroundColor: `${site.primaryColor}05` }}>
-            <div className="max-w-xl mx-auto space-y-4">
-              <h1 className={`text-2xl sm:text-3xl font-extrabold leading-tight text-slate-900 ${getFontFamilyClass(site.fontStyle)}`} style={{ color: site.primaryColor }}>
+          <section
+            key="hero"
+            className="relative px-5 py-20 sm:py-28 md:py-32 text-center overflow-hidden flex items-center justify-center min-h-[380px] sm:min-h-[460px]"
+          >
+            {/* Full-width hero background image */}
+            <div className="absolute inset-0 z-0 select-none">
+              <img
+                src={heroImageSrc}
+                alt={site.hero?.title || site.businessName || "Hero background"}
+                className="w-full h-full object-cover object-center"
+                referrerPolicy="no-referrer"
+                onError={handleHeroImageError}
+              />
+              {/* Premium dark gradient overlay for optimal legibility and contrast */}
+              <div
+                className="absolute inset-0"
+                style={{
+                  background:
+                    "linear-gradient(180deg, rgba(15, 23, 42, 0.72) 0%, rgba(15, 23, 42, 0.84) 50%, rgba(15, 23, 42, 0.94) 100%)",
+                }}
+              />
+              {/* Subtle brand tint using primary color */}
+              <div
+                className="absolute inset-0 opacity-20 mix-blend-color"
+                style={{ backgroundColor: site.primaryColor }}
+              />
+            </div>
+
+            {/* Foreground content layer in front of the background image */}
+            <div className="relative z-10 max-w-2xl mx-auto space-y-4 sm:space-y-5 px-2">
+              {/* Category / trust pill */}
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white text-[11px] font-semibold tracking-wide shadow-sm">
+                <span
+                  className="w-2 h-2 rounded-full animate-pulse"
+                  style={{ backgroundColor: site.accentColor || "#38bdf8" }}
+                />
+                <span>{site.category || site.businessName}</span>
+              </div>
+
+              {/* Bold Hero Title */}
+              <h1
+                className={`text-2xl sm:text-4xl md:text-5xl font-extrabold text-white leading-tight sm:leading-tight tracking-tight drop-shadow-md ${getFontFamilyClass(site.fontStyle)}`}
+              >
                 {site.hero.title}
               </h1>
-              <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-sans">
+
+              {/* Hero Subtitle */}
+              <p className="text-xs sm:text-base text-slate-200/90 leading-relaxed font-sans max-w-xl mx-auto drop-shadow-xs">
                 {site.hero.subtitle}
               </p>
-              <div className="my-4 max-w-lg mx-auto rounded-xl overflow-hidden shadow-sm aspect-video border border-slate-200 bg-white relative group">
-                <img 
-                  src={heroImgUrl} 
-                  alt={site.hero.title || "Hero banner"} 
-                  className="w-full h-full object-cover" 
-                  referrerPolicy="no-referrer" 
-                />
-                {site.hero.photographer && (
-                  <div className="absolute bottom-2 right-2 bg-slate-900/70 backdrop-blur-xs text-white text-[9px] px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                    Photo by {site.hero.photographer}
-                  </div>
-                )}
-              </div>
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
-                <button className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold text-white shadow-md cursor-pointer" style={{ backgroundColor: site.accentColor }}>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-3">
+                <button
+                  className="w-full sm:w-auto px-6 py-3 rounded-xl text-xs sm:text-sm font-bold text-white shadow-lg hover:brightness-110 active:scale-95 transition-all cursor-pointer"
+                  style={{ backgroundColor: site.accentColor || site.primaryColor }}
+                  onClick={() => setActivePage("contact")}
+                >
                   {site.hero.ctaPrimary}
                 </button>
-                <button className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold border border-slate-200 bg-white text-slate-700 cursor-pointer">
+                <button
+                  className="w-full sm:w-auto px-6 py-3 rounded-xl text-xs sm:text-sm font-bold text-white bg-white/15 hover:bg-white/25 backdrop-blur-md border border-white/30 shadow-sm active:scale-95 transition-all cursor-pointer"
+                  onClick={() => setActivePage("services")}
+                >
                   {site.hero.ctaSecondary}
                 </button>
               </div>
+
+              {/* Photographer attribution badge if present */}
+              {site.hero.photographer && (
+                <div className="pt-2 text-[10px] text-white/50">
+                  Photo by {site.hero.photographer}
+                </div>
+              )}
             </div>
           </section>
         );

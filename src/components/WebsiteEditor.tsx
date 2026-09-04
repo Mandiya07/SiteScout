@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { GeneratedSite, ServiceItem, FAQItem, ImageMetadata } from "../types";
-import { getCategoryHeroImage } from "../lib/heroImages";
+import { getCategoryHeroImage, resolveHeroImageUrl } from "../lib/heroImages";
 import WebsiteView from "./WebsiteView";
 import PublishingModal from "./PublishingModal";
 import ImagePickerModal from "./ImagePickerModal";
@@ -317,24 +317,35 @@ export default function WebsiteEditor({
   const renderSection = (sectionId: string) => {
     switch (sectionId) {
       case "hero":
-        const heroImgUrl = site.hero?.imageUrl || site.gallery?.[0]?.url || getCategoryHeroImage(site.category);
+        const heroImgUrl = resolveHeroImageUrl(site);
         return (
-          <section key="hero" className="px-5 py-12 text-center relative overflow-hidden bg-slate-50" style={{ backgroundColor: `${site.primaryColor}05` }}>
-            <div className="max-w-xl mx-auto space-y-4">
-              <h1 className={`text-2xl sm:text-3xl font-extrabold leading-tight text-slate-900 ${getFontFamilyClass(site.fontStyle)}`} style={{ color: site.primaryColor }}>
+          <section key="hero" className="relative px-5 py-20 text-center overflow-hidden flex items-center justify-center min-h-[380px]">
+            <div className="absolute inset-0 z-0 select-none">
+              <img src={heroImgUrl} alt="Hero banner illustration" className="w-full h-full object-cover object-center" referrerPolicy="no-referrer" />
+              <div
+                className="absolute inset-0"
+                style={{
+                  background: "linear-gradient(180deg, rgba(15, 23, 42, 0.72) 0%, rgba(15, 23, 42, 0.84) 50%, rgba(15, 23, 42, 0.94) 100%)",
+                }}
+              />
+              <div className="absolute inset-0 opacity-20 mix-blend-color" style={{ backgroundColor: site.primaryColor }} />
+            </div>
+            <div className="relative z-10 max-w-xl mx-auto space-y-4 px-2">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white text-[10px] font-semibold">
+                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: site.accentColor || "#38bdf8" }} />
+                <span>{site.category || site.businessName}</span>
+              </div>
+              <h1 className={`text-2xl sm:text-3xl font-extrabold leading-tight text-white ${getFontFamilyClass(site.fontStyle)} drop-shadow-md`}>
                 {site.hero.title}
               </h1>
-              <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-sans">
+              <p className="text-xs sm:text-sm text-slate-200 leading-relaxed font-sans max-w-lg mx-auto">
                 {site.hero.subtitle}
               </p>
-              <div className="my-4 max-w-lg mx-auto rounded-xl overflow-hidden shadow-sm aspect-video border border-slate-200 bg-white">
-                <img src={heroImgUrl} alt="Hero banner illustration" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-              </div>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
                 <button className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold text-white shadow-md cursor-pointer" style={{ backgroundColor: site.accentColor }}>
                   {site.hero.ctaPrimary}
                 </button>
-                <button className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold border border-slate-200 bg-white text-slate-700 cursor-pointer">
+                <button className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold border border-white/30 bg-white/15 text-white cursor-pointer">
                   {site.hero.ctaSecondary}
                 </button>
               </div>

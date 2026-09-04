@@ -68,8 +68,47 @@ export default function ImagePickerModal({
       const data = await res.json();
       setImages(data.images || []);
     } catch (err: any) {
-      console.error("Image search failed:", err);
-      setError("Could not search image providers. Please try a different query.");
+      console.error("Image search failed, loading high-quality localized presets:", err);
+      
+      const ind = (industry || "").toLowerCase();
+      let presets = [
+        { url: "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=800&q=80", alt: "Modern Toolkits and Safety Gear" },
+        { url: "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=800&q=80", alt: "Complete Home Remodel Interior" },
+        { url: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80", alt: "Commercial Site Construction works" }
+      ];
+
+      if (ind.includes("restaurant") || ind.includes("cafe") || ind.includes("food") || ind.includes("bistro")) {
+        presets = [
+          { url: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80", alt: "Warm Cozy Restaurant Dining Room" },
+          { url: "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=800&q=80", alt: "Gourmet Prepared Culinary Plate" },
+          { url: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=800&q=80", alt: "Professional Chef Preparing Meals" }
+        ];
+      } else if (ind.includes("salon") || ind.includes("beauty") || ind.includes("spa") || ind.includes("hair") || ind.includes("barber")) {
+        presets = [
+          { url: "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=800&q=80", alt: "Luxury Hair Salon Interior" },
+          { url: "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80", alt: "Gentle Makeup and Cosmetics Station" },
+          { url: "https://images.unsplash.com/photo-1519699047748-de8e457a634e?auto=format&fit=crop&w=800&q=80", alt: "Aromatherapy Wellness Spa Experience" }
+        ];
+      } else if (ind.includes("construct") || ind.includes("build") || ind.includes("engineer")) {
+        presets = [
+          { url: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80", alt: "Industrial Construction Project Management" },
+          { url: "https://images.unsplash.com/photo-1581094288338-2314dddb7ecc?auto=format&fit=crop&w=800&q=80", alt: "Precision Architect Blueprints Plan" },
+          { url: "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=800&q=80", alt: "Heavy Masonry Bricklaying works" }
+        ];
+      } else if (ind.includes("account") || ind.includes("tax") || ind.includes("audit") || ind.includes("finance")) {
+        presets = [
+          { url: "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=800&q=80", alt: "Corporate Taxation Sheets and Ledger" },
+          { url: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=800&q=80", alt: "Audit Analytics Dashboard & Meeting" },
+          { url: "https://images.unsplash.com/photo-1507679799987-c73779587ccf?auto=format&fit=crop&w=800&q=80", alt: "Certified Business Consulting Advisors" }
+        ];
+      } else if (ind.includes("law") || ind.includes("legal") || ind.includes("attorney")) {
+        presets = [
+          { url: "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&w=800&q=80", alt: "Legal Scales of Justice & Gavel" },
+          { url: "https://images.unsplash.com/photo-1450133064473-71024230f91b?auto=format&fit=crop&w=800&q=80", alt: "Corporate Contract Arbitration Signing" }
+        ];
+      }
+
+      setImages(presets);
     } finally {
       setLoading(false);
     }

@@ -21,6 +21,7 @@ export default function SalesAssistant({ site, onBack }: SalesAssistantProps) {
 
   const fetchOutreachTemplates = async (selectedTone: string) => {
     setLoading(true);
+    const link = `${window.location.origin}/preview/${site.id}`;
     try {
       const response = await fetch("/api/generate-sales-copy", {
         method: "POST",
@@ -33,14 +34,44 @@ export default function SalesAssistant({ site, onBack }: SalesAssistantProps) {
             phone: site.phone
           },
           tone: selectedTone,
-          link: `${window.location.origin}/preview/${site.id}`
+          link: link
         })
       });
+
+      if (!response.ok) {
+        throw new Error("Outreach API returned non-200 response");
+      }
 
       const data = await response.json();
       setOutreach(data);
     } catch (error) {
-      console.error("Outreach generation error:", error);
+      console.error("Outreach generation error, fallback to client-side custom templates:", error);
+      
+      const categoryLower = (site.category || "service").toLowerCase();
+      const locationCity = site.address ? (site.address.split(",")[1]?.trim() || "local area") : "local area";
+      
+      // Standalone high-quality multi-channel client template builder matching tone
+      const tonePrefix = selectedTone === "Bold" ? "🚀 BOLD PROPOSAL: " : 
+                         selectedTone === "Friendly" ? "👋 Quick question for " :
+                         selectedTone === "Professional" ? "💼 Business Inquiry: " : "✨ Custom Proposal: ";
+
+      const customTemplates: SalesOutreach = {
+        whatsapp: `Hi ${site.businessName} team! 👋\n\nWe designed and published an interactive website draft customized specifically for your ${site.category} business in ${locationCity}.\n\nThis isn't a static mockup - it's fully functional with mobile clicks, direct WhatsApp links, and enquiry routing already built in to capture more customer calls.\n\nYou can view and test the live interactive preview here: \n👉 ${link}\n\nLet me know what you think or if you would like me to adjust any of the colors/text!`,
+        
+        email: `Subject: ${tonePrefix}Custom Website Layout Built For ${site.businessName}\n\nHi ${site.businessName} Team,\n\nI was reviewing local ${site.category} businesses in ${locationCity} and noticed that you don't have a mobile-optimized website to capture online search traffic and map booking dispatches.\n\nTo save you time, we went ahead and designed a complete, fully interactive custom website preview for your team. This isn't a mock image, but a live prototype:\n\n🔗 ${link}\n\nKey features configured for your brand:\n- 1-Click WhatsApp Instant Chat\n- Fast Click-to-Call Customer Hotline\n- Direct Service Request and Enquiry Form\n- Modern Responsive Layout & Trust badges\n\nCould we jump on a short 5-minute call this week to talk about publishing this live to your own custom domain?\n\nBest regards,\nWeb Design Partners`,
+        
+        sms: `Hi ${site.businessName}! We built a custom mobile website preview for your ${site.category} service to capture more local leads: ${link}`,
+        
+        coldCall: `[OPENING LINE]\n"Hi is this the manager or owner at ${site.businessName}? Hi, my name is Alex, I'm a local digital developer. I was actually looking for a ${site.category} in ${locationCity} and noticed your Google listing has great reviews but no website linked.\n\nTo show you what's possible, I actually went ahead and pre-built a fully functional, mobile-optimized website prototype specifically for your business. It's completely customized with your phone number and service menu.\n\nDo you have 2 minutes to open a link on your phone right now so I can show you how it works?"\n\n[OBJECTION PLAYBOOK]\n- Objection: "We don't need a website."\n- Response: "I completely understand! Many businesses rely on word of mouth. But did you know that over 80% of customers search on mobile before calling? Since we already designed it, there's zero upfront obligation to view."`,
+        
+        followUp: `Hi ${site.businessName} Team! 👋 Just checking if you had a moment to play around with the customized interactive draft we created for you: ${link}\n\nWe can have this launched and pointing to your official domain in less than 24 hours to help capture this weekend's customers. Let me know when is best to connect!`,
+        
+        linkedin: `Hello ${site.businessName} Team,\n\nI hope you're doing well. I noticed your prominent local profile in ${locationCity} and put together a customized, live interactive website layout specifically optimized to convert more mobile traffic for your ${site.category} services.\n\nYou can test the live preview and action buttons directly here: ${link}\n\nI would love to help you launch this to your custom domain. Let me know if you are open to a brief chat!`,
+        
+        messenger: `Hi ${site.businessName}! we love your Google rating and customer reviews. We designed a custom, mobile-ready interactive layout for your ${site.category} services in ${locationCity} to help you convert search traffic into direct bookings. You can test the responsive layout instantly here: ${link} Let us know what you think!`
+      };
+
+      setOutreach(customTemplates);
     } finally {
       setLoading(false);
     }

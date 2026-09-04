@@ -5,10 +5,15 @@ import {
   Layers, ChevronRight, Calculator, Building2, PhoneCall,
   Mail, MessageSquare, Percent, ExternalLink, Plus, Trash2,
   Briefcase, Palette, Camera, Printer, Signpost, Share2, 
-  Cpu, Megaphone, Calendar, BookmarkCheck
+  Cpu, Megaphone, Calendar, BookmarkCheck, Globe
 } from "lucide-react";
 import { PartnerNiche, PartnerDeal, SearchFilters } from "../types";
 import { motion, AnimatePresence } from "motion/react";
+import {
+  SUPPORTED_COUNTRIES,
+  getCountryByCode,
+  CountryPricingConfig
+} from "../lib/countryCurrency";
 
 interface PartnerEcosystemProps {
   onFindPartners: (filters: SearchFilters) => void;
@@ -144,12 +149,26 @@ export default function PartnerEcosystem({ onFindPartners, onOpenWebsiteGenerato
   const [pitchTone, setPitchTone] = useState<"win-win" | "executive" | "casual" | "revenue">("win-win");
   const [copiedPitch, setCopiedPitch] = useState<string | null>(null);
 
+  // Country & Currency State
+  const [selectedCountryCode, setSelectedCountryCode] = useState<string>("SZ");
+  const activeCountry = getCountryByCode(selectedCountryCode) || SUPPORTED_COUNTRIES[0];
+  const currencySymbol = activeCountry.currencySymbol;
+
   // Revenue Calculator States
-  const [avgDealSize, setAvgDealSize] = useState<number>(1200);
+  const [avgDealSize, setAvgDealSize] = useState<number>(activeCountry.defaultPricing.packagePrice || 4500);
   const [referralsPerMonth, setReferralsPerMonth] = useState<number>(4);
   const [partnerSplitPercent, setPartnerSplitPercent] = useState<number>(50);
-  const [monthlyRetainer, setMonthlyRetainer] = useState<number>(50);
+  const [monthlyRetainer, setMonthlyRetainer] = useState<number>(activeCountry.defaultPricing.hostingPrice || 300);
   const [retainerSharePercent, setRetainerSharePercent] = useState<number>(30);
+
+  // Handle Country Switching for Partner Calculator
+  const handleCountrySwitch = (countryCode: string) => {
+    const config = getCountryByCode(countryCode);
+    if (!config) return;
+    setSelectedCountryCode(config.countryCode);
+    setAvgDealSize(config.defaultPricing.packagePrice);
+    setMonthlyRetainer(config.defaultPricing.hostingPrice);
+  };
 
   // Partner Pipeline Deals State
   const [deals, setDeals] = useState<PartnerDeal[]>([
@@ -608,13 +627,31 @@ CHANNEL PARTNER: ___________________`;
       {activeSubTab === "calculator" && (
         <div className="space-y-6 text-left">
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-6">
-            <div>
-              <h3 className="text-base font-black text-slate-900 dark:text-white">
-                Interactive White-Label Revenue Split Engine
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Model the monthly and annual economics of a partnership deal with real client referral volume.
-              </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+              <div>
+                <h3 className="text-base font-black text-slate-900 dark:text-white">
+                  Interactive White-Label Revenue Split Engine
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Model the monthly and annual economics of a partnership deal with real client referral volume.
+                </p>
+              </div>
+
+              {/* Country & Currency Switcher for Partner Models */}
+              <div className="flex items-center gap-2">
+                <Globe className="h-4 w-4 text-slate-400" />
+                <select
+                  value={selectedCountryCode}
+                  onChange={(e) => handleCountrySwitch(e.target.value)}
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-200 outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                >
+                  {SUPPORTED_COUNTRIES.map((country) => (
+                    <option key={country.countryCode} value={country.countryCode}>
+                      {country.flag} {country.name} ({country.currencySymbol} - {country.currencyCode})
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="grid gap-6 lg:grid-cols-2">
@@ -622,22 +659,22 @@ CHANNEL PARTNER: ___________________`;
               <div className="space-y-5 bg-slate-50/50 dark:bg-slate-950/40 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800">
                 <div>
                   <div className="flex justify-between text-xs font-bold mb-1.5">
-                    <label className="text-slate-700 dark:text-slate-300">Average Website Build Price ($):</label>
-                    <span className="font-mono text-blue-600 dark:text-blue-400">${avgDealSize}</span>
+                    <label className="text-slate-700 dark:text-slate-300">Average Website Build Price ({currencySymbol}):</label>
+                    <span className="font-mono text-blue-600 dark:text-blue-400">{currencySymbol}{avgDealSize.toLocaleString()}</span>
                   </div>
                   <input
                     type="range"
-                    min="400"
-                    max="5000"
-                    step="100"
+                    min={Math.max(100, Math.floor(activeCountry.defaultPricing.packagePrice * 0.2))}
+                    max={Math.max(5000, activeCountry.defaultPricing.packagePrice * 3)}
+                    step={Math.max(50, Math.floor(activeCountry.defaultPricing.packagePrice * 0.05))}
                     value={avgDealSize}
                     onChange={(e) => setAvgDealSize(Number(e.target.value))}
                     className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer dark:bg-slate-700"
                   />
                   <div className="flex justify-between text-[10px] text-slate-400 mt-1">
-                    <span>$400 (Basic Site)</span>
-                    <span>$2,500 (Pro Portal)</span>
-                    <span>$5,000 (Enterprise)</span>
+                    <span>{currencySymbol}{Math.floor(activeCountry.defaultPricing.packagePrice * 0.4).toLocaleString()} (Basic)</span>
+                    <span>{currencySymbol}{activeCountry.defaultPricing.packagePrice.toLocaleString()} (Standard)</span>
+                    <span>{currencySymbol}{(activeCountry.defaultPricing.packagePrice * 2).toLocaleString()} (Enterprise)</span>
                   </div>
                 </div>
 
@@ -685,14 +722,14 @@ CHANNEL PARTNER: ___________________`;
 
                 <div>
                   <div className="flex justify-between text-xs font-bold mb-1.5">
-                    <label className="text-slate-700 dark:text-slate-300">Monthly Hosting/Maintenance Retainer ($/mo/client):</label>
-                    <span className="font-mono text-purple-600 dark:text-purple-400">${monthlyRetainer}/mo</span>
+                    <label className="text-slate-700 dark:text-slate-300">Monthly Hosting/Maintenance Retainer ({currencySymbol}/mo/client):</label>
+                    <span className="font-mono text-purple-600 dark:text-purple-400">{currencySymbol}{monthlyRetainer}/mo</span>
                   </div>
                   <input
                     type="range"
-                    min="20"
-                    max="300"
-                    step="10"
+                    min={Math.max(10, Math.floor(activeCountry.defaultPricing.hostingPrice * 0.2))}
+                    max={Math.max(300, activeCountry.defaultPricing.hostingPrice * 3)}
+                    step={Math.max(5, Math.floor(activeCountry.defaultPricing.hostingPrice * 0.1))}
                     value={monthlyRetainer}
                     onChange={(e) => setMonthlyRetainer(Number(e.target.value))}
                     className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer dark:bg-slate-700"
@@ -708,10 +745,10 @@ CHANNEL PARTNER: ___________________`;
                       Your Monthly Share
                     </span>
                     <p className="text-2xl sm:text-3xl font-black font-mono text-slate-900 dark:text-white mt-1">
-                      ${yourMonthlyCut.toLocaleString()}
+                      {currencySymbol}{yourMonthlyCut.toLocaleString()}
                     </p>
                     <span className="text-[10px] text-slate-500 block mt-1">
-                      ({100 - partnerSplitPercent}% of ${monthlyGrossRevenue.toLocaleString()} gross)
+                      ({100 - partnerSplitPercent}% of {currencySymbol}{monthlyGrossRevenue.toLocaleString()} gross)
                     </span>
                   </div>
 
@@ -720,7 +757,7 @@ CHANNEL PARTNER: ___________________`;
                       Partner Monthly Payout
                     </span>
                     <p className="text-2xl sm:text-3xl font-black font-mono text-slate-900 dark:text-white mt-1">
-                      ${partnerMonthlyCut.toLocaleString()}
+                      {currencySymbol}{partnerMonthlyCut.toLocaleString()}
                     </p>
                     <span className="text-[10px] text-slate-500 block mt-1">
                       (Zero tech overhead for them)
@@ -734,7 +771,7 @@ CHANNEL PARTNER: ___________________`;
                       Annualized Channel Forecast
                     </span>
                     <span className="text-[10px] bg-indigo-500/30 px-2 py-0.5 rounded-full font-bold text-indigo-200">
-                      12-Month Projection
+                      12-Month Projection ({activeCountry.name})
                     </span>
                   </div>
 
@@ -742,13 +779,13 @@ CHANNEL PARTNER: ___________________`;
                     <div>
                       <p className="text-xs text-slate-400">Your Annual Build Profit:</p>
                       <p className="text-xl sm:text-2xl font-black font-mono text-white">
-                        ${annualYourCut.toLocaleString()}
+                        {currencySymbol}{annualYourCut.toLocaleString()}
                       </p>
                     </div>
                     <div>
                       <p className="text-xs text-slate-400">Annual Retainer Pool:</p>
                       <p className="text-xl sm:text-2xl font-black font-mono text-emerald-400">
-                        +${yourAnnualRetainerCut.toLocaleString()}
+                        +{currencySymbol}{yourAnnualRetainerCut.toLocaleString()}
                       </p>
                     </div>
                   </div>
@@ -756,7 +793,7 @@ CHANNEL PARTNER: ___________________`;
                   <div className="pt-3 border-t border-indigo-800/60 flex items-center justify-between text-xs">
                     <span className="text-slate-300">Total 1-Year Pipeline Value:</span>
                     <span className="text-lg font-black font-mono text-amber-300">
-                      ${(annualYourCut + yourAnnualRetainerCut).toLocaleString()}
+                      {currencySymbol}{(annualYourCut + yourAnnualRetainerCut).toLocaleString()}
                     </span>
                   </div>
                 </div>
@@ -767,7 +804,7 @@ CHANNEL PARTNER: ___________________`;
                     The Channel Advantage:
                   </p>
                   <p>
-                    With just 2-3 steady partners referring 2 clients a month, your agency generates predictable revenue without spending $1 on Facebook or Google ads.
+                    With just 2-3 steady partners referring 2 clients a month, your agency generates predictable revenue without spending a single cent on ads.
                   </p>
                 </div>
               </div>
@@ -866,7 +903,7 @@ CHANNEL PARTNER: ___________________`;
                         </td>
                         <td className="py-3 px-3 font-mono font-bold text-slate-800 dark:text-slate-200">{deal.splitPercentage}%</td>
                         <td className="py-3 px-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">{deal.referredClientCount}</td>
-                        <td className="py-3 px-3 font-mono font-bold text-emerald-600 dark:text-emerald-400">${deal.totalRevenueGenerated.toLocaleString()}</td>
+                        <td className="py-3 px-3 font-mono font-bold text-emerald-600 dark:text-emerald-400">{currencySymbol}{deal.totalRevenueGenerated.toLocaleString()}</td>
                         <td className="py-3 px-3 text-right">
                           <button
                             onClick={() => setDeals(deals.filter(d => d.id !== deal.id))}

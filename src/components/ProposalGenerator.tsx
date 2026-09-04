@@ -4,8 +4,16 @@ import {
   Calculator, FileText, Check, DollarSign, Clock, Calendar, 
   User, CheckCircle, Shield, Award, Sparkles, Printer, FileDown, 
   ArrowRight, Trash2, Plus, AlertCircle, Save, Briefcase, FileCheck, 
-  CreditCard, HelpCircle, Layers, Mail, Phone, MapPin, CheckCircle2, RefreshCw
+  CreditCard, HelpCircle, Layers, Mail, Phone, MapPin, CheckCircle2, RefreshCw,
+  Globe
 } from "lucide-react";
+import {
+  SUPPORTED_COUNTRIES,
+  detectCountryFromLocation,
+  CountryPricingConfig,
+  getCountryByCode,
+  getCountryBySymbol
+} from "../lib/countryCurrency";
 
 interface ProposalGeneratorProps {
   site: GeneratedSite;
@@ -24,6 +32,7 @@ export default function ProposalGenerator({
 }: ProposalGeneratorProps) {
   // Try loading saved proposal from site first, otherwise use professional defaults
   const initialProposal = site.proposal;
+  const initialCountryConfig = detectCountryFromLocation(site.address || site.country || "");
 
   const [clientName, setClientName] = useState(initialProposal?.clientName || "Owner / Principal Manager");
   const [clientEmail, setClientEmail] = useState(initialProposal?.clientEmail || `${site.businessName.toLowerCase().replace(/[^a-z0-9]/g, "")}@gmail.com`);
@@ -51,24 +60,13 @@ export default function ProposalGenerator({
   const [signedDate, setSignedDate] = useState(site.clientApprovedAt ? new Date(site.clientApprovedAt).toLocaleDateString() : "");
   const [isApproved, setIsApproved] = useState(site.clientApproved || false);
 
-  // Currency setup
-  const [currencySymbol, setCurrencySymbol] = useState<string>("E");
+  // Country & Currency setup
+  const [selectedCountryCode, setSelectedCountryCode] = useState<string>(initialCountryConfig.countryCode);
+  const [currencySymbol, setCurrencySymbol] = useState<string>(initialCountryConfig.currencySymbol);
 
   // Pricing setup
   const [pricing, setPricing] = useState<PricingCalculator>(
-    initialProposal?.pricing || {
-      packageName: "Website Package & Mobile Design",
-      packagePrice: 4500,
-      hostingPrice: 300,
-      maintenancePrice: 0,
-      domainPrice: 0,
-      emailPrice: 0,
-      seoPrice: 0,
-      gbpOtpPrice: 0,
-      logoPrice: 0,
-      supportMonthlyPrice: 0,
-      isRecurring: true
-    }
+    initialProposal?.pricing || initialCountryConfig.defaultPricing
   );
 
   // Features checkboxes/toggles
@@ -122,6 +120,10 @@ export default function ProposalGenerator({
   // Listen to active site prop changes and re-initialize states
   useEffect(() => {
     const freshProposal = site.proposal;
+    const countryConfig = detectCountryFromLocation(site.address || site.country || "");
+    setSelectedCountryCode(countryConfig.countryCode);
+    setCurrencySymbol(countryConfig.currencySymbol);
+
     setClientName(freshProposal?.clientName || "Owner / Principal Manager");
     setClientEmail(freshProposal?.clientEmail || `${site.businessName.toLowerCase().replace(/[^a-z0-9]/g, "")}@gmail.com`);
     setBusinessName(freshProposal?.businessName || site.businessName);
@@ -137,19 +139,7 @@ export default function ProposalGenerator({
     setSignedDate(site.clientApprovedAt ? new Date(site.clientApprovedAt).toLocaleDateString() : "");
     setIsApproved(site.clientApproved || false);
     setPricing(
-      freshProposal?.pricing || {
-        packageName: "Website Package & Mobile Design",
-        packagePrice: 4500,
-        hostingPrice: 300,
-        maintenancePrice: 0,
-        domainPrice: 0,
-        emailPrice: 0,
-        seoPrice: 0,
-        gbpOtpPrice: 0,
-        logoPrice: 0,
-        supportMonthlyPrice: 0,
-        isRecurring: true
-      }
+      freshProposal?.pricing || countryConfig.defaultPricing
     );
     setFeatures(
       freshProposal?.features || [
@@ -174,6 +164,23 @@ export default function ProposalGenerator({
 4. Client Commitments: Client agrees to supply high-resolution logos, professional license credentials, staff images, and custom copy preferences. Delays in supplying assets will extend delivery timelines proportionally.`
     );
   }, [site.id, site.businessName]);
+
+  // Handle Country Selection & Pricing preset change
+  const handleCountryChange = (countryCode: string) => {
+    const config = getCountryByCode(countryCode);
+    if (!config) return;
+    setSelectedCountryCode(config.countryCode);
+    setCurrencySymbol(config.currencySymbol);
+  };
+
+  const handleApplyCountryPreset = (config?: CountryPricingConfig) => {
+    const targetConfig = config || getCountryByCode(selectedCountryCode) || initialCountryConfig;
+    setSelectedCountryCode(targetConfig.countryCode);
+    setCurrencySymbol(targetConfig.currencySymbol);
+    setPricing({
+      ...targetConfig.defaultPricing
+    });
+  };
 
   // Field change handler
   const handlePriceChange = (field: keyof PricingCalculator, value: any) => {
@@ -325,8 +332,11 @@ export default function ProposalGenerator({
   const monthlyTotal = calculateMonthlyTotal();
   const depositAmt = (setupTotal / 2).toFixed(2);
 
-  // Keep dynamic fields up to date with template calculations
-  const renderedPaymentDetails = paymentDetails.replace("$[DEPOSIT_TOTAL]", `$${depositAmt}`);
+  // Keep dynamic fields up to date with template calculations and country currency
+  const activeCountry = getCountryByCode(selectedCountryCode) || initialCountryConfig;
+  const renderedPaymentDetails = paymentDetails
+    .replace(/\$\[DEPOSIT_TOTAL\]/g, `${currencySymbol}${depositAmt}`)
+    .replace(/\[DEPOSIT_TOTAL\]/g, `${currencySymbol}${depositAmt}`);
 
   return (
     <div className="space-y-6 text-left">
@@ -500,58 +510,47 @@ export default function ProposalGenerator({
                 <DollarSign className="h-4 w-4" /> 2. One-Off Setup Investments
               </h3>
 
-              {/* Currency Selector */}
-              <div className="flex items-center gap-1">
-                <span className="text-[10px] font-bold text-slate-400 mr-1">Currency:</span>
-                {[
-                  { symbol: "E", label: "E (SZ)" },
-                  { symbol: "R", label: "R (ZA)" },
-                  { symbol: "$", label: "$ (USD)" },
-                  { symbol: "£", label: "£ (GBP)" },
-                  { symbol: "€", label: "€ (EUR)" }
-                ].map((cur) => (
-                  <button
-                    key={cur.symbol}
-                    type="button"
-                    onClick={() => setCurrencySymbol(cur.symbol)}
-                    className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
-                      currencySymbol === cur.symbol
-                        ? "bg-blue-600 text-white shadow-xs"
-                        : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300"
-                    }`}
-                  >
-                    {cur.label}
-                  </button>
-                ))}
+              {/* Country & Currency Selector */}
+              <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                <Globe className="h-3.5 w-3.5 text-slate-400" />
+                <select
+                  value={selectedCountryCode}
+                  onChange={(e) => {
+                    const c = getCountryByCode(e.target.value);
+                    if (c) {
+                      setSelectedCountryCode(c.countryCode);
+                      setCurrencySymbol(c.currencySymbol);
+                    }
+                  }}
+                  className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-bold text-slate-700 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-200 outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                >
+                  {SUPPORTED_COUNTRIES.map((country) => (
+                    <option key={country.countryCode} value={country.countryCode}>
+                      {country.flag} {country.name} ({country.currencySymbol} - {country.currencyCode})
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
-            {/* Quick 1-Click Preset */}
-            <div className="p-2.5 rounded-xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/50 flex items-center justify-between gap-2">
+            {/* Quick Country-Specific Market Rate Preset */}
+            <div className="p-3 rounded-xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
               <div>
-                <p className="text-[11px] font-bold text-blue-900 dark:text-blue-200">Recommended Standard Package</p>
-                <p className="text-[10px] text-blue-600 dark:text-blue-400">{currencySymbol}4,500 Setup + {currencySymbol}300/mo Hosting</p>
+                <p className="text-[11px] font-bold text-blue-900 dark:text-blue-200 flex items-center gap-1.5">
+                  <span>{activeCountry.flag}</span>
+                  <span>{activeCountry.name} Standard Market Rates</span>
+                </p>
+                <p className="text-[10px] text-blue-600 dark:text-blue-400 mt-0.5">
+                  {currencySymbol}{activeCountry.defaultPricing.packagePrice.toLocaleString()} Setup • {currencySymbol}{activeCountry.defaultPricing.hostingPrice.toLocaleString()}/mo Hosting • {currencySymbol}{activeCountry.defaultPricing.seoPrice.toLocaleString()} SEO
+                </p>
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  setPricing({
-                    packageName: "Website Package & Mobile Design",
-                    packagePrice: 4500,
-                    hostingPrice: 300,
-                    maintenancePrice: 0,
-                    domainPrice: 0,
-                    emailPrice: 0,
-                    seoPrice: 0,
-                    gbpOtpPrice: 0,
-                    logoPrice: 0,
-                    supportMonthlyPrice: 0,
-                    isRecurring: true
-                  });
-                }}
-                className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[10px] transition-all cursor-pointer shrink-0 shadow-xs"
+                onClick={() => handleApplyCountryPreset(activeCountry)}
+                className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[10px] transition-all cursor-pointer shrink-0 shadow-xs flex items-center gap-1"
               >
-                Apply Preset
+                <RefreshCw className="h-3 w-3" />
+                <span>Apply {activeCountry.currencyCode} Pricing</span>
               </button>
             </div>
             

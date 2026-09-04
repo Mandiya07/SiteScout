@@ -1,4 +1,6 @@
 import { Business, GeneratedSite, DigitalDeficitAudit } from "../types";
+import { detectCountryFromLocation } from "./countryCurrency";
+import { getCategoryHeroImage } from "./heroImages";
 
 // Helper to compute deficit counts and scores on client fallback
 export function computeDefaultDeficits(presence: any): DigitalDeficitAudit {
@@ -129,12 +131,17 @@ export function getClientMockBusinesses(city: string, category: string, country:
     const defCount = Object.values(defs).filter(Boolean).length;
     const presenceScore = calculatePresenceScore(presence, rating, reviewsCount);
 
+    const domainSlug = p.name.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const domainExt = isEswatini ? "co.sz" : "com";
+    const businessEmail = `info@${domainSlug}.${domainExt}`;
+
     return {
       id: `client_biz_${Date.now()}_${index}`,
       name: p.name,
       category: category,
       address: p.addr,
       phone: `${phonePrefix} ${p.phoneSuffix}`,
+      email: businessEmail,
       reviewsCount,
       rating,
       directorySource: "Client Local Sandbox Mode",
@@ -219,7 +226,8 @@ export function generateClientMockSite(biz: Business): GeneratedSite {
       title: `Professional & Reliable ${biz.category} Services You Can Depend On`,
       subtitle: `Your trusted local specialists serving residential & commercial owners in ${addressCity} with fully insured workmanship and transparent rates.`,
       ctaPrimary: "Request Free Quote",
-      ctaSecondary: "Call Us Now"
+      ctaSecondary: "Call Us Now",
+      imageUrl: getCategoryHeroImage(biz.category)
     },
     about: {
       title: "Your Premier Local Service Partners",
@@ -228,9 +236,21 @@ export function generateClientMockSite(biz: Business): GeneratedSite {
       pitch: "Whether you require a minor urgent repair, regular system maintenance, or a massive commercial installation, our dedicated crews are fully prepared to assist."
     },
     services: [
-      { title: "Standard Diagnostics & Inspection", description: "Comprehensive on-site evaluations, diagnostic scans, and itemized transparent quoting.", price: "$85" },
-      { title: `Priority ${biz.category} Service`, description: "Full-scale professional service executed by fully licensed, background-checked local technicians.", price: "$245" },
-      { title: "Quarterly Maintenance Package", description: "Pre-scheduled proactive visits, cleaning, tuning, and warranty preservation reports.", price: "$120" }
+      { 
+        title: "Standard Diagnostics & Inspection", 
+        description: "Comprehensive on-site evaluations, diagnostic scans, and itemized transparent quoting.", 
+        price: detectCountryFromLocation(biz.address || addressCity).sampleServicePrices.diagnostic 
+      },
+      { 
+        title: `Priority ${biz.category} Service`, 
+        description: "Full-scale professional service executed by fully licensed, background-checked local technicians.", 
+        price: detectCountryFromLocation(biz.address || addressCity).sampleServicePrices.standard 
+      },
+      { 
+        title: "Quarterly Maintenance Package", 
+        description: "Pre-scheduled proactive visits, cleaning, tuning, and warranty preservation reports.", 
+        price: detectCountryFromLocation(biz.address || addressCity).sampleServicePrices.premium 
+      }
     ],
     features: [
       { title: "Fully Bonded & Insured", icon: "ShieldCheck", description: "Complete public liability protection and professional certifications for your ultimate peace of mind." },

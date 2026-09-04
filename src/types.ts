@@ -44,6 +44,7 @@ export interface Business {
   category: string;
   address: string;
   phone: string;
+  email?: string;
   reviewsCount: number;
   rating: number;
   presence: PresenceMetrics;
@@ -223,16 +224,23 @@ export interface GalleryImage {
   imageMetadata?: ImageMetadata;
 }
 
+export type SalesStatus = "Lead" | "Contacted" | "Negotiation" | "Proposal Sent" | "Closed" | "Lost";
+
 export interface GeneratedSite {
   id: string;
   businessId?: string;
+  salesStatus?: SalesStatus;
+  tags?: string[];
   ownerId?: string;
   previewToken?: string;
   createdAt?: string;
   updatedAt?: string;
   businessName: string;
   phone: string;
+  email?: string;
+  clientEmail?: string;
   address: string;
+  country?: string;
   category: string;
   primaryColor: string;
   secondaryColor: string;

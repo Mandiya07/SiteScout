@@ -1,8 +1,8 @@
 import { signOut } from "firebase/auth";
-import { auth, db, setDoc, getDoc, doc, serverTimestamp } from "./lib/firebase";
+import { auth, db, setDoc, getDoc, doc, serverTimestamp, handleFirestoreError, OperationType } from "./lib/firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { useState, useEffect } from "react";
-import { Business, GeneratedSite, UserSession, SearchFilters } from "./types";
+import { Business, GeneratedSite, UserSession, SearchFilters, SalesStatus } from "./types";
 import { useAuth } from "./lib/AuthContext";
 import Auth from "./components/Auth";
 import Navbar from "./components/Navbar";
@@ -50,7 +50,8 @@ const placeholderSite: GeneratedSite = {
     title: "Premium Local Repairs & Same-Day Services Done Right",
     subtitle: "Austin's most trusted, fully licensed technicians specializing in professional residential & commercial maintenance. 100% satisfaction guaranteed.",
     ctaPrimary: "Request Callback",
-    ctaSecondary: "View Services Deck"
+    ctaSecondary: "View Services Deck",
+    imageUrl: "https://images.unsplash.com/photo-1581092921461-eab62e97a780?auto=format&fit=crop&q=80&w=1200"
   },
   about: {
     title: "Dedicated Craftsmanship Since 2012",
@@ -182,8 +183,8 @@ export default function App() {
           const q = query(collection(db, "sites"), where("userId", "==", session.uid));
           const querySnapshot = await getDocs(q);
           const sitesList: GeneratedSite[] = [];
-          querySnapshot.forEach((doc) => {
-            sitesList.push(doc.data() as GeneratedSite);
+          querySnapshot.forEach((docSnap) => {
+            sitesList.push(docSnap.data() as GeneratedSite);
           });
           setUserSites(sitesList);
           // If no active generatedSite is set but sites exist, default to the first one
@@ -191,6 +192,7 @@ export default function App() {
             setGeneratedSite(sitesList[0]);
           }
         } catch (e) {
+          handleFirestoreError(e, OperationType.GET, "sites");
           console.error("Error fetching user sites:", e);
         }
       };
@@ -742,13 +744,52 @@ export default function App() {
         await setDoc(doc(db, "sites", updatedSite.id), {
           ...updatedSite,
           userId: session.uid,
+          ownerId: session.uid,
           updatedAt: serverTimestamp()
         }, { merge: true });
         console.log("Draft successfully saved to Firestore!");
       } catch (e) {
+        handleFirestoreError(e, OperationType.WRITE, `sites/${updatedSite.id}`);
         console.error("Error saving draft to Firestore: ", e);
       }
     }
+  };
+
+  // Update website sales status tag or custom tags
+  const handleUpdateSiteStatus = async (siteId: string, status: SalesStatus, tags?: string[]) => {
+    setUserSites(prev => {
+      return prev.map(s => {
+        if (s.id === siteId) {
+          const updated: GeneratedSite = {
+            ...s,
+            salesStatus: status,
+            tags: tags !== undefined ? tags : (s.tags || [])
+          };
+          try {
+            localStorage.setItem(`site_${siteId}`, JSON.stringify(updated));
+          } catch (e) {
+            console.error("Error updating site in localStorage:", e);
+          }
+          if (session) {
+            setDoc(doc(db, "sites", siteId), {
+              salesStatus: status,
+              tags: tags !== undefined ? tags : (s.tags || []),
+              userId: session.uid,
+              ownerId: session.uid,
+              updatedAt: serverTimestamp()
+            }, { merge: true }).catch(err => {
+              handleFirestoreError(err, OperationType.UPDATE, `sites/${siteId}`);
+              console.error("Error updating site status in Firestore:", err);
+            });
+          }
+          if (generatedSite?.id === siteId) {
+            setGeneratedSite(updated);
+          }
+          return updated;
+        }
+        return s;
+      });
+    });
   };
 
   // Transition to share preview mode
@@ -1175,6 +1216,7 @@ export default function App() {
                 }
               }}
               onCreateNewPreview={() => setActiveTab("finder")}
+              onUpdateSiteStatus={handleUpdateSiteStatus}
             />
           )}
 

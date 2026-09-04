@@ -6,6 +6,7 @@ import {
   Wrench, Home, GraduationCap, Church as ChurchIcon,
   Briefcase, Check, Phone, MessageSquare, MapPin, Scissors, Car
 } from "lucide-react";
+import { detectCountryFromLocation } from "../lib/countryCurrency";
 
 interface TemplateLibraryProps {
   onSelectTemplate: (site: GeneratedSite) => void;
@@ -597,18 +598,52 @@ export default function TemplateLibrary({ onSelectTemplate, onBack }: TemplateLi
   });
 
   const instantiateTemplate = (tpl: IndustryTemplateMeta) => {
+    const defaultAddress = "100 Innovation Boulevard, Central Business District, Mbabane, Eswatini";
+    const countryConfig = detectCountryFromLocation(defaultAddress);
+    const sym = countryConfig.currencySymbol;
+
     const additionalServices = [
-      { title: "Priority On-Demand Consultation", description: "Comprehensive initial assessment and customized solution plan tailored to your specific requirements.", price: "$75" },
-      { title: "VIP Ongoing Care & Support", description: "Dedicated priority assistance, periodic checkups, and guaranteed response times.", price: "$120/mo" }
+      { title: "Priority On-Demand Consultation", description: "Comprehensive initial assessment and customized solution plan tailored to your specific requirements.", price: `${sym}750` },
+      { title: "VIP Ongoing Care & Support", description: "Dedicated priority assistance, periodic checkups, and guaranteed response times.", price: `${sym}1,200/mo` }
     ];
-    const fullServices = [...tpl.sampleServices, ...additionalServices];
+
+    // Localize sample services if needed
+    const fullServices = [
+      ...tpl.sampleServices.map(s => ({
+        ...s,
+        price: s.price.replace(/\$/g, sym)
+      })),
+      ...additionalServices
+    ];
 
     const newSite: GeneratedSite = {
       id: `site-${Date.now()}`,
       businessName: tpl.name,
       phone: "+268 7600 0000",
-      address: "100 Innovation Boulevard, Central Business District",
+      address: defaultAddress,
+      country: countryConfig.name,
       category: tpl.category,
+      proposal: {
+        id: `prop-${Date.now()}`,
+        businessId: `site-${Date.now()}`,
+        clientName: "Owner / Principal Manager",
+        clientEmail: `contact@${tpl.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.com`,
+        businessName: tpl.name,
+        dateCreated: new Date().toLocaleDateString(),
+        expiryDate: new Date(Date.now() + 14 * 86400000).toLocaleDateString(),
+        features: [
+          "Responsive Mobile & Tablet Optimization",
+          "One-Click WhatsApp Lead Generation & Floating Action Button",
+          "Local SEO Geo-Meta Tagging & Schema.org Architecture",
+          "Ultra-Fast Cloud Hosting & Automatic SSL Security Certificate",
+          "Direct Google Maps Location Routing Integration",
+          "Interactive Booking & Inquiry Routing Dispatch"
+        ],
+        pricing: countryConfig.defaultPricing,
+        timeline: "7 - 10 Business Days",
+        terms: "50% deposit upon commencement, remainder due upon final launch and DNS cutover.",
+        status: "draft"
+      },
       primaryColor: tpl.primaryColor,
       secondaryColor: tpl.secondaryColor,
       accentColor: tpl.accentColor,

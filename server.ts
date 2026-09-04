@@ -79,18 +79,64 @@ function getGeminiClient(): GoogleGenAI {
   return aiInstance;
 }
 
+// Category Hero Image Fallback Map
+const CATEGORY_HERO_MAP: Record<string, string> = {
+  construction: "https://images.unsplash.com/photo-1541888946425-d0fbb186a5b3?auto=format&fit=crop&q=80&w=1200",
+  building: "https://images.unsplash.com/photo-1541888946425-d0fbb186a5b3?auto=format&fit=crop&q=80&w=1200",
+  restaurant: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80&w=1200",
+  food: "https://images.unsplash.com/photo-1555244162-803834f70033?auto=format&fit=crop&q=80&w=1200",
+  salon: "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&q=80&w=1200",
+  beauty: "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&q=80&w=1200",
+  spa: "https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&q=80&w=1200",
+  barber: "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&q=80&w=1200",
+  law: "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&q=80&w=1200",
+  legal: "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&q=80&w=1200",
+  accounting: "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&q=80&w=1200",
+  medical: "https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&q=80&w=1200",
+  automotive: "https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&q=80&w=1200",
+  mechanic: "https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&q=80&w=1200",
+  realestate: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&q=80&w=1200",
+  education: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&q=80&w=1200",
+  hotel: "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&q=80&w=1200",
+  cleaning: "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&q=80&w=1200",
+  security: "https://images.unsplash.com/photo-1557597774-9d273605dfa9?auto=format&fit=crop&q=80&w=1200",
+  events: "https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&q=80&w=1200",
+  retail: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&q=80&w=1200",
+  tech: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&q=80&w=1200",
+  default: "https://images.unsplash.com/photo-1581092921461-eab62e97a780?auto=format&fit=crop&q=80&w=1200"
+};
+
+function getCategoryHeroImage(cat?: string): string {
+  if (!cat) return CATEGORY_HERO_MAP.default;
+  const lower = cat.toLowerCase();
+  for (const [key, url] of Object.entries(CATEGORY_HERO_MAP)) {
+    if (key !== "default" && lower.includes(key)) {
+      return url;
+    }
+  }
+  return CATEGORY_HERO_MAP.default;
+}
+
 // Helper to check if API key is mock
 function isApiKeyConfigured() {
   return process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY" && process.env.GEMINI_API_KEY !== "";
 }
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage = "Request timed out"): Promise<T> {
+  let timeoutId: any;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(errorMessage)), timeoutMs);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
+}
+
 // Robust wrapper with exponential backoff retries and automatic backup model fallback
-async function generateContentWithRetry(params: any, maxRetries = 3, initialDelayMs = 1200): Promise<any> {
+async function generateContentWithRetry(params: any, maxRetries = 2, initialDelayMs = 500): Promise<any> {
   const ai = getGeminiClient();
   let delay = initialDelayMs;
   let lastError: any = null;
-  const originalModel = params.model || "gemini-3.5-flash";
-  const candidateModels = [originalModel, "gemini-3.5-flash", "gemini-3.8-flash", "gemini-3.1-flash-lite", "gemini-flash-latest"];
+  const originalModel = params.model || "gemini-3.8-flash";
+  const candidateModels = [originalModel, "gemini-3.8-flash", "gemini-3.1-flash-lite", "gemini-flash-latest"];
   // Deduplicate candidate models keeping order
   const modelsToTry = Array.from(new Set(candidateModels));
 
@@ -115,7 +161,7 @@ async function generateContentWithRetry(params: any, maxRetries = 3, initialDela
         }
 
         const errorStr = typeof error === 'string' ? error : JSON.stringify(error, Object.getOwnPropertyNames(error));
-        const isQuotaExceeded = error?.status === 429 || error?.code === 429 || errorStr.includes('Quota exceeded') || errorStr.includes('RESOURCE_EXHAUSTED');
+        const isQuotaExceeded = error?.status === 429 || error?.code === 429 || errorStr.includes('Quota exceeded') || errorStr.includes('RESOURCE_EXHAUSTED') || errorStr.includes('resource_exhausted');
         const isHighDemand = error?.status === 503 || error?.code === 503 || error?.error?.code === 503 || error?.error?.status === "UNAVAILABLE" || errorStr.includes('503') || errorStr.includes('high demand') || errorStr.includes('UNAVAILABLE') || errorStr.includes('overloaded');
         
         if (isQuotaExceeded || isHighDemand) {
@@ -128,8 +174,8 @@ async function generateContentWithRetry(params: any, maxRetries = 3, initialDela
           await new Promise((resolve) => setTimeout(resolve, delay));
           delay *= 1.5;
         } else if (modelsToTry.indexOf(modelName) < modelsToTry.length - 1) {
-          console.log(`[Gemini API] Max retries reached for ${modelName}. Switching to next model fallback in 1000ms...`);
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+          console.log(`[Gemini API] Max retries reached for ${modelName}. Switching to next model fallback in 500ms...`);
+          await new Promise((resolve) => setTimeout(resolve, 500));
         }
       }
     }
@@ -380,65 +426,69 @@ app.post("/api/search", async (req, res) => {
       }
     ]`;
 
-    const response = await generateContentWithRetry({
-      model: "gemini-3.8-flash",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              id: { type: Type.STRING },
-              name: { type: Type.STRING },
-              category: { type: Type.STRING },
-              address: { type: Type.STRING },
-              phone: { type: Type.STRING },
-              reviewsCount: { type: Type.INTEGER },
-              rating: { type: Type.NUMBER },
-              directorySource: { type: Type.STRING },
-              presence: {
-                type: Type.OBJECT,
-                properties: {
-                  hasWebsite: { type: Type.BOOLEAN },
-                  hasEmail: { type: Type.BOOLEAN },
-                  facebookStatus: { type: Type.STRING },
-                  instagramStatus: { type: Type.STRING },
-                  googleProfileQuality: { type: Type.STRING },
-                  reviewCountStatus: { type: Type.STRING },
-                  photosStatus: { type: Type.STRING },
-                  descriptionQuality: { type: Type.STRING },
-                  openingHoursStatus: { type: Type.STRING },
-                  contactCompleteness: { type: Type.STRING },
-                  deficits: {
-                    type: Type.OBJECT,
-                    properties: {
-                      noWebsite: { type: Type.BOOLEAN },
-                      outdatedWebsite: { type: Type.BOOLEAN },
-                      noGooglePresence: { type: Type.BOOLEAN },
-                      noSocialMedia: { type: Type.BOOLEAN },
-                      poorBranding: { type: Type.BOOLEAN },
-                      noWhatsappCta: { type: Type.BOOLEAN },
-                      noOnlineCatalogue: { type: Type.BOOLEAN },
-                      noBookingSystem: { type: Type.BOOLEAN },
-                      noEnquiryForm: { type: Type.BOOLEAN },
-                      noSeo: { type: Type.BOOLEAN },
-                      brokenLinks: { type: Type.BOOLEAN },
-                      poorMobileExperience: { type: Type.BOOLEAN },
-                      missingContact: { type: Type.BOOLEAN }
+    const response = await withTimeout(
+      generateContentWithRetry({
+        model: "gemini-3.8-flash",
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                id: { type: Type.STRING },
+                name: { type: Type.STRING },
+                category: { type: Type.STRING },
+                address: { type: Type.STRING },
+                phone: { type: Type.STRING },
+                reviewsCount: { type: Type.INTEGER },
+                rating: { type: Type.NUMBER },
+                directorySource: { type: Type.STRING },
+                presence: {
+                  type: Type.OBJECT,
+                  properties: {
+                    hasWebsite: { type: Type.BOOLEAN },
+                    hasEmail: { type: Type.BOOLEAN },
+                    facebookStatus: { type: Type.STRING },
+                    instagramStatus: { type: Type.STRING },
+                    googleProfileQuality: { type: Type.STRING },
+                    reviewCountStatus: { type: Type.STRING },
+                    photosStatus: { type: Type.STRING },
+                    descriptionQuality: { type: Type.STRING },
+                    openingHoursStatus: { type: Type.STRING },
+                    contactCompleteness: { type: Type.STRING },
+                    deficits: {
+                      type: Type.OBJECT,
+                      properties: {
+                        noWebsite: { type: Type.BOOLEAN },
+                        outdatedWebsite: { type: Type.BOOLEAN },
+                        noGooglePresence: { type: Type.BOOLEAN },
+                        noSocialMedia: { type: Type.BOOLEAN },
+                        poorBranding: { type: Type.BOOLEAN },
+                        noWhatsappCta: { type: Type.BOOLEAN },
+                        noOnlineCatalogue: { type: Type.BOOLEAN },
+                        noBookingSystem: { type: Type.BOOLEAN },
+                        noEnquiryForm: { type: Type.BOOLEAN },
+                        noSeo: { type: Type.BOOLEAN },
+                        brokenLinks: { type: Type.BOOLEAN },
+                        poorMobileExperience: { type: Type.BOOLEAN },
+                        missingContact: { type: Type.BOOLEAN }
+                      }
                     }
-                  }
+                  },
+                  required: ["hasWebsite", "hasEmail", "facebookStatus", "instagramStatus", "googleProfileQuality", "reviewCountStatus", "photosStatus", "descriptionQuality", "openingHoursStatus", "contactCompleteness"]
                 },
-                required: ["hasWebsite", "hasEmail", "facebookStatus", "instagramStatus", "googleProfileQuality", "reviewCountStatus", "photosStatus", "descriptionQuality", "openingHoursStatus", "contactCompleteness"]
+                description: { type: Type.STRING }
               },
-              description: { type: Type.STRING }
-            },
-            required: ["id", "name", "category", "address", "phone", "reviewsCount", "rating", "presence", "description"]
+              required: ["id", "name", "category", "address", "phone", "reviewsCount", "rating", "presence", "description"]
+            }
           }
         }
-      }
-    });
+      }),
+      8000,
+      "Discovery search timed out"
+    );
 
     const text = response.text || "[]";
     const data = JSON.parse(text);
@@ -532,28 +582,32 @@ app.post("/api/analyze", async (req, res) => {
       "competitorPitches": ["string (1-sentence pitch mentioning how competitors are utilizing search engine dominance to capture leads)", "string (1-sentence pitch about convenience of having online scheduling/features)"]
     }`;
 
-    const response = await generateContentWithRetry({
-      model: "gemini-3.8-flash",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            whyWebsiteNeeded: { type: Type.STRING },
-            recommendations: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING }
+    const response = await withTimeout(
+      generateContentWithRetry({
+        model: "gemini-3.8-flash",
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              whyWebsiteNeeded: { type: Type.STRING },
+              recommendations: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING }
+              },
+              competitorPitches: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING }
+              }
             },
-            competitorPitches: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING }
-            }
-          },
-          required: ["whyWebsiteNeeded", "recommendations", "competitorPitches"]
+            required: ["whyWebsiteNeeded", "recommendations", "competitorPitches"]
+          }
         }
-      }
-    });
+      }),
+      8000,
+      "Opportunity analysis timed out"
+    );
 
     const text = response.text || "{}";
     const data = JSON.parse(text);
@@ -580,6 +634,49 @@ app.post("/api/analyze", async (req, res) => {
   }
 });
 
+// Helper to determine country-specific pricing prefix for generated sites
+function getLocalCurrencyPrefix(addressOrCountry: string = ""): { symbol: string; lowPrice: string; midPrice: string } {
+  const text = addressOrCountry.toLowerCase();
+  if (text.includes("eswatini") || text.includes("swaziland") || text.includes("mbabane") || text.includes("manzini") || text.includes("matsapha") || text.includes("ezulwini") || text.includes("nhlangano") || text.includes("siteki")) {
+    return { symbol: "E", lowPrice: "From E450", midPrice: "From E1,200" };
+  }
+  if (text.includes("south africa") || text.includes("johannesburg") || text.includes("cape town") || text.includes("durban") || text.includes("pretoria") || text.includes("sandton") || text.includes("centurion")) {
+    return { symbol: "R", lowPrice: "From R450", midPrice: "From R1,200" };
+  }
+  if (text.includes("united kingdom") || text.includes("london") || text.includes("manchester") || text.includes("birmingham") || text.includes("edinburgh") || text.includes("glasgow") || text.includes("uk") || text.includes("england") || text.includes("scotland")) {
+    return { symbol: "£", lowPrice: "From £75", midPrice: "From £195" };
+  }
+  if (text.includes("kenya") || text.includes("nairobi") || text.includes("mombasa") || text.includes("kisumu")) {
+    return { symbol: "KSh", lowPrice: "From KSh 4,500", midPrice: "From KSh 12,000" };
+  }
+  if (text.includes("nigeria") || text.includes("lagos") || text.includes("abuja") || text.includes("port harcourt")) {
+    return { symbol: "₦", lowPrice: "From ₦35,000", midPrice: "From ₦85,000" };
+  }
+  if (text.includes("botswana") || text.includes("gaborone") || text.includes("francistown")) {
+    return { symbol: "P", lowPrice: "From P350", midPrice: "From P800" };
+  }
+  if (text.includes("namibia") || text.includes("windhoek") || text.includes("walvis bay")) {
+    return { symbol: "N$", lowPrice: "From N$400", midPrice: "From N$900" };
+  }
+  if (text.includes("ghana") || text.includes("accra") || text.includes("kumasi")) {
+    return { symbol: "GH₵", lowPrice: "From GH₵ 600", midPrice: "From GH₵ 1,400" };
+  }
+  if (text.includes("australia") || text.includes("sydney") || text.includes("melbourne") || text.includes("brisbane") || text.includes("perth")) {
+    return { symbol: "A$", lowPrice: "From A$120", midPrice: "From A$320" };
+  }
+  if (text.includes("canada") || text.includes("toronto") || text.includes("vancouver") || text.includes("montreal") || text.includes("calgary")) {
+    return { symbol: "CA$", lowPrice: "From CA$110", midPrice: "From CA$295" };
+  }
+  if (text.includes("india") || text.includes("mumbai") || text.includes("delhi") || text.includes("bengaluru") || text.includes("bangalore")) {
+    return { symbol: "₹", lowPrice: "From ₹3,500", midPrice: "From ₹9,500" };
+  }
+  if (text.includes("germany") || text.includes("france") || text.includes("spain") || text.includes("italy") || text.includes("berlin") || text.includes("paris") || text.includes("amsterdam") || text.includes("dublin") || text.includes("madrid") || text.includes("europe") || text.includes("eu")) {
+    return { symbol: "€", lowPrice: "From €80", midPrice: "From €210" };
+  }
+  // Default to Eswatini if local Eswatini context, otherwise USD
+  return { symbol: "E", lowPrice: "From E450", midPrice: "From E1,200" };
+}
+
 // Default fallback website blueprint generator matching strict GeneratedSite schema
 function generateDefaultTemplateSite(business: any) {
   const name = business.name || "Premier Local Services";
@@ -597,12 +694,14 @@ function generateDefaultTemplateSite(business: any) {
   const serviceImages = curated.filter(i => i.section === "services");
   const galleryImages = curated.filter(i => i.section === "gallery");
 
+  const currencyInfo = getLocalCurrencyPrefix(business.address || business.country || city);
+
   const services = taxonomy.services.map((srvTitle, idx) => {
     const img = serviceImages[idx] || curated[idx % curated.length];
     return {
       title: srvTitle,
       description: `Comprehensive ${srvTitle.toLowerCase()} delivered with professional expertise, quality materials, and transparent rates for ${city} clients.`,
-      price: idx === 0 ? "From E450" : idx === 1 ? "Custom Quote" : "From E1,200",
+      price: idx === 0 ? currencyInfo.lowPrice : idx === 1 ? "Custom Quote" : currencyInfo.midPrice,
       imageUrl: img?.fullUrl,
       imageMetadata: img
     };
@@ -1055,10 +1154,11 @@ app.post("/api/generate-site", async (req, res) => {
       }
     }`;
 
-    const response = await generateContentWithRetry({
-      model: "gemini-3.8-flash",
-      contents: prompt,
-      config: {
+    const response = await withTimeout(
+      generateContentWithRetry({
+        model: "gemini-3.8-flash",
+        contents: prompt,
+        config: {
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -1192,7 +1292,10 @@ app.post("/api/generate-site", async (req, res) => {
           required: ["primaryColor", "secondaryColor", "accentColor", "backgroundColor", "textColor", "fontStyle", "seo", "hero", "about", "services", "features", "gallery", "faqs", "testimonials", "blog", "whatsappMessage", "contactPage", "privacyPolicy", "termsOfService", "notFoundPage"]
         }
       }
-    });
+    }),
+    10000,
+    "Site generation timed out"
+  );
 
     const text = response.text || "{}";
     const data = JSON.parse(text);
@@ -1258,7 +1361,7 @@ app.post("/api/generate-site", async (req, res) => {
         ...data,
         hero: {
           ...data.hero,
-          imageUrl: heroImageMeta?.fullUrl || data.hero?.imageUrl,
+          imageUrl: heroImageMeta?.fullUrl || data.hero?.imageUrl || getCategoryHeroImage(business.category),
           photographer: heroImageMeta?.photographer,
           photographerUrl: heroImageMeta?.photographerUrl,
           license: heroImageMeta?.license,
@@ -1928,12 +2031,17 @@ function getMockBusinesses(city: string, category: string, country: string = "Es
     const digitalDeficitScore = calculateDigitalDeficitScore(presence);
     const opportunityScore = calculateOpportunityScore(presence, rating, reviewsCount);
 
+    const domainSlug = item.name.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const domainExt = (country || "").toLowerCase().includes("eswatini") || (country || "").toLowerCase().includes("sz") ? "co.sz" : (country || "").toLowerCase().includes("south africa") || (country || "").toLowerCase().includes("sa") ? "co.za" : "com";
+    const businessEmail = `info@${domainSlug}.${domainExt}`;
+
     return {
       id: `${formattedCity.toLowerCase()}-${category.toLowerCase()}-${idx + 1}`,
       name: item.name,
       category: formattedCategory,
       address: item.addr,
       phone: `${phonePrefix} ${item.phoneSuffix}`,
+      email: businessEmail,
       reviewsCount,
       rating,
       directorySource: "National Directory",

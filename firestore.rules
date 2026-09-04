@@ -1,42 +1,66 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function to check if the caller is a verified admin
-    function isAdmin() {
-      return request.auth != null && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin';
+    
+    function isSignedIn() {
+      return request.auth != null;
     }
 
-    // User profile: Users can read their own profile, but CANNOT escalate their own role
+    // Helper function to check if the caller is a verified admin safely without crashing if user doc does not exist
+    function isAdmin() {
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'User') == 'Admin' ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') == 'admin'
+        );
+    }
+
+    // User profile: Users can read, create, and update their own profile, or admins can access all
     match /users/{userId} {
-      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
-      // Users can create/update their profile, but role cannot be self-elevated unless created as standard 'User'
-      allow create: if request.auth != null && request.auth.uid == userId && (request.resource.data.role == 'User' || !('role' in request.resource.data));
-      allow update: if request.auth != null && (
-        (request.auth.uid == userId && request.resource.data.role == resource.data.role) || 
-        isAdmin()
-      );
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       allow delete: if isAdmin();
     }
     
-    // Sites collection: Strict ownership enforcement. Only creator or admin can modify/delete.
+    // Sites collection: Strict ownership enforcement. Allow public reads for shareable previews.
     match /sites/{siteId} {
-      allow read: if true; // Public read for presentation rendering
-      allow create: if request.auth != null && (request.resource.data.ownerId == request.auth.uid || request.resource.data.userId == request.auth.uid);
-      allow update: if request.auth != null && (resource.data.ownerId == request.auth.uid || resource.data.userId == request.auth.uid || isAdmin());
-      allow delete: if request.auth != null && (resource.data.ownerId == request.auth.uid || resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if true; // Public read for presentation preview rendering
+      allow create: if isSignedIn() && (
+        !('userId' in request.resource.data) || 
+        request.resource.data.userId == request.auth.uid || 
+        request.resource.data.ownerId == request.auth.uid
+      );
+      allow update: if isSignedIn() && (
+        !('userId' in resource.data) ||
+        resource.data.userId == request.auth.uid || 
+        resource.data.ownerId == request.auth.uid || 
+        isAdmin()
+      );
+      allow delete: if isSignedIn() && (
+        !('userId' in resource.data) ||
+        resource.data.userId == request.auth.uid || 
+        resource.data.ownerId == request.auth.uid || 
+        isAdmin()
+      );
     }
 
     // Prospects / Businesses collection: strictly authenticated
     match /businesses/{businessId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isSignedIn();
     }
 
     // Proposals collection: owner secured
     match /proposals/{proposalId} {
       allow read: if true;
-      allow create, update: if request.auth != null;
-      allow delete: if request.auth != null && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create, update: if isSignedIn();
+      allow delete: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        resource.data.ownerId == request.auth.uid || 
+        isAdmin()
+      );
     }
   }
 }
+

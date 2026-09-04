@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User } from 'firebase/auth';
-import { auth, onAuthStateChanged, db, getDoc, doc } from './firebase';
+import { auth, onAuthStateChanged, db, getDoc, doc, setDoc, serverTimestamp, handleFirestoreError, OperationType } from './firebase';
 import { UserSession } from '../types';
 
 interface AuthContextType {
@@ -23,12 +23,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: User | null) => {
       if (firebaseUser) {
         try {
-          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+          const userDocRef = doc(db, 'users', firebaseUser.uid);
+          const userDoc = await getDoc(userDocRef);
           let role: 'Admin' | 'User' = 'User';
           
           if (userDoc.exists()) {
             const dataRole = userDoc.data().role;
-            role = dataRole === 'admin' ? 'Admin' : 'User';
+            role = (dataRole === 'admin' || dataRole === 'Admin') ? 'Admin' : 'User';
+          } else {
+            // Ensure default user document exists
+            try {
+              await setDoc(userDocRef, {
+                email: firebaseUser.email || '',
+                displayName: firebaseUser.displayName || 'User',
+                role: 'User',
+                createdAt: serverTimestamp()
+              }, { merge: true });
+            } catch (createErr) {
+              handleFirestoreError(createErr, OperationType.CREATE, `users/${firebaseUser.uid}`);
+            }
           }
           
           setUser({
@@ -36,11 +49,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             email: firebaseUser.email || '',
             name: firebaseUser.displayName || 'User',
             role,
-            subscription: 'Pro Plan', // Placeholder for now
+            subscription: 'Pro Plan',
             isVerified: firebaseUser.emailVerified
           });
         } catch (error) {
-          console.error("Error fetching user role:", error);
+          handleFirestoreError(error, OperationType.GET, `users/${firebaseUser.uid}`);
           setUser({
             uid: firebaseUser.uid,
             email: firebaseUser.email || '',
@@ -65,3 +78,4 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     </AuthContext.Provider>
   );
 };
+

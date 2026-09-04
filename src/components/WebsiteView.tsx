@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { GeneratedSite } from "../types";
+import { getCategoryHeroImage } from "../lib/heroImages";
 import { 
   Phone, MapPin, MessageSquare, ChevronDown, Check, Sparkles, Wrench, Utensils, HeartPulse, Scale, Briefcase, Home, Camera, Scissors, ShieldCheck,
   GraduationCap, Church, Building2, Zap, TreePine, Trophy, Flag, HeartHandshake, Dumbbell, ShoppingBag, Users
@@ -72,6 +73,7 @@ export default function WebsiteView({ site }: WebsiteViewProps) {
   const renderSection = (sectionId: string) => {
     switch (sectionId) {
       case "hero":
+        const heroImgUrl = site.hero?.imageUrl || site.gallery?.[0]?.url || getCategoryHeroImage(site.category);
         return (
           <section key="hero" className="px-5 py-12 text-center relative overflow-hidden bg-slate-50" style={{ backgroundColor: `${site.primaryColor}05` }}>
             <div className="max-w-xl mx-auto space-y-4">
@@ -81,21 +83,19 @@ export default function WebsiteView({ site }: WebsiteViewProps) {
               <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-sans">
                 {site.hero.subtitle}
               </p>
-              {site.hero.imageUrl && (
-                <div className="my-4 max-w-lg mx-auto rounded-xl overflow-hidden shadow-sm aspect-video border border-slate-200 bg-white relative group">
-                  <img 
-                    src={site.hero.imageUrl} 
-                    alt={site.hero.title || "Hero banner"} 
-                    className="w-full h-full object-cover" 
-                    referrerPolicy="no-referrer" 
-                  />
-                  {site.hero.photographer && (
-                    <div className="absolute bottom-2 right-2 bg-slate-900/70 backdrop-blur-xs text-white text-[9px] px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                      Photo by {site.hero.photographer}
-                    </div>
-                  )}
-                </div>
-              )}
+              <div className="my-4 max-w-lg mx-auto rounded-xl overflow-hidden shadow-sm aspect-video border border-slate-200 bg-white relative group">
+                <img 
+                  src={heroImgUrl} 
+                  alt={site.hero.title || "Hero banner"} 
+                  className="w-full h-full object-cover" 
+                  referrerPolicy="no-referrer" 
+                />
+                {site.hero.photographer && (
+                  <div className="absolute bottom-2 right-2 bg-slate-900/70 backdrop-blur-xs text-white text-[9px] px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                    Photo by {site.hero.photographer}
+                  </div>
+                )}
+              </div>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
                 <button className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold text-white shadow-md cursor-pointer" style={{ backgroundColor: site.accentColor }}>
                   {site.hero.ctaPrimary}

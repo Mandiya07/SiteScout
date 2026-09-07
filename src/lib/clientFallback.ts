@@ -1,6 +1,7 @@
 import { Business, GeneratedSite, DigitalDeficitAudit } from "../types";
 import { detectCountryFromLocation } from "./countryCurrency";
 import { getCategoryHeroImage } from "./heroImages";
+import { buildBusinessTruthProfile } from "./businessTruth";
 
 // Helper to compute deficit counts and scores on client fallback
 export function computeDefaultDeficits(presence: any): DigitalDeficitAudit {
@@ -33,7 +34,129 @@ function calculatePresenceScore(presence: any, rating: number, reviewsCount: num
   return Math.max(10, score);
 }
 
-export function getClientMockBusinesses(city: string, category: string, country: string = "Eswatini"): Business[] {
+// Procedural generator to create robust, randomized high-fidelity mock businesses
+function generateProceduralMockBusinesses(city: string, category: string, country: string, searchKeywords: string = "", page: number = 1): { name: string; addr: string; phoneSuffix: string; desc: string }[] {
+  const formattedCategory = category.charAt(0).toUpperCase() + category.slice(1);
+  const localPrefixes = [
+    "Apex", "Summit", "Crown", "Royal", "Valley", "National", "Elite", "Prime", 
+    "Global", "Direct", "True", "Swift", "Bright", "First", "Metro", "Vanguard", 
+    "Horizon", "Blue Ribbon", "Highland", "Kingdom", "Emerald", "Gold Star", "Alpha", 
+    "Cornerstone", "Pinnacle", "Heritage", "Sovereign", "Omni", "Dynamic", "Avenue",
+    "Prestige", "Pioneer", "Sterling", "Beacon", "Alliance", "Legacy", "Signature"
+  ];
+
+  const cityStreetsMap: Record<string, string[]> = {
+    mbabane: ["Somhlolo Road", "Dzeliwe Street", "Allister Miller Street", "Mhlambanyatsi Road", "Pine Valley Road", "Hospital Hill", "Mahleka Street", "Polinjane Road", "Gilson Street"],
+    manzini: ["Ngwane Street", "Mhlakuvane Street", "Tenbergen Street", "Central Way", "Market Street", "Meintjes Street", "Kelly Street", "Nkoseluhlaza Street"],
+    matsapha: ["King Mswati III Avenue", "Industrial Bypass", "Sheffield Road", "Matsapha Highway", "Police College Road", "Airport Road"],
+    ezulwini: ["Scenic Way", "Gables Mall Bypass", "Old Manzini Road", "Mantenga Drive", "Cultural Corridor"]
+  };
+
+  const genericStreets = ["Commercial Way", "Main Street", "Link Road", "Industrial Boulevard", "Central Avenue", "Corporate Parkway", "Market Square"];
+
+  const cityLower = city.toLowerCase();
+  const streets = cityStreetsMap[cityLower] || Object.values(cityStreetsMap).find((_, idx) => cityLower.includes(Object.keys(cityStreetsMap)[idx])) || genericStreets;
+
+  // Let's get sector specific nouns/suffixes
+  let nouns: string[] = [];
+  let descs: string[] = [];
+
+  const c = category.toLowerCase();
+  if (c.includes("restaurant") || c.includes("diner") || c.includes("cafe") || c.includes("bistro") || c.includes("food") || c.includes("cater")) {
+    nouns = ["Charcoal Grill & Steakhouse", "Mediterranean Bistro", "Country Kitchen & Cafe", "Spice Curry & Tandoor", "Traditional Cuisine", "Sunset Terrace Lounge", "Food Palace", "Local Diner & Pub", "Sizzle Steakhouse", "Flavors Garden Bistro", "Gourmet Catering", "Spit Braai & Catering", "Feast Event Caterers"];
+    descs = ["Prime flame-grilled steaks, traditional local platters, and craft beverages.", "Artisan wood-fired pizzas, fresh pastas, seafood platters, and fine wines.", "Farm-to-table breakfast, gourmet sandwiches, specialty roasted coffees, and fresh pastries.", "Authentic local curries, tandoori grills, biryanis, and fast takeout orders.", "Traditional local dishes, stewed beef, traditional porridge, tripe, and sour milk."];
+  } else if (c.includes("salon") || c.includes("beauty") || c.includes("spa") || c.includes("barber") || c.includes("hair")) {
+    nouns = ["Hair Studio & Spa", "Executive Barber Lounge", "Aesthetics & Nail Bar", "Skin & Wellness Clinic", "Braiding & Weave Lounge", "Oasis Day Spa", "Crown & Mane Studio", "Beauty Boutique", "Reflections Hair & Makeup"];
+    descs = ["Luxury bridal hair styling, dreadlock maintenance, weaves, braids, and scalp treatments.", "Precision hot towel fades, beard sculpting, facial treatments, and premium styling.", "Gel nails, acrylic extensions, organic pedicures, and soothing massage therapy.", "Deep cleansing facials, micro-needling, laser hair reduction, and chemical peels.", "Knotless braids, cornrows, wig customization, and hair coloring specialists."];
+  } else if (c.includes("car") || c.includes("dealership") || c.includes("auto sales") || c.includes("vehicle") || c.includes("mechanic") || c.includes("auto repair") || c.includes("garage") || c.includes("workshop")) {
+    nouns = ["Motors & Auto Dealership", "Auto Traders & Imports", "Prestige Auto Gallery", "Commercial Bakkie Centre", "Car Hub & Finance Centre", "DriveWise Motors", "Preowned Vehicle Market", "Performance Auto Group", "Precision Auto Workshop & Diagnostics", "Auto Electricians & Starter Repairs", "Gearbox & Suspension Specialists", "Diesel Injection & Turbo Centre", "Panel Beating & Spray Painting", "Mobile Fleet Mechanics & Roadside Rescue"];
+    descs = ["Certified pre-owned sedans, SUVs, double-cab bakkies, and vehicle finance assistance.", "Direct quality vehicle imports, commercial trucks, and trade-in evaluations.", "Luxury sports crossovers, professional detailing, and extensive warranty packages.", "Heavy duty 4WD pickups, mining fleet vehicles, and farm utility transport.", "Computerized engine diagnostics, brake overhaul, clutch repairs, and major vehicle servicing.", "Alternator rebuilds, vehicle wiring, ECU reprogramming, and alarm repairs.", "Automatic & manual transmission overhauls, shock absorber replacements, and wheel alignments."];
+  } else if (c.includes("construct") || c.includes("build") || c.includes("engineer") || c.includes("civil") || c.includes("contractor") || c.includes("trade") || c.includes("plumb") || c.includes("electric")) {
+    nouns = ["Civil & Building Contractors", "Structural Engineering Ltd", "Build & Plant Hire", "Construction & Joinery", "Valley Builders & Civils", "Brick & Paving Works", "Infrastructure Group", "General Contractors", "Expert Plumbers & Drainlayers", "Commercial Electricians & Wiremen", "Roofing & Ceiling Specialists", "Tiling & Masonry Group"];
+    descs = ["Full-scale commercial building, earthworks, and roofing infrastructure provider.", "Steel fabrication, residential developments, and project management specialists.", "Earthmoving plant hire, masonry, paving, and industrial civil contracts.", "Bespoke residential architectural buildouts, renovations, and structural woodwork.", "Emergency leak detection, hot water cylinder geyser installations, and blocked drain clearing.", "Industrial electrical certificates of compliance, solar inverter wiring, and light fittings."];
+  } else if (c.includes("account") || c.includes("tax") || c.includes("audit") || c.includes("bookkeep") || c.includes("finance")) {
+    nouns = ["Chartered Accountants & Tax Advisors", "Financial & Advisory Services", "Tax Solutions & Bookkeeping", "Audit & Consulting Partners", "Ledger Bookkeeping & Payroll", "SME Accountants"];
+    descs = ["Corporate tax filing, revenue authority audits, financial statements, and payroll.", "SME bookkeeping, VAT returns, business valuations, and forensic accounting.", "Monthly management accounts, annual financial statements, and company registrations.", "Statutory external audits, internal control reviews, and CFO advisory services."];
+  } else if (c.includes("law") || c.includes("attorney") || c.includes("legal") || c.includes("notary")) {
+    nouns = ["Law Chambers & Notaries", "Legal Practitioners & Partners", "Commercial Attorneys & Conveyancers", "Labour & Employment Law Chambers", "Notaries & Civil Attorneys", "Litigation & Corporate Counsel"];
+    descs = ["Commercial law, property conveyancing, civil litigation, and labor dispute arbitrations.", "Corporate contracts, constitutional litigation, family law, and estate administration.", "Real estate title deeds, mortgage bonds, mergers, and corporate restructuring.", "Workplace disciplinary hearings, local disputes, and employment contract drafting."];
+  } else if (c.includes("real estate") || c.includes("property") || c.includes("realtor") || c.includes("estate agent")) {
+    nouns = ["Premier Property Group", "Valley View Real Estate Agency", "Homes & Property Management", "Commercial Realty Group", "Property Valuers & Realtors", "Land & Home Brokerage"];
+    descs = ["Residential house sales, commercial office leasing, and luxury estate developments.", "Prime residential plots, golf estate properties, farm land sales, and rental management.", "Tenant vetting, rent collection, residential property valuations, and buy-to-let advisory.", "Industrial warehouse leasing, retail shop spaces, and commercial development land."];
+  } else if (c.includes("tour") || c.includes("safari") || c.includes("travel") || c.includes("holiday")) {
+    nouns = ["Safari & Cultural Tours", "Adventure & Eco-Tours", "Travel Agency & Flights", "Escapes & Lodge Bookings", "Overland Tours & 4x4 Expeditions", "Executive Chauffeur Tours"];
+    descs = ["Game reserve safaris, traditional cultural village tours, and guided hikes.", "Canopy zip-line adventures, mountain biking expeditions, and caving excursions.", "International flight ticketing, holiday packages, travel insurance, and visa assistance.", "Luxury safari lodge reservations, honeymoon packages, and weekend nature getaways."];
+  } else if (c.includes("school") || c.includes("academy") || c.includes("educat") || c.includes("college") || c.includes("daycare")) {
+    nouns = ["Academy & Cambridge College", "Early Learning & Montessori Centre", "Technical & Vocational College", "Institute of Business & Accountancy", "Preparatory & Primary School", "Music, Arts & Media Academy"];
+    descs = ["Private pre-school, primary, and secondary Cambridge international curriculum education.", "Montessori-based toddler care, nursery education, and after-school enrichment clubs.", "Accredited diplomas in automotive mechanics, electrical engineering, and IT systems.", "Professional courses in marketing, human resources, and business finance."];
+  } else if (c.includes("medical") || c.includes("clinic") || c.includes("doctor") || c.includes("health") || c.includes("dental") || c.includes("optom")) {
+    nouns = ["Family Medical & Dental Clinic", "Optometry & Eye Care Centre", "Specialist Women & Children's Clinic", "Physiotherapy & Sports Rehab", "Care Pharmacy & Diagnostics", "Diagnostic Ultrasound & Radiology"];
+    descs = ["General medical practice, dental consultations, ultrasound scans, and wellness checks.", "Comprehensive eye examinations, designer frames, contact lenses, and vision therapy.", "Maternal health, pediatric care, routine immunizations, and fertility counseling.", "Sports injury rehabilitation, post-surgery recovery, and orthopedic physical therapy."];
+  } else if (c.includes("retail") || c.includes("shop") || c.includes("boutique") || c.includes("store")) {
+    nouns = ["Fashion & Luxury Boutique Lounge", "Mega Wholesale & Cash & Carry", "Home Furnishings & Living Decor", "Solar, Electrical & Hardware Merchants", "Organic Butchery & Meat Market", "Gadgets & Electronics Hub"];
+    descs = ["Designer corporate wear, traditional local attire, footwear, and luxury accessories.", "Bulk groceries, dry foods, beverages, and household goods for local shops and retailers.", "Solid wood furniture, lounge suites, refrigeration units, and custom bedding.", "Solar inverters, lithium batteries, roofing sheets, fasteners, and power tools."];
+  } else {
+    nouns = [`Premier ${formattedCategory} Services`, `${formattedCategory} & Repairs`, `${formattedCategory} Solutions Ltd`, `Downtown ${formattedCategory} Co.`, `Metro ${formattedCategory} & Supply`, `Summit Custom ${formattedCategory}`];
+    descs = [`Established local ${formattedCategory.toLowerCase()} service provider serving residential and corporate clients.`, `Expert ${formattedCategory.toLowerCase()} diagnostics, emergency service calls, and full-service packages.`, `Professional ${formattedCategory.toLowerCase()} operations with experienced technicians and verified work.`];
+  }
+
+  const generated: { name: string; addr: string; phoneSuffix: string; desc: string }[] = [];
+  const seedString = `${city}-${category}-${searchKeywords}-page-${page}`;
+  let seedNum = 0;
+  for (let i = 0; i < seedString.length; i++) {
+    seedNum += seedString.charCodeAt(i);
+  }
+
+  // Generate up to 25 distinct businesses per category
+  for (let i = 0; i < 25; i++) {
+    const prefixIdx = (seedNum + i * 7) % localPrefixes.length;
+    const nounIdx = (seedNum + i * 13) % nouns.length;
+    const streetIdx = (seedNum + i * 3) % streets.length;
+    const descIdx = (seedNum + i * 17) % descs.length;
+    
+    const prefix = localPrefixes[prefixIdx];
+    const noun = nouns[nounIdx];
+    
+    let name = `${prefix} ${noun}`;
+    if (i % 5 === 1) {
+      name = `${city} ${noun}`;
+    } else if (i % 5 === 2) {
+      name = `${prefix} ${formattedCategory} Hub`;
+    } else if (i % 5 === 3) {
+      name = `${prefix} & Sons ${formattedCategory}`;
+    } else if (i % 5 === 4) {
+      name = `The ${prefix} ${formattedCategory} Group`;
+    }
+
+    if (searchKeywords) {
+      const kw = searchKeywords.toLowerCase();
+      const inName = name.toLowerCase().includes(kw);
+      const inDesc = (descs[descIdx] || "").toLowerCase().includes(kw);
+      if (!inName && !inDesc) {
+        continue;
+      }
+    }
+
+    const plotNum = 10 + (i * 12) + (seedNum % 80);
+    const addr = `${streets[streetIdx]}, Plot ${plotNum}, ${city}`;
+    const phoneSuffix = `${Math.floor(10 + ((seedNum + i * 31) % 90))} ${Math.floor(1000 + ((seedNum + i * 47) % 9000))}`;
+    
+    generated.push({
+      name,
+      addr,
+      phoneSuffix,
+      desc: descs[descIdx] || `High quality professional ${category.toLowerCase()} services tailored for your satisfaction.`
+    });
+  }
+
+  if (generated.length === 0) {
+    return generateProceduralMockBusinesses(city, category, country, "", page);
+  }
+
+  return generated;
+}
+
+export function getClientMockBusinesses(city: string, category: string, country: string = "Eswatini", searchKeywords: string = "", page: number = 1): Business[] {
   const formattedCity = city.charAt(0).toUpperCase() + city.slice(1);
   const formattedCategory = category.charAt(0).toUpperCase() + category.slice(1);
   const isEswatini = country.toLowerCase().includes("eswatini") || country.toLowerCase().includes("swaziland") || 
@@ -107,7 +230,7 @@ export function getClientMockBusinesses(city: string, category: string, country:
     }
   };
 
-  const presets = getSectorPresets(category, formattedCity);
+  const presets = generateProceduralMockBusinesses(formattedCity, formattedCategory, country, searchKeywords, page);
 
   return presets.map((p, index) => {
     const isOdd = index % 2 !== 0;
@@ -149,6 +272,8 @@ export function getClientMockBusinesses(city: string, category: string, country:
         ...presence,
         deficits: defs
       },
+      isDemo: true,
+      dataType: "demo",
       description: p.desc,
       deficitCount: defCount,
       presenceScore,
@@ -159,17 +284,218 @@ export function getClientMockBusinesses(city: string, category: string, country:
       prospectStatus: "New",
       evidence: {
         checkedAt: new Date().toISOString(),
-        source: "Client Sandbox Analyzer",
-        httpStatus: "Domain Unregistered",
-        websiteVerified: true,
-        notes: "Verified complete missing digital domain and website presence during live scan."
+        source: "Client Demo Data Sample",
+        httpStatus: "Demo Sandbox",
+        websiteVerified: false,
+        verificationStatus: "sample_demo",
+        notes: "Demo sample prospect for testing - Not verified through live web search."
       }
     };
   });
 }
 
+export function getIndustryDetails(category: string, city: string) {
+  const cat = (category || "").toLowerCase();
+
+  if (cat.includes("plumb") || cat.includes("pipe") || cat.includes("drain") || cat.includes("geyser")) {
+    return {
+      heroTitle: "Expert Residential & Commercial Plumbing",
+      heroSubtitle: `Fast, reliable plumbing solutions including pipe repairs, drain cleaning, and geyser installations in ${city}.`,
+      heroImage: "https://images.unsplash.com/photo-1585704032915-c3400ca199e7?auto=format&fit=crop&q=80&w=1200",
+      services: [
+        {
+          title: "Pipe repair",
+          description: "Prompt, precision repairs and replacements for leaking, burst, or worn copper and PVC water pipes.",
+          price: "Request a Quote",
+          imageUrl: "https://images.unsplash.com/photo-1542013936693-884638332954?auto=format&fit=crop&w=800"
+        },
+        {
+          title: "Drain cleaning",
+          description: "High-pressure clearing and electro-snake unblocking for clogged kitchen sinks, drains, and main sewer lines.",
+          price: "Contact Us",
+          imageUrl: "https://images.unsplash.com/photo-1505798577917-a65157d3320a?auto=format&fit=crop&w=800"
+        },
+        {
+          title: "Geyser installation",
+          description: "Professional electric and solar geyser fitting, thermostat replacements, and pressure-equalizing safety valves.",
+          price: "Call for Pricing",
+          imageUrl: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=800"
+        }
+      ],
+      gallery: [
+        { url: "https://images.unsplash.com/photo-1585704032915-c3400ca199e7?auto=format&fit=crop&w=800", alt: "Plumbing tools and wrench set" },
+        { url: "https://images.unsplash.com/photo-1505798577917-a65157d3320a?auto=format&fit=crop&w=800", alt: "Pipe installation work" },
+        { url: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=800", alt: "Bathroom plumbing fixtures" }
+      ]
+    };
+  }
+
+  if (cat.includes("restaurant") || cat.includes("food") || cat.includes("diner") || cat.includes("cafe") || cat.includes("bistro") || cat.includes("grill") || cat.includes("eatery") || cat.includes("kitchen")) {
+    return {
+      heroTitle: "Beautiful Restaurant & Dining Experience",
+      heroSubtitle: `Fresh, artisanal dishes crafted with local ingredients and warm hospitality in ${city}.`,
+      heroImage: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80&w=1200",
+      services: [
+        {
+          title: "Dining",
+          description: "Cozy table seating, vibrant ambient lighting, and chef-curated seasonal lunch and dinner menus.",
+          price: "Reserve Table",
+          imageUrl: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800"
+        },
+        {
+          title: "Catering",
+          description: "Full-service private event catering, corporate buffet setups, and custom gourmet party platters.",
+          price: "Custom Quote",
+          imageUrl: "https://images.unsplash.com/photo-1555244162-803834f70033?auto=format&fit=crop&w=800"
+        },
+        {
+          title: "Takeaway",
+          description: "Hot, freshly prepared takeaway meals packed securely for fast pickup or express local delivery.",
+          price: "View Menu",
+          imageUrl: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?auto=format&fit=crop&w=800"
+        }
+      ],
+      gallery: [
+        { url: "https://images.unsplash.com/photo-1555244162-803834f70033?auto=format&fit=crop&w=800", alt: "Gourmet food plating" },
+        { url: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800", alt: "Restaurant interior dining room" },
+        { url: "https://images.unsplash.com/photo-1556910103-1c02745aae4d?auto=format&fit=crop&w=800", alt: "Professional chef preparing dishes" }
+      ]
+    };
+  }
+
+  if (cat.includes("salon") || cat.includes("beauty") || cat.includes("hair") || cat.includes("spa") || cat.includes("barber") || cat.includes("nail")) {
+    return {
+      heroTitle: "Luxury Hair, Beauty & Wellness Spa",
+      heroSubtitle: `Transformative styling, organic skin care, and soothing spa therapies tailored for ${city}.`,
+      heroImage: "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&q=80&w=1200",
+      services: [
+        {
+          title: "Precision Haircuts & Styling",
+          description: "Custom haircuts, highlights, color treatments, weaves, and bridal styling tailored to your unique aesthetic.",
+          price: "Book Appointment",
+          imageUrl: "https://images.unsplash.com/photo-1562322140-8baeececf3df?auto=format&fit=crop&w=800"
+        },
+        {
+          title: "Luxury Facial & Skincare",
+          description: "Deep cleansing facial therapies, botanical hydration, and organic skincare treatments.",
+          price: "View Packages",
+          imageUrl: "https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?auto=format&fit=crop&w=800"
+        },
+        {
+          title: "Manicure & Nail Art",
+          description: "Gel extensions, soothing pedicures, intricate nail design, and pampering hand treatments.",
+          price: "Contact Us",
+          imageUrl: "https://images.unsplash.com/photo-1604654894610-df63bc536371?auto=format&fit=crop&w=800"
+        }
+      ],
+      gallery: [
+        { url: "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=800", alt: "Hair salon interior and styling station" },
+        { url: "https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=800", alt: "Relaxing spa treatment room" },
+        { url: "https://images.unsplash.com/photo-1604654894610-df63bc536371?auto=format&fit=crop&w=800", alt: "Nail art studio" }
+      ]
+    };
+  }
+
+  if (cat.includes("construct") || cat.includes("build") || cat.includes("civil") || cat.includes("renovat") || cat.includes("roof")) {
+    return {
+      heroTitle: "Premier Building & Civil Construction Contractors",
+      heroSubtitle: `Turnkey residential developments, structural renovations, and commercial construction in ${city}.`,
+      heroImage: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&q=80&w=1200",
+      services: [
+        {
+          title: "Custom Building",
+          description: "End-to-end residential home construction, structural foundations, and architectural framework execution.",
+          price: "Request Proposal",
+          imageUrl: "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=800"
+        },
+        {
+          title: "Structural Renovations",
+          description: "Commercial structural extensions, roofing upgrades, interior remodeling, and concrete masonry.",
+          price: "Free Estimate",
+          imageUrl: "https://images.unsplash.com/photo-1581094288338-2314dddb7ecc?auto=format&fit=crop&w=800"
+        },
+        {
+          title: "Civil Engineering Works",
+          description: "Heavy excavation, site clearing, drainage infrastructure, and commercial plant operations.",
+          price: "Contact Us",
+          imageUrl: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800"
+        }
+      ],
+      gallery: [
+        { url: "https://images.unsplash.com/photo-1581094288338-2314dddb7ecc?auto=format&fit=crop&w=800", alt: "Architectural blueprints and engineering" },
+        { url: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800", alt: "Construction site operations" },
+        { url: "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=800", alt: "Building structural timber framing" }
+      ]
+    };
+  }
+
+  if (cat.includes("mechanic") || cat.includes("auto") || cat.includes("car") || cat.includes("garage") || cat.includes("tyre") || cat.includes("repair")) {
+    return {
+      heroTitle: "Expert Mechanic & Auto Repair Workshop",
+      heroSubtitle: `Computerized engine diagnostics, precision brake service, and major vehicle maintenance in ${city}.`,
+      heroImage: "https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?auto=format&fit=crop&q=80&w=1200",
+      services: [
+        {
+          title: "Engine Diagnostics & Tuning",
+          description: "Computerized OBD diagnostic scans, engine fault troubleshooting, component overhaul, and tuning.",
+          price: "Book Scan",
+          imageUrl: "https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&w=800"
+        },
+        {
+          title: "Brake & Suspension Service",
+          description: "Brake pad replacement, disc skimming, shock absorber testing, and steering safety checks.",
+          price: "Request Quote",
+          imageUrl: "https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?auto=format&fit=crop&w=800"
+        },
+        {
+          title: "Scheduled Vehicle Service",
+          description: "Full oil change, filter replacement, spark plugs, fluid top-up, and multi-point roadworthy checks.",
+          price: "View Pricing",
+          imageUrl: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=800"
+        }
+      ],
+      gallery: [
+        { url: "https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&w=800", alt: "Mechanic tools and engine repair" },
+        { url: "https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?auto=format&fit=crop&w=800", alt: "Hydraulic lift garage bay" },
+        { url: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=800", alt: "Engine bay diagnostic inspection" }
+      ]
+    };
+  }
+
+  // Default fallback for other industries
+  return {
+    heroTitle: `Professional & Reliable ${category} Services`,
+    heroSubtitle: `Your trusted local specialists serving residential and commercial clients in ${city} with dedicated craftsmanship.`,
+    heroImage: getCategoryHeroImage(category),
+    services: [
+      {
+        title: "Standard Consultation & Inspection",
+        description: "Comprehensive on-site evaluations, needs assessment, and itemized transparent quoting.",
+        price: "Request a Quote",
+        imageUrl: "https://images.unsplash.com/photo-1581092921461-eab62e97a780?auto=format&fit=crop&w=800"
+      },
+      {
+        title: `Core ${category} Service`,
+        description: "Professional execution by our dedicated local team with certified workmanship.",
+        price: "Contact Us",
+        imageUrl: "https://images.unsplash.com/photo-1521737711867-e3b97375f902?auto=format&fit=crop&w=800"
+      },
+      {
+        title: "Maintenance & Preventative Care",
+        description: "Routine inspection, servicing, and tuning to keep your systems operating at peak efficiency.",
+        price: "Call for Pricing",
+        imageUrl: "https://images.unsplash.com/photo-1581094288338-2314dddb7ecc?auto=format&fit=crop&w=800"
+      }
+    ],
+    gallery: [
+      { url: "https://images.unsplash.com/photo-1581092921461-eab62e97a780?auto=format&fit=crop&w=800", alt: "Professional specialized tools and workspace" },
+      { url: "https://images.unsplash.com/photo-1521737711867-e3b97375f902?auto=format&fit=crop&w=800", alt: "Dedicated local team in action" },
+      { url: "https://images.unsplash.com/photo-1581094288338-2314dddb7ecc?auto=format&fit=crop&w=800", alt: "Completed quality project delivery" }
+    ]
+  };
+}
+
 export function generateClientMockSite(biz: Business): GeneratedSite {
-  // Pick visual colors based on category index or name
   const cat = (biz.category || "Professional Services").toLowerCase();
   let primary = "#2563eb";
   let secondary = "#1e40af";
@@ -202,7 +528,8 @@ export function generateClientMockSite(biz: Business): GeneratedSite {
   }
 
   const cleanBizName = biz.name;
-  const addressCity = biz.address.split(",")[1]?.trim() || "Local Area";
+  const addressCity = biz.address.split(",")[1]?.trim() || biz.address.split(",")[0]?.trim() || "Local Area";
+  const industryConfig = getIndustryDetails(biz.category, addressCity);
 
   return {
     id: `site_client_${Date.now()}`,
@@ -223,52 +550,31 @@ export function generateClientMockSite(biz: Business): GeneratedSite {
       keywords: `${biz.category.toLowerCase()} ${addressCity.toLowerCase()}, reliable ${biz.category.toLowerCase()}, certified technician, same-day service`
     },
     hero: {
-      title: `Professional & Reliable ${biz.category} Services You Can Depend On`,
-      subtitle: `Your trusted local specialists serving residential & commercial owners in ${addressCity} with fully insured workmanship and transparent rates.`,
+      title: industryConfig.heroTitle,
+      subtitle: industryConfig.heroSubtitle,
       ctaPrimary: "Request Free Quote",
-      ctaSecondary: "Call Us Now",
-      imageUrl: getCategoryHeroImage(biz.category)
+      ctaSecondary: "Contact Us",
+      imageUrl: industryConfig.heroImage
     },
     about: {
-      title: "Your Premier Local Service Partners",
-      history: `${cleanBizName} has established a stellar reputation in ${addressCity} for our commitment to honest rates, transparent communications, and expert craft.`,
-      mission: "To deliver superior quality solutions tailored to your unique requirements, using the finest materials and certified trade procedures.",
-      pitch: "Whether you require a minor urgent repair, regular system maintenance, or a massive commercial installation, our dedicated crews are fully prepared to assist."
+      title: "Your Local Service Partners",
+      history: `${cleanBizName} is committed to serving ${addressCity} with honest rates, transparent communications, and expert craft.`,
+      mission: "To deliver reliable solutions tailored to your unique requirements.",
+      pitch: "Whether you require minor repairs, regular maintenance, or large installations, our dedicated crews are ready to assist."
     },
-    services: [
-      { 
-        title: "Standard Diagnostics & Inspection", 
-        description: "Comprehensive on-site evaluations, diagnostic scans, and itemized transparent quoting.", 
-        price: detectCountryFromLocation(biz.address || addressCity).sampleServicePrices.diagnostic 
-      },
-      { 
-        title: `Priority ${biz.category} Service`, 
-        description: "Full-scale professional service executed by fully licensed, background-checked local technicians.", 
-        price: detectCountryFromLocation(biz.address || addressCity).sampleServicePrices.standard 
-      },
-      { 
-        title: "Quarterly Maintenance Package", 
-        description: "Pre-scheduled proactive visits, cleaning, tuning, and warranty preservation reports.", 
-        price: detectCountryFromLocation(biz.address || addressCity).sampleServicePrices.premium 
-      }
-    ],
+    services: industryConfig.services,
     features: [
-      { title: "Fully Bonded & Insured", icon: "ShieldCheck", description: "Complete public liability protection and professional certifications for your ultimate peace of mind." },
-      { title: "Local Team of Experts", icon: "Users", description: "Born and raised right here in your community, understanding exact regional standards." },
-      { title: "Transparent Fixed Pricing", icon: "Award", description: "Zero hidden charges, clear estimates upfront, and flat-rate pricing models." }
+      { title: "Dedicated Professionals", icon: "ShieldCheck", description: "Committed to delivering high-quality results for your peace of mind." },
+      { title: "Local Team", icon: "Users", description: "Based right here in your community, understanding local needs." },
+      { title: "Transparent Pricing", icon: "Award", description: "Clear estimates upfront and straightforward pricing models." }
     ],
-    gallery: [
-      { url: "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=800&q=80", alt: "Professional Tools & Prep" },
-      { url: "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=800&q=80", alt: "Completed Residential Project" },
-      { url: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80", alt: "Commercial Site Operations" }
-    ],
+    gallery: industryConfig.gallery,
     faqs: [
-      { question: "Are your technicians certified?", answer: "Absolutely. All our technicians undergo intensive training, hold updated state licenses, and carry full liability coverage." },
-      { question: "Do you offer emergency callouts?", answer: `Yes! We offer rapid emergency response throughout ${addressCity} and neighboring suburbs. Call our main hotline for priority scheduling.` }
+      { question: "How do you handle pricing?", answer: "We believe in complete transparency. We provide clear, itemized quotes before any work begins." },
+      { question: "What areas do you serve?", answer: `We proudly serve ${addressCity} and the surrounding local communities.` }
     ],
     testimonials: [
-      { name: "Thandeka Dlamini", review: `Outstanding experience with ${cleanBizName}. They arrived precisely on time, explained the exact problem, and provided a flat-rate price before starting any work. Highly recommend!`, rating: 5, isVerified: true },
-      { name: "Marcus Becker", review: `Reliable, clean, and extremely professional. The crew took absolute care of our property and left everything spotless. Five stars well deserved!`, rating: 5, isVerified: true }
+      { name: "Customer Reviews Coming Soon", review: "Your verified customer reviews will appear here.", rating: 5, isVerified: false }
     ],
     blog: [],
     whatsappMessage: `Hi ${cleanBizName}, I noticed your website and would love to get a quote/estimate for your local ${biz.category} services. Let me know when you are free!`,
@@ -282,6 +588,9 @@ export function generateClientMockSite(biz: Business): GeneratedSite {
     notFoundPage: {
       title: "Page Not Found",
       message: "The requested page section could not be located."
-    }
+    },
+    truthProfile: buildBusinessTruthProfile(biz),
+    presence: biz.presence || null,
+    deficits: biz.presence?.deficits || null
   };
 }

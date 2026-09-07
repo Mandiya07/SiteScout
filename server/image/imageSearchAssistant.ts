@@ -5,6 +5,7 @@ import { UnsplashImageProvider } from "./providers/unsplashProvider.js";
 import { CuratedTaxonomyProvider } from "./providers/curatedProvider.js";
 import { sortAndRankCandidates, ScoreContext } from "./imageRanking.js";
 import { imageCache } from "./imageCache.js";
+import { visualAnalyzer } from "./visualAnalyzer.js";
 
 export class ImageSearchAssistant {
   private pexelsProvider = new PexelsImageProvider();
@@ -23,53 +24,103 @@ export class ImageSearchAssistant {
     const taxonomy = matchIndustryTaxonomy(category);
     const services = servicesList.length > 0 ? servicesList : taxonomy.services;
 
+    // 1. Determine tailored brand style/personality based on business name
+    let style = taxonomy.defaultStyle;
+    const nameLower = businessName.toLowerCase();
+    if (nameLower.match(/\b(green|organic|eco|nature|leaf|earth|natural|bio|plant|garden)\b/)) {
+      style = "Friendly"; // Natural & Eco-friendly focus
+    } else if (nameLower.match(/\b(summit|apex|elite|prime|luxury|signature|global|executive|grand|prestige|royal|crest|crown|peak|pinnacle|silver|gold|platinum|boutique)\b/)) {
+      style = "Luxury";
+    } else if (nameLower.match(/\b(family|cozy|local|home|friendly|neighborhood|little|mama|papa|grandma|community|nest|hearth|care|love)\b/)) {
+      style = "Family-friendly";
+    } else if (nameLower.match(/\b(tech|digital|smart|future|nexus|sync|cyber|quantum|hyper|next|alpha|lab|matrix|cloud|code)\b/)) {
+      style = "Modern";
+    } else if (nameLower.match(/\b(classic|heritage|traditional|old|vintage|legacy|historic|ancient|foundry|craft|trust|founding)\b/)) {
+      style = "Traditional";
+    } else if (nameLower.match(/\b(bold|iron|steel|thunder|blaze|strike|vivid|wild|nexus|force|power|vertex|beast|surge|apex)\b/)) {
+      style = "Bold";
+    } else if (nameLower.match(/\b(minimal|pure|clean|white|light|space|form|zero|zen|calm|quiet)\b/)) {
+      style = "Minimal";
+    }
+
+    // 2. Formulate highly tailored subject descriptions for the search engine
+    // Hero Subject tailoring: combine industry + primary service + local context if provided
+    let heroSubject = taxonomy.preferredSubjects[0] || `${taxonomy.industry} professional workplace`;
+    if (services.length > 0) {
+      heroSubject = `${services[0]} professional`;
+    }
+    if (localContext) {
+      heroSubject += ` in ${localContext}`;
+    }
+
+    // Include subtle style modifiers directly inside search subjects for premium results
+    if (style === "Luxury" || style === "Premium" || style === "Elegant") {
+      heroSubject = `premium elegant ${heroSubject}`;
+    } else if (style === "Warm" || style === "Friendly" || style === "Family-friendly") {
+      heroSubject = `warm welcoming ${heroSubject}`;
+    } else if (style === "Minimal") {
+      heroSubject = `clean minimalist ${heroSubject}`;
+    } else if (style === "Modern") {
+      heroSubject = `modern contemporary ${heroSubject}`;
+    }
+
     const heroReq: ImageRequirement = {
       section: "hero",
-      subject: taxonomy.preferredSubjects[0] || `${taxonomy.industry} professional workplace`,
-      style: taxonomy.defaultStyle,
+      subject: heroSubject,
+      style: style,
       orientation: "landscape",
       aspectRatio: "16:9",
-      keywords: [taxonomy.industry, taxonomy.subcategory, "professional", "high quality"],
+      keywords: [taxonomy.industry, taxonomy.subcategory, "professional", style, localContext].filter(Boolean),
       negativeKeywords: taxonomy.avoidSubjects,
-      purpose: "Establish immediate industry credibility, quality, and visual atmosphere in the hero viewport."
+      purpose: `Establish immediate credibility for ${businessName} with a visual atmosphere optimized for ${taxonomy.audience.join(" & ")}.`
     };
 
+    // About Subject tailoring
+    let aboutSubject = taxonomy.preferredSubjects[1] || `${taxonomy.industry} specialist team craftsmanship`;
+    if (localContext) {
+      aboutSubject = `${aboutSubject} ${localContext}`;
+    }
     const aboutReq: ImageRequirement = {
       section: "about",
-      subject: taxonomy.preferredSubjects[1] || `${taxonomy.industry} specialist team craftsmanship`,
-      style: taxonomy.defaultStyle,
+      subject: aboutSubject,
+      style: style,
       orientation: "landscape",
       aspectRatio: "4:3",
-      keywords: [taxonomy.industry, "craftsman", "team", "care", "trust"],
+      keywords: [taxonomy.industry, "craftsman", "team", "care", "trust", style].filter(Boolean),
       negativeKeywords: taxonomy.avoidSubjects,
-      purpose: "Reinforce customer trust, craftsmanship, and local community service."
+      purpose: `Build client trust in ${localContext || "our local community"} by showcasing our high-end ${style.toLowerCase()} focus.`
     };
 
+    // Services Subject tailoring
     const servicesRequirements: ImageRequirement[] = services.map((srv, idx) => {
-      const query = taxonomy.serviceQueries[srv] || `${taxonomy.industry} ${srv}`;
+      let query = taxonomy.serviceQueries[srv] || `${taxonomy.industry} ${srv}`;
+      if (localContext && idx === 0) {
+        query = `${query} ${localContext}`;
+      }
       return {
         section: "services",
         serviceName: srv,
         subject: query,
-        style: taxonomy.defaultStyle,
+        style: style,
         orientation: "landscape",
         aspectRatio: "4:3",
-        keywords: [taxonomy.industry, srv, "service", "quality"],
+        keywords: [taxonomy.industry, srv, "service", "quality", style].filter(Boolean),
         negativeKeywords: taxonomy.avoidSubjects,
-        purpose: `Showcase actual execution and package value for ${srv}.`
+        purpose: `Showcase actual execution of ${srv} with a ${style.toLowerCase()} style matching ${businessName}.`
       };
     });
 
+    // Gallery Requirements tailoring
     const galleryRequirements: ImageRequirement[] = taxonomy.galleryThemes.map((theme, idx) => {
       return {
         section: "gallery",
         subject: theme,
-        style: taxonomy.defaultStyle,
+        style: style,
         orientation: "square",
         aspectRatio: "1:1",
-        keywords: [taxonomy.industry, theme, "portfolio", "detail"],
+        keywords: [taxonomy.industry, theme, "portfolio", "detail", style].filter(Boolean),
         negativeKeywords: taxonomy.avoidSubjects,
-        purpose: `Portfolio visual proof for ${theme}.`
+        purpose: `Portfolio visual proof for ${theme} aligned with our target audience: ${taxonomy.audience[0]}.`
       };
     });
 
@@ -78,14 +129,15 @@ export class ImageSearchAssistant {
       subcategory: taxonomy.subcategory,
       services,
       audience: taxonomy.audience,
-      visualStyle: taxonomy.defaultStyle,
+      visualStyle: style,
       preferredSubjects: taxonomy.preferredSubjects,
       avoidSubjects: taxonomy.avoidSubjects,
       localContext,
       heroRequirement: heroReq,
       aboutRequirement: aboutReq,
       servicesRequirements,
-      galleryRequirements
+      galleryRequirements,
+      businessName
     };
   }
 
@@ -137,7 +189,11 @@ export class ImageSearchAssistant {
         aspectRatio: options.orientation === "square" ? "1:1" : "16:9",
         keywords: [options.industry, query]
       },
-      usedImageIds: new Set(options.excludeIds || [])
+      usedImageIds: new Set(options.excludeIds || []),
+      businessName: options.businessName,
+      brandPersonality: options.brandPersonality,
+      customerType: options.customerType,
+      localContext: options.localContext
     };
 
     const ranked = sortAndRankCandidates(candidatePool, scoreContext);
@@ -165,7 +221,11 @@ export class ImageSearchAssistant {
       section: "hero",
       orientation: "landscape",
       limit: 6,
-      excludeIds: Array.from(usedIds)
+      excludeIds: Array.from(usedIds),
+      businessName: profile.businessName,
+      brandPersonality: profile.visualStyle,
+      customerType: profile.audience,
+      localContext: profile.localContext
     });
     const heroImage = heroCandidates[0] || matchIndustryTaxonomy(profile.industry).curatedImages[0];
     usedIds.add(heroImage.id);
@@ -178,7 +238,11 @@ export class ImageSearchAssistant {
       section: "about",
       orientation: "landscape",
       limit: 6,
-      excludeIds: Array.from(usedIds)
+      excludeIds: Array.from(usedIds),
+      businessName: profile.businessName,
+      brandPersonality: profile.visualStyle,
+      customerType: profile.audience,
+      localContext: profile.localContext
     });
     const aboutImage = aboutCandidates.find(c => !usedIds.has(c.id)) || aboutCandidates[0] || heroImage;
     usedIds.add(aboutImage.id);
@@ -194,7 +258,11 @@ export class ImageSearchAssistant {
         serviceName: srvReq.serviceName,
         orientation: "landscape",
         limit: 4,
-        excludeIds: Array.from(usedIds)
+        excludeIds: Array.from(usedIds),
+        businessName: profile.businessName,
+        brandPersonality: profile.visualStyle,
+        customerType: profile.audience,
+        localContext: profile.localContext
       });
       const chosen = srvCandidates.find(c => !usedIds.has(c.id)) || srvCandidates[0];
       if (chosen) {
@@ -213,7 +281,11 @@ export class ImageSearchAssistant {
         section: "gallery",
         orientation: "square",
         limit: 4,
-        excludeIds: Array.from(usedIds)
+        excludeIds: Array.from(usedIds),
+        businessName: profile.businessName,
+        brandPersonality: profile.visualStyle,
+        customerType: profile.audience,
+        localContext: profile.localContext
       });
       const chosen = galCandidates.find(c => !usedIds.has(c.id)) || galCandidates[0];
       if (chosen) {
@@ -223,11 +295,30 @@ export class ImageSearchAssistant {
       }
     }
 
+    // Deep Visual Intelligence Enrichment using Gemini Vision
+    // To respect and conserve user daily API quota and prevent 429 errors,
+    // we only execute deep multimodal Gemini Vision analysis for the primary Hero Image.
+    // The rest of the images (about, services, gallery) are already beautifully scored and analyzed
+    // with high fidelity by our local synchronous heuristic visual intelligence engine.
+    let finalHero = heroImage;
+    const finalAbout = aboutImage;
+    const finalServices = serviceImages;
+    const finalGallery = galleryImages;
+
+    if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY" && process.env.GEMINI_API_KEY !== "") {
+      try {
+        console.log(`[ImageAssistant] Enhancing primary Hero image with deep Gemini Vision analysis...`);
+        finalHero = await visualAnalyzer.enhanceImageWithGeminiVision(heroImage, profile.industry, profile.heroRequirement);
+      } catch (e) {
+        console.log("[ImageAssistant Status] Deep visual analysis deferred or offline.");
+      }
+    }
+
     return {
-      heroImage,
-      aboutImage,
-      serviceImages,
-      galleryImages
+      heroImage: finalHero,
+      aboutImage: finalAbout,
+      serviceImages: finalServices,
+      galleryImages: finalGallery
     };
   }
 

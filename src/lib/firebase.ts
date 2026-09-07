@@ -57,6 +57,30 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   return errInfo;
 }
 
+export async function getAuthHeader(): Promise<Record<string, string>> {
+  try {
+    if (auth.authStateReady) {
+      await auth.authStateReady();
+    }
+    if (auth.currentUser) {
+      const token = await auth.currentUser.getIdToken(/* forceRefresh */ false);
+      return { Authorization: `Bearer ${token}` };
+    }
+  } catch (err) {
+    console.warn("Failed to retrieve Auth ID Token:", err);
+  }
+  return {};
+}
+
+export async function authedFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  const authHeaders = await getAuthHeader();
+  const headers = {
+    ...(options.headers || {}),
+    ...authHeaders
+  };
+  return fetch(url, { ...options, headers });
+}
+
 export { signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, signOut, onAuthStateChanged, updateProfile };
 export { doc, setDoc, getDoc, serverTimestamp };
 

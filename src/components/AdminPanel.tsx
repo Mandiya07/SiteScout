@@ -29,7 +29,11 @@ interface IndustryItem {
   activeCount: number;
 }
 
-export default function AdminPanel() {
+interface AdminPanelProps {
+  sites?: any[];
+}
+
+export default function AdminPanel({ sites = [] }: AdminPanelProps) {
   const [activeTab, setActiveTab] = useState<"users" | "ai_usage" | "searches" | "websites" | "errors">("users");
 
   // Users State
@@ -61,13 +65,39 @@ export default function AdminPanel() {
     { id: "s-4", category: "Plumbing & Electrical", location: "Johannesburg, SA", resultsCount: 15, timestamp: "Yesterday, 02:10 PM", status: "Verified" },
   ];
 
-  // Generated Websites
-  const generatedWebsites = [
-    { id: "w-1", name: "Swazi Peak Construction", category: "Construction", token: "prv_8f29k1", views: 18, status: "Active Preview", date: "Today" },
-    { id: "w-2", name: "Apex Commercial Plumbing", category: "Plumbing", token: "prv_3a91m4", views: 24, status: "Client Approved", date: "Yesterday" },
-    { id: "w-3", name: "Mbabane Auto Mechanical", category: "Auto Repairs", token: "prv_7c44p0", views: 9, status: "Proposal Sent", date: "2 days ago" },
-    { id: "w-4", name: "Ezulwini Sanctuary Spa", category: "Spa & Salon", token: "prv_1e88v9", views: 42, status: "Active Preview", date: "3 days ago" },
-  ];
+  // Generated Websites (from real Firestore-synced sites or mock fallback)
+  const hasRealWebsites = sites && sites.length > 0;
+  const generatedWebsites = hasRealWebsites
+    ? sites.map(site => {
+        let displayDate = "Not viewed yet";
+        if (site.previewLastViewedAt) {
+          try {
+            const dateObj = new Date(site.previewLastViewedAt);
+            displayDate = dateObj.toLocaleDateString() + " " + dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          } catch (e) {
+            displayDate = "Recently";
+          }
+        }
+        return {
+          id: site.id,
+          name: site.businessName,
+          category: site.category,
+          token: site.previewToken || site.id,
+          views: site.previewViews || 0,
+          status: site.clientApproved 
+            ? "Client Approved" 
+            : site.proposal?.status === "sent" 
+              ? "Proposal Sent" 
+              : "Active Preview",
+          date: displayDate
+        };
+      })
+    : [
+        { id: "w-1", name: "Swazi Peak Construction", category: "Construction", token: "prv_8f29k1", views: 18, status: "Active Preview", date: "Today" },
+        { id: "w-2", name: "Apex Commercial Plumbing", category: "Plumbing", token: "prv_3a91m4", views: 24, status: "Client Approved", date: "Yesterday" },
+        { id: "w-3", name: "Mbabane Auto Mechanical", category: "Auto Repairs", token: "prv_7c44p0", views: 9, status: "Proposal Sent", date: "2 days ago" },
+        { id: "w-4", name: "Ezulwini Sanctuary Spa", category: "Spa & Salon", token: "prv_1e88v9", views: 42, status: "Active Preview", date: "3 days ago" },
+      ];
 
   // System Errors & Health Logs
   const systemErrors = [
@@ -132,6 +162,14 @@ export default function AdminPanel() {
               </button>
             );
           })}
+        </div>
+      </div>
+
+      {/* Simulated/Prototype Sandbox Banner */}
+      <div className="p-3.5 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 flex items-center justify-between text-xs text-amber-800 dark:text-amber-300 animate-fade-in">
+        <div className="flex items-center gap-2">
+          <Info className="h-4 w-4 text-amber-500 shrink-0" />
+          <span><strong>Prototype Console Mode:</strong> This panel displays simulated telemetry, static user management examples, and system health fallbacks to demonstrate high-fidelity SaaS operations. Live-generated preview website counts are successfully linked.</span>
         </div>
       </div>
 

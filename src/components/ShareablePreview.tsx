@@ -4,7 +4,7 @@ import WebsiteView from "./WebsiteView";
 import { 
   Copy, Check, Share2, Mail, MessageSquare, QrCode, 
   Clock, CheckCircle, ExternalLink, ArrowRight, Settings, Phone, Calendar, ArrowUpRight,
-  Eye, Smartphone, Monitor, Flame
+  Eye, Smartphone, Monitor, Flame, AlertTriangle, ShieldCheck
 } from "lucide-react";
 
 interface ShareablePreviewProps {
@@ -23,6 +23,8 @@ export default function ShareablePreview({
   onOpenPortal
 }: ShareablePreviewProps) {
   const [copied, setCopied] = useState(false);
+  const [copiedMsg, setCopiedMsg] = useState(false);
+  const [pitchChannel, setPitchChannel] = useState<"whatsapp" | "sms" | "email" | "call">("whatsapp");
   const [showQr, setShowQr] = useState(false);
   const [expiry, setExpiry] = useState("14");
   const [previewDevice, setPreviewDevice] = useState<"mockup" | "desktop" | "mobile">("mockup");
@@ -36,14 +38,33 @@ export default function ShareablePreview({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const getPitchMessage = () => {
+    if (pitchChannel === "whatsapp") {
+      return `Hi ${site.businessName} Team,\n\nI noticed you don't currently have a dedicated website linked when customers search for ${site.category || "services"} on Google.\n\nI created a free website preview for your business:\n👉 ${customLink}\n\nTake a quick look on your phone or computer. Once you approve it, let's customize and launch it!`;
+    }
+    if (pitchChannel === "sms") {
+      return `Hi ${site.businessName}! I noticed your business doesn't have a website listed. I created a free website preview for your business here: ${customLink} - once you check it out, let's customize and launch it!`;
+    }
+    if (pitchChannel === "email") {
+      return `Subject: Free Website Preview for ${site.businessName}\n\nHi ${site.businessName} Team,\n\nWhile researching top-rated ${site.category || "service"} providers in our area, I noticed that ${site.businessName} doesn't currently have an active website linked on Google.\n\nI created a free website preview for your business:\n👉 ${customLink}\n\nKey features included:\n- Instant 1-Click WhatsApp & Phone Callback buttons\n- Verified Business Truth facts & service catalog\n- Mobile-optimized contact & quote capture form\n\nOnce you review it, let's customize and launch it for you!\n\nBest regards,\nLocal Digital Development`;
+    }
+    return `COLD CALL OPENER (30-Sec):\n\n"Hi, is this the owner of ${site.businessName}?\n\nMy name is [Your Name], I'm a local web developer. I noticed your Google listing has great reviews, but there's no website linked when customers search for ${site.category || "your services"}.\n\nI created a free website preview for your business with your verified phone number, service list, and WhatsApp buttons.\n\nCan I send you a 10-second link on WhatsApp or SMS right now so you can take a look? Once you approve it, let's customize and launch it for you."`;
+  };
+
+  const handleCopyMsg = () => {
+    navigator.clipboard.writeText(getPitchMessage());
+    setCopiedMsg(true);
+    setTimeout(() => setCopiedMsg(false), 2000);
+  };
+
   const getMailShareLink = () => {
-    const subject = encodeURIComponent(`Interactive Web Design Proposal for ${site.businessName}`);
-    const body = encodeURIComponent(`Hi ${site.businessName} Team,\n\nWe designed a fully customized, mobile-optimized interactive website layout specifically matching your local brand guidelines. This isn't a mock image, but a fully functional interactive preview.\n\nYou can click the live link here to test the desktop and mobile buttons directly:\n${customLink}\n\nLet us know if you would like to publish this to your custom domain and start capturing more customer calls.\n\nBest regards,\nWeb Design Team`);
+    const subject = encodeURIComponent(`Free Website Preview for ${site.businessName}`);
+    const body = encodeURIComponent(`Hi ${site.businessName} Team,\n\nI created a free website preview for your business matching your verified local brand details.\n\nYou can view the live preview here:\n${customLink}\n\nOnce you check it out and approve it, let's customize and launch it on your custom domain!\n\nBest regards,\nWeb Design Team`);
     return `mailto:?subject=${subject}&body=${body}`;
   };
 
   const getWhatsappShareLink = () => {
-    const text = encodeURIComponent(`Hi! I built an interactive custom mobile website preview designed specifically for ${site.businessName}. You can view the live draft and test the call/WhatsApp buttons directly here: ${customLink}`);
+    const text = encodeURIComponent(`Hi! I created a free website preview for ${site.businessName}. You can view the live preview here: ${customLink} - once you approve it, let's customize and launch it!`);
     return `https://wa.me/?text=${text}`;
   };
 
@@ -92,9 +113,13 @@ export default function ShareablePreview({
         <div className="lg:col-span-2 space-y-6">
           
           {/* Link delivery board */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Unique Delivery URL</h3>
-            <div className="mt-3 flex flex-col sm:flex-row items-center gap-3">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Step 3: Unique Client Link &amp; Pitch Copy</h3>
+              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full uppercase">Ready to Fire</span>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center gap-3">
               <div className="flex-1 w-full rounded-xl bg-slate-50 border border-slate-150 px-4 py-2.5 text-xs text-slate-600 font-mono select-all dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300 flex items-center justify-between overflow-x-auto">
                 <span>{customLink}</span>
                 <span className="text-[10px] text-emerald-600 font-sans font-bold uppercase shrink-0 bg-emerald-50 px-1.5 py-0.2 rounded ml-2 dark:bg-emerald-950/40 dark:text-emerald-400">SSL Active</span>
@@ -124,7 +149,201 @@ export default function ShareablePreview({
                 </a>
               </div>
             </div>
+
+            {/* Ready-to-Send Outbound Pitch Message Box */}
+            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex rounded-lg bg-slate-200/60 p-1 dark:bg-slate-900">
+                  <button
+                    type="button"
+                    onClick={() => setPitchChannel("whatsapp")}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold cursor-pointer transition-all ${
+                      pitchChannel === "whatsapp" ? "bg-white text-emerald-700 shadow-xs dark:bg-slate-800 dark:text-emerald-300" : "text-slate-600 dark:text-slate-400"
+                    }`}
+                  >
+                    WhatsApp
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPitchChannel("sms")}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold cursor-pointer transition-all ${
+                      pitchChannel === "sms" ? "bg-white text-blue-700 shadow-xs dark:bg-slate-800 dark:text-blue-300" : "text-slate-600 dark:text-slate-400"
+                    }`}
+                  >
+                    SMS
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPitchChannel("email")}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold cursor-pointer transition-all ${
+                      pitchChannel === "email" ? "bg-white text-purple-700 shadow-xs dark:bg-slate-800 dark:text-purple-300" : "text-slate-600 dark:text-slate-400"
+                    }`}
+                  >
+                    Email
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPitchChannel("call")}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold cursor-pointer transition-all ${
+                      pitchChannel === "call" ? "bg-white text-amber-700 shadow-xs dark:bg-slate-800 dark:text-amber-300" : "text-slate-600 dark:text-slate-400"
+                    }`}
+                  >
+                    30s Call Script
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleCopyMsg}
+                  className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-500 cursor-pointer"
+                >
+                  {copiedMsg ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                  <span>{copiedMsg ? "Copied Message!" : "Copy Pitch Message"}</span>
+                </button>
+              </div>
+
+              <textarea
+                readOnly
+                rows={4}
+                value={getPitchMessage()}
+                className="w-full rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-800 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 font-sans focus:outline-none resize-none leading-relaxed"
+              />
+            </div>
           </div>
+
+          {/* Online Presence Audit & Resolution Summary Section */}
+          {(() => {
+            const deficits = site.deficits || site.presence?.deficits || {
+              noWebsite: true,
+              noWhatsappCta: true,
+              noBookingSystem: true,
+              noOnlineCatalogue: true,
+              noEnquiryForm: true,
+              noSeo: true,
+              poorMobileExperience: true,
+            };
+
+            const auditScore = site.presence?.presenceScore || 45;
+
+            const resolvedAuditItems = [
+              {
+                key: "noWebsite",
+                label: "Business Website",
+                gap: "No dedicated mobile-friendly website listing",
+                solution: "Tailwind landing page optimized for regional Google searches",
+                active: !!deficits.noWebsite
+              },
+              {
+                key: "noWhatsappCta",
+                label: "WhatsApp Callback",
+                gap: "No instant WhatsApp 1-tap call-to-action",
+                solution: "High-contrast WhatsApp button with welcome messages",
+                active: !!deficits.noWhatsappCta
+              },
+              {
+                key: "noBookingSystem",
+                label: "Booking Engine",
+                gap: "No integrated scheduling or quote capture",
+                solution: "Active contact form and direct appointment dispatch",
+                active: !!deficits.noBookingSystem
+              },
+              {
+                key: "noOnlineCatalogue",
+                label: "Service Transparency",
+                gap: "No structured service catalog or clear menu online",
+                solution: "Fully styled service grid with verified business data",
+                active: !!deficits.noOnlineCatalogue
+              },
+              {
+                key: "poorMobileExperience",
+                label: "Smartphone Usability",
+                gap: "Current assets look clunky on small screen devices",
+                solution: "Mobile-first liquid framework with click-to-call bars",
+                active: !!deficits.poorMobileExperience
+              },
+              {
+                key: "noSeo",
+                label: "Search SEO Optimization",
+                gap: "Missing localized search metadata tags",
+                solution: "Pre-rendered title, alt and keyword tags configured to rank",
+                active: !!deficits.noSeo
+              }
+            ];
+
+            const activeResolutions = resolvedAuditItems.filter(item => item.active);
+
+            return (
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs dark:border-slate-800 dark:bg-slate-900 space-y-4 text-left">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                      <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                      Google Maps Presence Audit
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      Visual comparison highlighting how your new website successfully resolves critical conversion deficits.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-850 self-start sm:self-auto">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Audit Score:</span>
+                    <span className="text-xs font-black font-mono px-2 py-0.5 rounded-lg bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
+                      {auditScore}% / 100%
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {resolvedAuditItems.map((item, idx) => (
+                    <div 
+                      key={idx} 
+                      className={`p-3.5 rounded-xl border transition-all duration-250 ${
+                        item.active 
+                          ? "border-emerald-100 bg-emerald-50/10 dark:border-emerald-900/30 dark:bg-emerald-950/10" 
+                          : "border-slate-150 bg-slate-50/30 dark:border-slate-800/50 dark:bg-slate-950/10 opacity-70"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{item.label}</span>
+                        {item.active ? (
+                          <span className="text-[9px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-100/60 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full">
+                            Resolved
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-850 px-2 py-0.5 rounded-full">
+                            Already Optimal
+                          </span>
+                        )}
+                      </div>
+
+                      {item.active && (
+                        <div className="mt-2.5 space-y-1.5 border-t border-slate-100 dark:border-slate-800/60 pt-2 text-[11px]">
+                          <div className="flex items-start gap-1.5 text-rose-600 dark:text-rose-400/90 leading-relaxed">
+                            <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                            <span>
+                              <strong className="font-semibold">Detected Gap:</strong> {item.gap}
+                            </span>
+                          </div>
+                          <div className="flex items-start gap-1.5 text-emerald-600 dark:text-emerald-400 leading-relaxed">
+                            <CheckCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                            <span>
+                              <strong className="font-semibold">Resolution:</strong> {item.solution}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-100 dark:border-slate-850 text-xs text-slate-500 dark:text-slate-400 leading-relaxed flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                  <span>
+                    This interactive diagnostic chart is synchronized to the client's live presentation portal so they can visualize exactly why this site is key to capturing local demand.
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Interactive device visualizer header & tabs */}
           <div className="space-y-4">

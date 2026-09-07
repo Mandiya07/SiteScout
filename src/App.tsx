@@ -1,5 +1,5 @@
 import { signOut } from "firebase/auth";
-import { auth, db, setDoc, getDoc, doc, serverTimestamp, handleFirestoreError, OperationType } from "./lib/firebase";
+import { auth, db, setDoc, getDoc, doc, serverTimestamp, handleFirestoreError, OperationType, authedFetch } from "./lib/firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { useState, useEffect } from "react";
 import { Business, GeneratedSite, UserSession, SearchFilters, SalesStatus } from "./types";
@@ -23,10 +23,12 @@ import ConversionFunnel from "./components/ConversionFunnel";
 import PartnerEcosystem from "./components/PartnerEcosystem";
 import ProspectPipeline from "./components/ProspectPipeline";
 import MyWebsites from "./components/MyWebsites";
+import ThreeStepRevenueEngine from "./components/ThreeStepRevenueEngine";
 import { getClientMockBusinesses, generateClientMockSite } from "./lib/clientFallback";
 import { 
   Search, Globe, Award, Trophy, User, MessageSquare, Phone, MapPin, 
-  CheckCircle2, AlertTriangle, ShieldCheck, HeartCrack, Flame, TrendingUp, Users, ArrowRight, BookOpen, Database, Handshake, Sparkles, Clock, Calendar
+  CheckCircle2, AlertTriangle, ShieldCheck, HeartCrack, Flame, TrendingUp, Users, ArrowRight, BookOpen, Database, Handshake, Sparkles, Clock, Calendar,
+  ShieldAlert, Copy, Check, ExternalLink, X, ChevronDown
 } from "lucide-react";
 
 const placeholderSite: GeneratedSite = {
@@ -47,25 +49,25 @@ const placeholderSite: GeneratedSite = {
     keywords: "plumbing repairs, commercial hvac, electrical service, home improvement, Austin local repair"
   },
   hero: {
-    title: "Premium Local Repairs & Same-Day Services Done Right",
-    subtitle: "Austin's most trusted, fully licensed technicians specializing in professional residential & commercial maintenance. 100% satisfaction guaranteed.",
+    title: "Premium Local Repairs & Services Done Right",
+    subtitle: "Austin's trusted specialists for professional residential & commercial maintenance. Dedicated to reliable, high-quality results.",
     ctaPrimary: "Request Callback",
     ctaSecondary: "View Services Deck",
     imageUrl: "https://images.unsplash.com/photo-1581092921461-eab62e97a780?auto=format&fit=crop&q=80&w=1200"
   },
   about: {
     title: "Dedicated Craftsmanship Since 2012",
-    history: "Founded as a family-operated local workshop, we've expanded to a dedicated crew of emergency specialists serving home and business owners across the state.",
-    mission: "To deliver dependable, honest, and high-performance repair services with transparent pricing and zero hidden fees.",
-    pitch: "We know that emergency breakdowns don't wait for business hours. That is why our active dispatch teams are on call 24/7 to provide immediate, fully insured solutions."
+    history: "Founded as a local workshop, we've expanded to a dedicated crew serving home and business owners.",
+    mission: "To deliver dependable, honest, and high-performance repair services with transparent pricing.",
+    pitch: "We focus on providing prompt and reliable solutions to minimize your downtime and keep your property running smoothly."
   },
   services: [
-    { title: "24/7 Emergency Repairs", description: "Immediate diagnostic assessment and priority repairs for structural, electrical, and plumbing emergencies.", price: "$149" },
-    { title: "Commercial System Inspections", description: "Comprehensive safety, thermal efficiency, and regulatory compliance checks for corporate properties.", price: "$299" }
+    { title: "Property Repairs", description: "Diagnostic assessment and repairs for structural, electrical, and plumbing needs.", price: "Contact for Quote" },
+    { title: "Commercial System Inspections", description: "Comprehensive safety and efficiency checks for corporate properties.", price: "Contact for Quote" }
   ],
   features: [
-    { title: "Fully Licensed & Insured", icon: "ShieldCheck", description: "Our team operates with comprehensive local credentials and liability assurance." },
-    { title: "24-Hour Emergency Dispatch", icon: "Clock", description: "Active call hotlines and rapid-response vehicles ready to deploy at any hour." }
+    { title: "Dedicated Professionals", icon: "ShieldCheck", description: "Our team operates with a focus on quality, safety, and customer satisfaction." },
+    { title: "Prompt Service", icon: "Clock", description: "We strive to respond quickly and efficiently to all service requests." }
   ],
   gallery: [],
   faqs: [],
@@ -100,6 +102,7 @@ export default function App() {
   const [clientSignoffName, setClientSignoffName] = useState<string>("");
   const [feedbackSuccess, setFeedbackSuccess] = useState<boolean>(false);
   const [approvalSuccess, setApprovalSuccess] = useState<boolean>(false);
+  const [showAuditPanel, setShowAuditPanel] = useState<boolean>(true);
 
   // Parse Public Presentation URL Route on mount
   useEffect(() => {
@@ -130,8 +133,8 @@ export default function App() {
             console.error("LocalStorage fallback read error:", e);
           }
 
-          // Fetch from Firestore
-          const docRef = doc(db, "sites", siteId);
+          // Fetch from Firestore publicPreviews collection
+          const docRef = doc(db, "publicPreviews", siteId);
           const docSnap = await getDoc(docRef);
           if (docSnap.exists()) {
             const data = docSnap.data() as GeneratedSite;
@@ -140,7 +143,21 @@ export default function App() {
               localStorage.setItem(`site_${siteId}`, JSON.stringify(data));
             } catch (e) {}
           } else {
-            setPublicPreviewError("The requested website draft presentation could not be found or has expired.");
+            // Fallback to server API endpoint
+            const apiRes = await fetch(`/api/preview/${siteId}`);
+            if (apiRes.ok) {
+              const apiJson = await apiRes.json();
+              if (apiJson.success && apiJson.site) {
+                setPublicPreviewSite(apiJson.site as GeneratedSite);
+                try {
+                  localStorage.setItem(`site_${siteId}`, JSON.stringify(apiJson.site));
+                } catch (e) {}
+              } else {
+                setPublicPreviewError("The requested website draft presentation could not be found or has expired.");
+              }
+            } else {
+              setPublicPreviewError("The requested website draft presentation could not be found or has expired.");
+            }
           }
         } catch (err: any) {
           console.error("Error loading presentation preview site:", err);
@@ -173,7 +190,17 @@ export default function App() {
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
   const [generatedSite, setGeneratedSite] = useState<GeneratedSite | null>(null);
-  const [userSites, setUserSites] = useState<GeneratedSite[]>([]);
+  const [userSites, setUserSites] = useState<GeneratedSite[]>(() => {
+    try {
+      const cached = localStorage.getItem("sitescout_user_sites");
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [firestorePermissionNotice, setFirestorePermissionNotice] = useState<boolean>(false);
+  const [showRulesModal, setShowRulesModal] = useState<boolean>(false);
+  const [copiedRules, setCopiedRules] = useState<boolean>(false);
 
   // Load user's saved sites from Firestore
   useEffect(() => {
@@ -186,14 +213,38 @@ export default function App() {
           querySnapshot.forEach((docSnap) => {
             sitesList.push(docSnap.data() as GeneratedSite);
           });
-          setUserSites(sitesList);
-          // If no active generatedSite is set but sites exist, default to the first one
-          if (!generatedSite && sitesList.length > 0) {
-            setGeneratedSite(sitesList[0]);
+          if (sitesList.length > 0) {
+            setUserSites(sitesList);
+            try {
+              localStorage.setItem("sitescout_user_sites", JSON.stringify(sitesList));
+            } catch (e) {}
+            // If no active generatedSite is set but sites exist, default to the first one
+            if (!generatedSite) {
+              setGeneratedSite(sitesList[0]);
+            }
           }
-        } catch (e) {
+          setFirestorePermissionNotice(false);
+        } catch (e: any) {
           handleFirestoreError(e, OperationType.GET, "sites");
           console.error("Error fetching user sites:", e);
+          if (e?.message?.includes("Missing or insufficient permissions") || e?.code === "permission-denied") {
+            setFirestorePermissionNotice(true);
+          }
+          // Seamless fallback to local storage cache so user never loses their sites
+          try {
+            const cached = localStorage.getItem("sitescout_user_sites");
+            if (cached) {
+              const parsed: GeneratedSite[] = JSON.parse(cached);
+              if (parsed && parsed.length > 0) {
+                setUserSites(parsed);
+                if (!generatedSite) {
+                  setGeneratedSite(parsed[0]);
+                }
+              }
+            }
+          } catch (cacheErr) {
+            console.error("Fallback cache error:", cacheErr);
+          }
         }
       };
       fetchUserSites();
@@ -243,7 +294,7 @@ export default function App() {
   const triggerSearch = async (filters: SearchFilters, isInitial = false) => {
     if (!isInitial) setLoading(true);
     try {
-      const response = await fetch("/api/search", {
+      const response = await authedFetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(filters)
@@ -259,7 +310,15 @@ export default function App() {
       }
 
       const data = await response.json();
-      setBusinesses(data.businesses || []);
+      const isAppend = !!(filters.page && filters.page > 1);
+      const newBizs = data.businesses || [];
+      
+      setBusinesses(prev => {
+        if (!isAppend) return newBizs;
+        const existingNames = new Set(prev.map(b => b.name.toLowerCase()));
+        const uniqueNew = newBizs.filter(b => !existingNames.has(b.name.toLowerCase()));
+        return [...prev, ...uniqueNew];
+      });
       
       if (data.source === "error_fallback") {
         setApiNotice("sandbox_simulated");
@@ -270,18 +329,29 @@ export default function App() {
       }
 
       if (!isInitial) {
-        setStats(prev => ({ ...prev, found: prev.found + (data.businesses?.length || 0) }));
+        setStats(prev => ({ ...prev, found: prev.found + (newBizs.length || 0) }));
       }
     } catch (error) {
       console.error("Search API Error, triggering robust client-side fallback:", error);
       
+      const pageNum = filters.page || 1;
       // Fallback directly to generating high-quality localized client-side mock businesses
       const mockBizs = getClientMockBusinesses(
         filters.city || "Mbabane", 
         filters.category || "Construction", 
-        filters.country || "Eswatini"
+        filters.country || "Eswatini",
+        filters.keywords || "",
+        pageNum
       );
-      setBusinesses(mockBizs);
+      
+      const isAppend = pageNum > 1;
+      setBusinesses(prev => {
+        if (!isAppend) return mockBizs;
+        const existingNames = new Set(prev.map(b => b.name.toLowerCase()));
+        const uniqueNew = mockBizs.filter(b => !existingNames.has(b.name.toLowerCase()));
+        return [...prev, ...uniqueNew];
+      });
+      
       setApiNotice("sandbox_simulated");
       
       if (!isInitial) {
@@ -311,7 +381,7 @@ export default function App() {
   const handleAnalyze = async (biz: Business) => {
     setLoading(true);
     try {
-      const response = await fetch("/api/analyze", {
+      const response = await authedFetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ business: biz })
@@ -377,6 +447,57 @@ export default function App() {
     setActiveTab("generator");
   };
 
+  // Direct 1-Click Scan for 20 Businesses Without Websites
+  const handleScan20NoWebsite = async (city: string, category: string, count: number = 20) => {
+    setLoading(true);
+    try {
+      await triggerSearch({
+        country: '',
+        city: city || 'Local Area',
+        town: '',
+        category: category || 'Contractors',
+        keywords: '',
+        radius: '20',
+        directorySource: 'National Business Directory / Yellow Pages'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Direct 1-Click Build Website for 3-Step Engine
+  const handleDirectBuildWebsite = async (biz: Business) => {
+    setSelectedBusiness(biz);
+    setLoading(true);
+    try {
+      const response = await authedFetch("/api/generate-site", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ business: biz })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const siteWithClassification: GeneratedSite = {
+          ...data.site,
+          isDemo: biz.isDemo ?? false,
+          dataType: biz.dataType || (biz.isDemo ? "demo" : "real")
+        };
+        setGeneratedSite(siteWithClassification);
+        await handleSaveDraft(siteWithClassification);
+        setStats(prev => ({ ...prev, generated: prev.generated + 1 }));
+        setActiveTab("preview");
+      } else {
+        setActiveTab("generator");
+      }
+    } catch (error) {
+      console.error("Direct build website error:", error);
+      setActiveTab("generator");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (authLoading) {
     return <div className="flex min-h-screen items-center justify-center dark:bg-slate-900"><div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div></div>;
   }
@@ -408,6 +529,68 @@ export default function App() {
         </div>
       );
     }
+
+    // Helper to calculate active gaps for the client presentation audit
+    const getPublicSiteGaps = (site: any) => {
+      const defs = site.deficits || (site.presence?.deficits) || {
+        noWebsite: true,
+        noWhatsappCta: true,
+        noBookingSystem: true,
+        noOnlineCatalogue: true,
+        noEnquiryForm: true,
+        noSeo: true,
+        poorMobileExperience: true,
+      };
+
+      const list = [
+        {
+          key: "noWebsite",
+          label: "No Mobile-Optimized Website",
+          impact: "High-intent mobile searchers hit a dead end on Google Maps and bounce to competitors.",
+          solution: "A modern, ultra-fast responsive landing page custom-built for local brand authority.",
+          active: !!defs.noWebsite || !site.publishedUrl
+        },
+        {
+          key: "noWhatsappCta",
+          label: "Missing 1-Tap WhatsApp CTA",
+          impact: "74% of local clients on smartphones prefer messaging over calling. Standard forms lose leads.",
+          solution: "An active, pre-configured 1-click WhatsApp chat link with automated welcome prompts.",
+          active: !!defs.noWhatsappCta || !site.whatsappMessage
+        },
+        {
+          key: "noBookingSystem",
+          label: "No Direct Appointment / Quote System",
+          impact: "Clients have to call or wait for emails just to schedule, causing high friction.",
+          solution: "An integrated direct callback and quote-request dispatch engine.",
+          active: !!defs.noBookingSystem
+        },
+        {
+          key: "noOnlineCatalogue",
+          label: "No Transparent Service Menu / Pricing",
+          impact: "Uncertainty around pricing causes prospective buyers to hesitate and search elsewhere.",
+          solution: "A beautifully structured service menu highlighting packages and custom pricing.",
+          active: !!defs.noOnlineCatalogue
+        },
+        {
+          key: "poorMobileExperience",
+          label: "Unresponsive Interface Design",
+          impact: "Standard or non-existent layouts are clunky on smartphone screens, losing 60%+ of mobile traffic.",
+          solution: "A mobile-first framework with quick-action contact hotlines at the bottom.",
+          active: !!defs.poorMobileExperience
+        },
+        {
+          key: "noSeo",
+          label: "Missing Search Optimization (Local SEO)",
+          impact: "Lower visibility on search results allows nearby competitors to capture regional demand.",
+          solution: "Pre-rendered SEO metadata, descriptive keywords, and localized alt-tags ready to index.",
+          active: !!defs.noSeo
+        }
+      ];
+
+      return list.filter(item => item.active);
+    };
+
+    const activeGapsList = getPublicSiteGaps(publicPreviewSite);
 
     // Render the beautiful Client Presentation Portal
     return (
@@ -464,6 +647,88 @@ export default function App() {
             </button>
           </div>
         </header>
+
+        {/* Sticky Digital Audit Alert Bar */}
+        <div className="bg-slate-900 border-b border-slate-800 text-white px-6 py-3 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3 text-left">
+            <div className="p-2 bg-indigo-500/10 rounded-lg text-indigo-400 animate-pulse">
+              <ShieldAlert className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-200">
+                Digital Presence Gap Report: <span className="text-indigo-400 font-extrabold">{activeGapsList.length} Customer Conversion Bottlenecks Detected</span> on Google Maps
+              </p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                We analyzed your local listing footprint. See exactly how this interactive prototype resolves each customer friction point to double phone calls and WhatsApp inquiries.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowAuditPanel(!showAuditPanel)}
+            className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold cursor-pointer transition-all flex items-center gap-1.5 shrink-0 shadow-sm"
+          >
+            <span>{showAuditPanel ? "Hide Diagnostic Report" : "Analyze My Online Presence"}</span>
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${showAuditPanel ? "rotate-180" : ""}`} />
+          </button>
+        </div>
+
+        {/* Diagnostic Expanded Report Panel */}
+        {showAuditPanel && (
+          <div className="bg-slate-900 border-b border-slate-800 text-left py-6 px-6 overflow-hidden animate-in slide-in-from-top-4 duration-300">
+            <div className="max-w-7xl mx-auto grid gap-6 md:grid-cols-3">
+              
+              {/* Left Column: Overall Health Score Card */}
+              <div className="bg-slate-950/60 rounded-xl p-5 border border-slate-800/80 space-y-4">
+                <div>
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-indigo-400">Listing Performance</span>
+                  <h4 className="text-sm font-black text-white mt-1">Google Listing Audit Score</h4>
+                </div>
+                
+                <div className="flex items-center gap-4">
+                  <div className="relative flex items-center justify-center">
+                    <svg className="w-16 h-16">
+                      <circle className="text-slate-800" strokeWidth="5" stroke="currentColor" fill="transparent" r="26" cx="32" cy="32"/>
+                      <circle className="text-indigo-500" strokeWidth="5" strokeDasharray={`${2 * Math.PI * 26}`} strokeDashoffset={`${2 * Math.PI * 26 * (1 - (publicPreviewSite.presence?.presenceScore || 45) / 100)}`} strokeLinecap="round" stroke="currentColor" fill="transparent" r="26" cx="32" cy="32"/>
+                    </svg>
+                    <span className="absolute text-xs font-black text-white">{publicPreviewSite.presence?.presenceScore || 45}%</span>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-200">Needs Optimization</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Your Google listing has a fantastic {publicPreviewSite.presence?.rating || 4.8}★ reputation but lacks essential customer conversion triggers.</p>
+                  </div>
+                </div>
+
+                <div className="pt-2.5 border-t border-slate-800/50 flex items-center justify-between text-xs text-slate-400">
+                  <span>Verified Contact Hotline:</span>
+                  <span className="text-slate-200 font-mono font-semibold">{publicPreviewSite.phone}</span>
+                </div>
+              </div>
+
+              {/* Center & Right Column: Gaps List */}
+              <div className="md:col-span-2 space-y-3">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-indigo-400">Friction Bottlenecks vs. Prototype Solutions</span>
+                
+                <div className="grid gap-3 sm:grid-cols-2 max-h-[220px] overflow-y-auto pr-2">
+                  {activeGapsList.map((gap, idx) => (
+                    <div key={idx} className="bg-slate-950/40 rounded-xl p-4 border border-slate-800/60 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                        <span className="text-xs font-bold text-slate-200">{gap.label}</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 leading-relaxed">
+                        <span className="text-rose-400/90 font-semibold">Impact:</span> {gap.impact}
+                      </p>
+                      <p className="text-[10px] text-slate-300 leading-relaxed border-t border-slate-800/30 pt-1.5">
+                        <span className="text-emerald-400 font-semibold">✓ Solved In Prototype:</span> {gap.solution}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+            </div>
+          </div>
+        )}
 
         {/* Presenter workspace body */}
         <div className="flex-1 overflow-hidden flex flex-col py-6">
@@ -536,6 +801,17 @@ export default function App() {
                     });
                     
                     if (res.ok) {
+                      const data = await res.json();
+                      if (data.success && data.feedback) {
+                        const updatedFeedbacks = [
+                          ...(publicPreviewSite.clientFeedback || []),
+                          data.feedback
+                        ];
+                        setPublicPreviewSite({ ...publicPreviewSite, clientFeedback: updatedFeedbacks });
+                        try {
+                          localStorage.setItem(`site_${publicPreviewSite.id}`, JSON.stringify({ ...publicPreviewSite, clientFeedback: updatedFeedbacks }));
+                        } catch (e) {}
+                      }
                       setFeedbackSuccess(true);
                     } else {
                       // Fallback to local store/cached state
@@ -620,6 +896,17 @@ export default function App() {
                     });
 
                     if (res.ok) {
+                      const data = await res.json();
+                      if (data.success && data.approval) {
+                        const updatedSite = {
+                          ...publicPreviewSite,
+                          ...data.approval
+                        };
+                        setPublicPreviewSite(updatedSite);
+                        try {
+                          localStorage.setItem(`site_${publicPreviewSite.id}`, JSON.stringify(updatedSite));
+                        } catch (e) {}
+                      }
                       setApprovalSuccess(true);
                     } else {
                       setPublicPreviewSite({
@@ -687,7 +974,7 @@ export default function App() {
   const handleGeneratorCompletion = async () => {
     if (!selectedBusiness) return;
     try {
-      const response = await fetch("/api/generate-site", {
+      const response = await authedFetch("/api/generate-site", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ business: selectedBusiness })
@@ -703,8 +990,13 @@ export default function App() {
       }
 
       const data = await response.json();
-      setGeneratedSite(data.site);
-      await handleSaveDraft(data.site);
+      const siteWithClassification: GeneratedSite = {
+        ...data.site,
+        isDemo: selectedBusiness.isDemo ?? false,
+        dataType: selectedBusiness.dataType || (selectedBusiness.isDemo ? "demo" : "real")
+      };
+      setGeneratedSite(siteWithClassification);
+      await handleSaveDraft(siteWithClassification);
       setStats(prev => ({ ...prev, generated: prev.generated + 1 }));
       setActiveTab("editor");
     } catch (error) {
@@ -712,6 +1004,8 @@ export default function App() {
       
       // Standalone high-fidelity client-side layout generator
       const mockSite = generateClientMockSite(selectedBusiness);
+      mockSite.isDemo = selectedBusiness.isDemo ?? true;
+      mockSite.dataType = selectedBusiness.dataType || "demo";
       setGeneratedSite(mockSite);
       await handleSaveDraft(mockSite);
       setStats(prev => ({ ...prev, generated: prev.generated + 1 }));
@@ -726,13 +1020,13 @@ export default function App() {
     setGeneratedSite(updatedSite);
     setUserSites(prev => {
       const exists = prev.some(s => s.id === updatedSite.id);
-      if (exists) {
-        return prev.map(s => s.id === updatedSite.id ? updatedSite : s);
-      } else {
-        return [updatedSite, ...prev];
-      }
+      const nextList = exists ? prev.map(s => s.id === updatedSite.id ? updatedSite : s) : [updatedSite, ...prev];
+      try {
+        localStorage.setItem("sitescout_user_sites", JSON.stringify(nextList));
+      } catch (e) {}
+      return nextList;
     });
-    // Cache in localStorage for robust preview routing fallback
+    // Cache individual site in localStorage for robust preview routing fallback
     try {
       localStorage.setItem(`site_${updatedSite.id}`, JSON.stringify(updatedSite));
     } catch (e) {
@@ -741,16 +1035,72 @@ export default function App() {
 
     if (session) {
       try {
+        // Save private site document to /sites/{siteId}
         await setDoc(doc(db, "sites", updatedSite.id), {
           ...updatedSite,
           userId: session.uid,
           ownerId: session.uid,
           updatedAt: serverTimestamp()
         }, { merge: true });
-        console.log("Draft successfully saved to Firestore!");
-      } catch (e) {
+
+        // Save sanitized public preview document to /publicPreviews/{siteId} (no private CRM notes or internal flags)
+        const sanitizedPublic = {
+          id: updatedSite.id,
+          previewToken: updatedSite.previewToken || updatedSite.id,
+          businessName: updatedSite.businessName || "",
+          phone: updatedSite.phone || "",
+          address: updatedSite.address || "",
+          category: updatedSite.category || "",
+          primaryColor: updatedSite.primaryColor || "#4f46e5",
+          secondaryColor: updatedSite.secondaryColor || "#0284c7",
+          accentColor: updatedSite.accentColor || "#10b981",
+          backgroundColor: updatedSite.backgroundColor || "#ffffff",
+          textColor: updatedSite.textColor || "#0f172a",
+          fontStyle: updatedSite.fontStyle || "Modern Sans",
+          seo: updatedSite.seo || null,
+          hero: updatedSite.hero || null,
+          about: updatedSite.about || null,
+          services: updatedSite.services || [],
+          features: updatedSite.features || [],
+          gallery: updatedSite.gallery || [],
+          faqs: updatedSite.faqs || [],
+          testimonials: updatedSite.testimonials || [],
+          blog: updatedSite.blog || [],
+          whatsappMessage: updatedSite.whatsappMessage || "",
+          contactPage: updatedSite.contactPage || null,
+          privacyPolicy: updatedSite.privacyPolicy || null,
+          termsOfService: updatedSite.termsOfService || null,
+          notFoundPage: updatedSite.notFoundPage || null,
+          logoUrl: updatedSite.logoUrl || "",
+          logoType: updatedSite.logoType || "text",
+          logoIcon: updatedSite.logoIcon || "",
+          sectionsOrder: updatedSite.sectionsOrder || [],
+          clientApproved: updatedSite.clientApproved || false,
+          clientApprovedBy: updatedSite.clientApprovedBy || "",
+          clientApprovedAt: updatedSite.clientApprovedAt || "",
+          previewViews: updatedSite.previewViews || 0,
+          previewLastViewedAt: updatedSite.previewLastViewedAt || "",
+          clientFeedback: updatedSite.clientFeedback || [],
+          presence: updatedSite.presence || null,
+          deficits: updatedSite.deficits || null,
+          userId: session.uid,
+          ownerId: session.uid,
+          updatedAt: serverTimestamp()
+        };
+
+        await setDoc(doc(db, "publicPreviews", updatedSite.id), sanitizedPublic, { merge: true });
+        if (updatedSite.previewToken && updatedSite.previewToken !== updatedSite.id) {
+          await setDoc(doc(db, "publicPreviews", updatedSite.previewToken), sanitizedPublic, { merge: true });
+        }
+
+        console.log("Draft and public preview successfully saved to Firestore!");
+        setFirestorePermissionNotice(false);
+      } catch (e: any) {
         handleFirestoreError(e, OperationType.WRITE, `sites/${updatedSite.id}`);
         console.error("Error saving draft to Firestore: ", e);
+        if (e?.message?.includes("Missing or insufficient permissions") || e?.code === "permission-denied") {
+          setFirestorePermissionNotice(true);
+        }
       }
     }
   };
@@ -777,9 +1127,14 @@ export default function App() {
               userId: session.uid,
               ownerId: session.uid,
               updatedAt: serverTimestamp()
-            }, { merge: true }).catch(err => {
+            }, { merge: true }).then(() => {
+              setFirestorePermissionNotice(false);
+            }).catch(err => {
               handleFirestoreError(err, OperationType.UPDATE, `sites/${siteId}`);
               console.error("Error updating site status in Firestore:", err);
+              if (err?.message?.includes("Missing or insufficient permissions") || err?.code === "permission-denied") {
+                setFirestorePermissionNotice(true);
+              }
             });
           }
           if (generatedSite?.id === siteId) {
@@ -842,14 +1197,25 @@ export default function App() {
           
           {/* View: Dashboard Overview */}
           {activeTab === "dashboard" && (() => {
-            const newProspectsCount = businesses.filter(b => !b.prospectStatus || b.prospectStatus === 'New' || b.prospectStatus === 'Identified').length || businesses.length;
-            const highOppCount = businesses.filter(b => (b.opportunityScore || 0) >= 80 || (b.websiteOpportunityScore || 0) >= 80 || (!b.website && (b.rating || 0) >= 4)).length;
-            const previewsReadyCount = userSites.length;
-            const followUpsDueCount = businesses.filter(b => b.nextFollowUpDate).length;
-            const proposalsAwaitingCount = userSites.filter(s => (s.proposal && s.proposal.status !== 'accepted' && !s.clientApproved) || s.proposal?.status === 'sent').length;
+            const prospectsFound = businesses.length;
+            const websitesCreated = userSites.length;
+            const previewsSent = userSites.filter(s => s.proposal?.status === 'sent' || s.salesStatus === 'contacted' || s.salesStatus === 'proposal_sent').length;
+            const interestedCount = businesses.filter(b => b.prospectStatus === 'Interested' || b.prospectStatus === 'Hot').length + userSites.filter(s => s.clientFeedback && s.clientFeedback.length > 0 && !s.clientApproved).length;
+            const wonCount = businesses.filter(b => b.prospectStatus === 'Won').length + userSites.filter(s => s.clientApproved || s.salesStatus === 'Won').length;
 
             return (
             <div className="space-y-8">
+              {/* Primary 3-Step Rapid Revenue Engine */}
+              <ThreeStepRevenueEngine 
+                onScanBusinesses={handleScan20NoWebsite}
+                onBuildWebsite={handleDirectBuildWebsite}
+                businesses={businesses}
+                userSites={userSites}
+                selectedBusiness={selectedBusiness}
+                activeGeneratedSite={generatedSite}
+                isScanning={loading}
+              />
+
               {/* Daily Sales-Focused Operational Action Bar */}
               <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 text-left">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -866,33 +1232,33 @@ export default function App() {
 
                 <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
                   <div className="p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/50 flex flex-col justify-between">
-                    <span className="text-[10px] uppercase font-bold text-blue-700 dark:text-blue-300">New Prospects</span>
-                    <p className="text-2xl sm:text-3xl font-black font-mono text-blue-900 dark:text-blue-100 mt-2">{newProspectsCount}</p>
-                    <span className="text-[10px] text-blue-600/80 dark:text-blue-400 mt-1">Ready for discovery</span>
-                  </div>
-
-                  <div className="p-4 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/50 flex flex-col justify-between">
-                    <span className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-300">High Opportunity</span>
-                    <p className="text-2xl sm:text-3xl font-black font-mono text-emerald-900 dark:text-emerald-100 mt-2">{highOppCount}</p>
-                    <span className="text-[10px] text-emerald-600/80 dark:text-emerald-400 mt-1">&ge;80% digital deficit</span>
+                    <span className="text-[10px] uppercase font-bold text-blue-700 dark:text-blue-300">Prospects found</span>
+                    <p className="text-2xl sm:text-3xl font-black font-mono text-blue-900 dark:text-blue-100 mt-2">{prospectsFound}</p>
+                    <span className="text-[10px] text-blue-600/80 dark:text-blue-400 mt-1">Discovered leads</span>
                   </div>
 
                   <div className="p-4 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 flex flex-col justify-between">
-                    <span className="text-[10px] uppercase font-bold text-indigo-700 dark:text-indigo-300">Previews Ready</span>
-                    <p className="text-2xl sm:text-3xl font-black font-mono text-indigo-900 dark:text-indigo-100 mt-2">{previewsReadyCount}</p>
-                    <span className="text-[10px] text-indigo-600/80 dark:text-indigo-400 mt-1">Live demo links</span>
+                    <span className="text-[10px] uppercase font-bold text-indigo-700 dark:text-indigo-300">Websites created</span>
+                    <p className="text-2xl sm:text-3xl font-black font-mono text-indigo-900 dark:text-indigo-100 mt-2">{websitesCreated}</p>
+                    <span className="text-[10px] text-indigo-600/80 dark:text-indigo-400 mt-1">Prototypes generated</span>
                   </div>
 
                   <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900/50 flex flex-col justify-between">
-                    <span className="text-[10px] uppercase font-bold text-amber-700 dark:text-amber-300">Follow-Ups Due</span>
-                    <p className="text-2xl sm:text-3xl font-black font-mono text-amber-900 dark:text-amber-100 mt-2">{followUpsDueCount}</p>
-                    <span className="text-[10px] text-amber-600/80 dark:text-amber-400 mt-1">Scheduled calls/texts</span>
+                    <span className="text-[10px] uppercase font-bold text-amber-700 dark:text-amber-300">Previews sent</span>
+                    <p className="text-2xl sm:text-3xl font-black font-mono text-amber-900 dark:text-amber-100 mt-2">{previewsSent}</p>
+                    <span className="text-[10px] text-amber-600/80 dark:text-amber-400 mt-1">Outreach delivered</span>
                   </div>
 
-                  <div className="p-4 rounded-2xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-100 dark:border-purple-900/50 flex flex-col justify-between col-span-2 sm:col-span-1">
-                    <span className="text-[10px] uppercase font-bold text-purple-700 dark:text-purple-300">Proposals Awaiting</span>
-                    <p className="text-2xl sm:text-3xl font-black font-mono text-purple-900 dark:text-purple-100 mt-2">{proposalsAwaitingCount}</p>
-                    <span className="text-[10px] text-purple-600/80 dark:text-purple-400 mt-1">Pending sign-offs</span>
+                  <div className="p-4 rounded-2xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-100 dark:border-purple-900/50 flex flex-col justify-between">
+                    <span className="text-[10px] uppercase font-bold text-purple-700 dark:text-purple-300">Interested</span>
+                    <p className="text-2xl sm:text-3xl font-black font-mono text-purple-900 dark:text-purple-100 mt-2">{interestedCount}</p>
+                    <span className="text-[10px] text-purple-600/80 dark:text-purple-400 mt-1">Awaiting review</span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/50 flex flex-col justify-between col-span-2 sm:col-span-1">
+                    <span className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-300">Won</span>
+                    <p className="text-2xl sm:text-3xl font-black font-mono text-emerald-900 dark:text-emerald-100 mt-2">{wonCount}</p>
+                    <span className="text-[10px] text-emerald-600/80 dark:text-emerald-400 mt-1">Closed accounts</span>
                   </div>
                 </div>
               </div>
@@ -906,13 +1272,43 @@ export default function App() {
                   <AlertTriangle className={`h-5 w-5 shrink-0 mt-0.5 ${apiNotice === "sandbox_simulated" ? "text-amber-500" : "text-blue-500"}`} />
                   <div>
                     <h4 className="text-xs font-extrabold uppercase tracking-wider">
-                      {apiNotice === "sandbox_simulated" ? "High-Fidelity Sandbox Enabled" : "Mock Demo Environment Active"}
+                      {apiNotice === "sandbox_simulated" ? "Live Directory Search Offline (Demo Mode Active)" : "Mock Demo Environment Active"}
                     </h4>
                     <p className="text-xs mt-1 leading-relaxed opacity-90">
                       {apiNotice === "sandbox_simulated" 
-                        ? "SiteScout's upstream API is currently under extremely high demand. We've seamlessly switched to our high-fidelity, offline sandbox simulator. All find-build-close loops remain fully active with high-quality localized business prospects!"
-                        : "GEMINI_API_KEY is not configured in your workspace secrets. SiteScout AI is running with our beautiful pre-loaded localized business simulator to demonstrate elite lead-generation workflows."}
+                        ? "Live web directory search is currently unavailable or timed out. SiteScout has loaded demo sample prospects for interface testing. Note: Sample records are unverified test data and should not be contacted."
+                        : "GEMINI_API_KEY is not configured in your workspace secrets. SiteScout AI is running with our pre-loaded localized business samples to demonstrate prospecting workflows."}
                     </p>
+                  </div>
+                </div>
+              )}
+
+              {firestorePermissionNotice && (
+                <div className="p-4 rounded-xl border border-amber-200 bg-amber-50 text-amber-950 dark:bg-amber-950/20 dark:border-amber-900/40 dark:text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left">
+                  <div className="flex items-start gap-3">
+                    <ShieldAlert className="h-5 w-5 shrink-0 mt-0.5 text-amber-600" />
+                    <div>
+                      <h4 className="text-xs font-extrabold uppercase tracking-wider text-amber-900 dark:text-amber-100">
+                        Cloud Sync: Publish Security Rules in Firebase Console
+                      </h4>
+                      <p className="text-xs mt-1 leading-relaxed opacity-90">
+                        Your sites and proposals are currently safely preserved in offline browser cache. To enable multi-device cloud sync, publish the updated security rules in your Firebase Console (<span className="font-mono text-[11px] bg-amber-200/60 dark:bg-amber-900/50 px-1 py-0.5 rounded">sitescout-ai-ec355</span>).
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => setShowRulesModal(true)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white cursor-pointer shadow-sm transition-colors whitespace-nowrap"
+                    >
+                      View Rules to Paste
+                    </button>
+                    <button
+                      onClick={() => setFirestorePermissionNotice(false)}
+                      className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-amber-700 hover:bg-amber-100 dark:text-amber-300 dark:hover:bg-amber-900/40 cursor-pointer"
+                    >
+                      Dismiss
+                    </button>
                   </div>
                 </div>
               )}
@@ -1217,6 +1613,7 @@ export default function App() {
               }}
               onCreateNewPreview={() => setActiveTab("finder")}
               onUpdateSiteStatus={handleUpdateSiteStatus}
+              onUpdateSite={handleSaveDraft}
             />
           )}
 
@@ -1243,6 +1640,7 @@ export default function App() {
           {/* View: AI Generator loading spinner simulation */}
           {activeTab === "generator" && selectedBusiness && (
             <WebsiteGenerator 
+              business={selectedBusiness}
               businessName={selectedBusiness.name}
               category={selectedBusiness.category}
               onCompletion={handleGeneratorCompletion}
@@ -1337,7 +1735,7 @@ export default function App() {
 
           {/* View: System Administrator configs */}
           {activeTab === "admin" && (
-            <AdminPanel />
+            <AdminPanel sites={userSites} />
           )}
 
           {/* View: Industry Template Library */}
@@ -1353,6 +1751,125 @@ export default function App() {
 
         </div>
       </main>
+
+      {/* Firebase Firestore Rules Guide Modal */}
+      {showRulesModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl max-h-[90vh] flex flex-col text-left">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="h-5 w-5 text-amber-500" />
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Firestore Security Rules Configuration</h3>
+              </div>
+              <button
+                onClick={() => setShowRulesModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="py-4 space-y-4 overflow-y-auto text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+              <p>
+                Your Firebase project <code className="font-mono bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-blue-600 dark:text-blue-400">sitescout-ai-ec355</code> currently has security rules blocking direct writes or reads. To enable real-time cloud sync across your devices:
+              </p>
+
+              <ol className="list-decimal pl-5 space-y-2">
+                <li>
+                  Open the <a href="https://console.firebase.google.com/project/sitescout-ai-ec355/firestore/rules" target="_blank" rel="noreferrer" className="text-blue-600 dark:text-blue-400 font-bold underline inline-flex items-center gap-1">Firebase Console Rules tab <ExternalLink className="h-3 w-3 inline" /></a>.
+                </li>
+                <li>Copy the prepared rules below and replace the existing contents.</li>
+                <li>Click <strong>Publish</strong> in the Firebase Console.</li>
+              </ol>
+
+              <div className="relative rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-950 text-slate-200 p-4 font-mono text-[11px] overflow-x-auto max-h-56">
+                <pre>{`rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'siphom.yati@gmail.com' ||
+        (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') in ['admin', 'Admin']
+        )
+      );
+    }
+    function isOwner(data) {
+      return isSignedIn() && (
+        ('userId' in data && data.userId == request.auth.uid) ||
+        ('ownerId' in data && data.ownerId == request.auth.uid)
+      );
+    }
+    match /users/{userId} {
+      allow read, create, update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow delete: if isAdmin();
+      match /{allSubcollections=**} {
+        allow read, write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      }
+    }
+    match /sites/{siteId} {
+      allow get, list: if isSignedIn() && (isOwner(resource.data) || isAdmin());
+      allow create: if isSignedIn() && (('userId' in request.resource.data && request.resource.data.userId == request.auth.uid) || ('ownerId' in request.resource.data && request.resource.data.ownerId == request.auth.uid) || isAdmin());
+      allow update, delete: if isSignedIn() && (isOwner(resource.data) || isAdmin());
+    }
+    match /publicPreviews/{previewToken} {
+      allow get: if true;
+      allow list: if isSignedIn() && (isOwner(resource.data) || isAdmin());
+      allow create, update: if isSignedIn() && (('userId' in request.resource.data && request.resource.data.userId == request.auth.uid) || ('ownerId' in request.resource.data && request.resource.data.ownerId == request.auth.uid) || !('userId' in request.resource.data) || isAdmin());
+      allow delete: if isSignedIn() && (isOwner(resource.data) || isAdmin());
+    }
+    match /businesses/{businessId} {
+      allow get, list: if isSignedIn() && (isOwner(resource.data) || isAdmin());
+      allow create: if isSignedIn() && (('userId' in request.resource.data && request.resource.data.userId == request.auth.uid) || ('ownerId' in request.resource.data && request.resource.data.ownerId == request.auth.uid) || isAdmin());
+      allow update, delete: if isSignedIn() && (isOwner(resource.data) || isAdmin());
+    }
+    match /proposals/{proposalId} {
+      allow get: if true;
+      allow list: if isSignedIn() && (isOwner(resource.data) || isAdmin());
+      allow create: if isSignedIn() && (('userId' in request.resource.data && request.resource.data.userId == request.auth.uid) || ('ownerId' in request.resource.data && request.resource.data.ownerId == request.auth.uid) || isAdmin());
+      allow update, delete: if isSignedIn() && (isOwner(resource.data) || isAdmin());
+    }
+  }
+}`}</pre>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+              <a
+                href="https://console.firebase.google.com/project/sitescout-ai-ec355/firestore/rules"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                Open Firebase Console <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const rulesText = `rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    function isSignedIn() { return request.auth != null; }\n    function isAdmin() {\n      return isSignedIn() && (\n        request.auth.token.email == 'siphom.yati@gmail.com' ||\n        (\n          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&\n          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') in ['admin', 'Admin']\n        )\n      );\n    }\n    function isOwner(data) {\n      return isSignedIn() && (\n        ('userId' in data && data.userId == request.auth.uid) ||\n        ('ownerId' in data && data.ownerId == request.auth.uid)\n      );\n    }\n    match /users/{userId} {\n      allow read, create, update: if isSignedIn() && (request.auth.uid == userId || isAdmin());\n      allow delete: if isAdmin();\n      match /{allSubcollections=**} {\n        allow read, write: if isSignedIn() && (request.auth.uid == userId || isAdmin());\n      }\n    }\n    match /sites/{siteId} {\n      allow get, list: if isSignedIn() && (isOwner(resource.data) || isAdmin());\n      allow create: if isSignedIn() && (('userId' in request.resource.data && request.resource.data.userId == request.auth.uid) || ('ownerId' in request.resource.data && request.resource.data.ownerId == request.auth.uid) || isAdmin());\n      allow update, delete: if isSignedIn() && (isOwner(resource.data) || isAdmin());\n    }\n    match /publicPreviews/{previewToken} {\n      allow get: if true;\n      allow list: if isSignedIn() && (isOwner(resource.data) || isAdmin());\n      allow create, update: if isSignedIn() && (('userId' in request.resource.data && request.resource.data.userId == request.auth.uid) || ('ownerId' in request.resource.data && request.resource.data.ownerId == request.auth.uid) || !('userId' in request.resource.data) || isAdmin());\n      allow delete: if isSignedIn() && (isOwner(resource.data) || isAdmin());\n    }\n    match /businesses/{businessId} {\n      allow get, list: if isSignedIn() && (isOwner(resource.data) || isAdmin());\n      allow create: if isSignedIn() && (('userId' in request.resource.data && request.resource.data.userId == request.auth.uid) || ('ownerId' in request.resource.data && request.resource.data.ownerId == request.auth.uid) || isAdmin());\n      allow update, delete: if isSignedIn() && (isOwner(resource.data) || isAdmin());\n    }\n    match /proposals/{proposalId} {\n      allow get: if true;\n      allow list: if isSignedIn() && (isOwner(resource.data) || isAdmin());\n      allow create: if isSignedIn() && (('userId' in request.resource.data && request.resource.data.userId == request.auth.uid) || ('ownerId' in request.resource.data && request.resource.data.ownerId == request.auth.uid) || isAdmin());\n      allow update, delete: if isSignedIn() && (isOwner(resource.data) || isAdmin());\n    }\n  }\n}`;
+                    navigator.clipboard.writeText(rulesText);
+                    setCopiedRules(true);
+                    setTimeout(() => setCopiedRules(false), 2500);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white cursor-pointer shadow-sm"
+                >
+                  {copiedRules ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  {copiedRules ? "Copied to Clipboard!" : "Copy Rules"}
+                </button>
+                <button
+                  onClick={() => setShowRulesModal(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Footer copyright */}
       <footer className="mt-auto border-t border-slate-200 dark:border-slate-800 py-6 bg-white dark:bg-slate-950 text-center text-xs text-slate-400 shrink-0">

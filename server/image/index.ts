@@ -5,5 +5,6 @@ export * from "./providers/pexelsProvider.js";
 export * from "./providers/unsplashProvider.js";
 export * from "./providers/curatedProvider.js";
 export * from "./imageRanking.js";
+export * from "./visualAnalyzer.js";
 export * from "./imageCache.js";
 export * from "./imageSearchAssistant.js";

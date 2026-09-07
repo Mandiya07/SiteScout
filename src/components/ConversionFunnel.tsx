@@ -31,7 +31,7 @@ export default function ConversionFunnel({ stats }: ConversionFunnelProps) {
     { 
       value: stats.generated, 
       name: "Previews Generated", 
-      stage: "Site Drafts Built",
+      stage: "Website Previews Created",
       fill: "#6366f1", // Indigo
       icon: Globe,
       percentage: stats.found > 0 ? Math.round((stats.generated / stats.found) * 100) : 0,

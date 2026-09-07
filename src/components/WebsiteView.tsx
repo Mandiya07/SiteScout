@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { GeneratedSite } from "../types";
 import { getCategoryHeroImage, resolveHeroImageUrl, CATEGORY_HERO_IMAGES } from "../lib/heroImages";
+import { normalizePhoneNumber } from "../lib/formatters";
 import { 
   Phone, MapPin, MessageSquare, ChevronDown, Check, Sparkles, Wrench, Utensils, HeartPulse, Scale, Briefcase, Home, Camera, Scissors, ShieldCheck,
   GraduationCap, Church, Building2, Zap, TreePine, Trophy, Flag, HeartHandshake, Dumbbell, ShoppingBag, Users
@@ -241,8 +242,13 @@ export default function WebsiteView({ site }: WebsiteViewProps) {
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {site.gallery.map((img, i) => (
-                <div key={i} className="relative aspect-square overflow-hidden rounded-xl border border-slate-200">
-                  <img src={img.url} alt={img.alt} className="object-cover w-full h-full hover:scale-105 transition-transform duration-300" referrerPolicy="no-referrer" />
+                <div key={i} className="group relative aspect-square overflow-hidden rounded-xl border border-slate-200 shadow-xs">
+                  <img src={img.url} alt={img.alt} className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300" referrerPolicy="no-referrer" />
+                  {img.alt && (
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/80 via-slate-950/40 to-transparent p-2.5 pt-6 text-white text-[11px] font-semibold leading-tight drop-shadow-xs">
+                      {img.alt}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -315,14 +321,20 @@ export default function WebsiteView({ site }: WebsiteViewProps) {
               {site.contactPage.title}
             </h3>
             <p className="text-xs text-slate-600 text-center mb-6 font-sans">{site.contactPage.description}</p>
-            <div className="bg-white rounded-xl border border-slate-100 p-5 shadow-sm dark:bg-slate-950 dark:border-slate-800">
-               <div className="space-y-3">
-                 <input type="text" placeholder="Your Name" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs" />
-                 <input type="email" placeholder="Email Address" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs" />
-                 <textarea placeholder="Your Message" rows={4} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs"></textarea>
-                 <button className="w-full py-2.5 rounded-xl text-xs font-bold text-white shadow-md cursor-pointer" style={{ backgroundColor: site.accentColor }}>
-                    Send Message
-                 </button>
+            <div className="bg-white rounded-xl border border-slate-100 p-6 shadow-sm dark:bg-slate-950 dark:border-slate-800 text-center">
+               <div className="flex flex-col items-center justify-center space-y-4">
+                  <p className="text-sm text-slate-600 dark:text-slate-400">Reach out directly via email or phone to discuss your needs.</p>
+                  
+                  <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                    <a href={`mailto:${site.contactPage.email}`} className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold text-white shadow-md cursor-pointer transition-transform hover:scale-105" style={{ backgroundColor: site.accentColor }}>
+                      <MessageSquare className="h-4 w-4" />
+                      Email Us
+                    </a>
+                    <a href={`tel:${site.phone}`} className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold shadow-sm border border-slate-200 bg-white text-slate-800 cursor-pointer transition-transform hover:scale-105 dark:bg-slate-900 dark:border-slate-700 dark:text-white">
+                      <Phone className="h-4 w-4" />
+                      Call {site.phone}
+                    </a>
+                  </div>
                </div>
             </div>
             <div className="mt-6 flex flex-col items-center gap-2 text-xs text-slate-600">
@@ -362,7 +374,12 @@ export default function WebsiteView({ site }: WebsiteViewProps) {
           <a href={`tel:${site.phone}`} className="flex h-7 w-7 items-center justify-center rounded-lg text-white shadow-xs transition-transform hover:scale-105" style={{ backgroundColor: site.accentColor }}>
             <Phone className="h-3.5 w-3.5" />
           </a>
-          <a href={`https://wa.me/${site.phone}`} className="flex h-7 w-7 items-center justify-center rounded-lg text-white bg-emerald-500 shadow-xs transition-transform hover:scale-105">
+          <a 
+            href={`https://wa.me/${normalizePhoneNumber(site.phone)}${site.whatsappMessage ? `?text=${encodeURIComponent(site.whatsappMessage)}` : ""}`} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-white bg-emerald-500 shadow-xs transition-transform hover:scale-105"
+          >
             <MessageSquare className="h-3.5 w-3.5" />
           </a>
         </div>
@@ -432,7 +449,7 @@ export default function WebsiteView({ site }: WebsiteViewProps) {
           <button onClick={() => setActivePage('terms')} className="hover:underline cursor-pointer">Terms of Service</button>
           <button onClick={() => setActivePage('404')} className="hover:underline cursor-pointer">404 Error Preview</button>
         </div>
-        <p className="mt-2 text-[9px] text-slate-400">© 2026. Custom layout built instantly by SiteScout AI.</p>
+        <p className="mt-2 text-[9px] text-slate-400">© 2026. Free website preview created by SiteScout AI.</p>
       </footer>
     </div>
   );

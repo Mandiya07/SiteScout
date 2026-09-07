@@ -1,39 +1,176 @@
 {
-  "collections": [
-    {
-      "name": "users",
-      "fields": [
-        {
-          "name": "email",
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Registered user profile and role details",
+      "type": "object",
+      "properties": {
+        "email": {
           "type": "string",
-          "description": "User's email address"
+          "format": "email",
+          "description": "User email address"
         },
-        {
-          "name": "displayName",
+        "displayName": {
           "type": "string",
-          "description": "User's full name"
+          "description": "User display name",
+          "maxLength": 100
         },
-        {
-          "name": "role",
+        "role": {
           "type": "string",
-          "description": "User role: 'admin' or 'user'"
+          "description": "User role: 'user', 'admin', 'User', or 'Admin'",
+          "enum": ["user", "admin", "User", "Admin"]
         },
-        {
-          "name": "createdAt",
-          "type": "timestamp",
-          "description": "Timestamp when the profile was created"
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when user was registered"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when user profile was last updated"
         }
-      ],
-      "rules": [
-        {
-          "action": "read",
-          "condition": "request.auth != null && (request.auth.uid == documentId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')"
+      },
+      "required": ["email"]
+    },
+    "Site": {
+      "title": "Site",
+      "description": "Generated website project and draft information",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique site identifier"
         },
-        {
-          "action": "write",
-          "condition": "request.auth != null && (request.auth.uid == documentId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')"
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Owner user UID"
+        },
+        "businessName": {
+          "type": "string",
+          "description": "Name of the business",
+          "maxLength": 150
+        },
+        "category": {
+          "type": "string",
+          "description": "Industry category",
+          "maxLength": 80
+        },
+        "salesStatus": {
+          "type": "string",
+          "description": "Sales pipeline status"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when site draft was last updated"
         }
-      ]
+      },
+      "required": ["id", "businessName"]
+    },
+    "Business": {
+      "title": "Business",
+      "description": "Prospect business lead records with user ownership support",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique lead identifier"
+        },
+        "name": {
+          "type": "string",
+          "description": "Business name"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID for strict security isolation"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Owner user UID"
+        }
+      },
+      "required": ["id", "name"]
+    },
+    "Proposal": {
+      "title": "Proposal",
+      "description": "Client outreach proposal pitch",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Proposal ID"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Creator user UID"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Creator user UID"
+        }
+      },
+      "required": ["id"]
+    },
+    "PublicPreview": {
+      "title": "PublicPreview",
+      "description": "Sanitized public presentation payload for prospective clients",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Site ID"
+        },
+        "previewToken": {
+          "type": "string",
+          "description": "Public presentation share token"
+        },
+        "businessName": {
+          "type": "string",
+          "description": "Business name"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID"
+        }
+      },
+      "required": ["id", "businessName"]
     }
-  ]
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/User"
+      },
+      "description": "User profiles keyed by auth UID"
+    },
+    "/sites/{siteId}": {
+      "schema": {
+        "$ref": "#/entities/Site"
+      },
+      "description": "Private generated sites and drafts created by users"
+    },
+    "/publicPreviews/{previewToken}": {
+      "schema": {
+        "$ref": "#/entities/PublicPreview"
+      },
+      "description": "Public presentation preview payloads for prospect client review"
+    },
+    "/businesses/{businessId}": {
+      "schema": {
+        "$ref": "#/entities/Business"
+      },
+      "description": "Prospect business records collected during discovery"
+    },
+    "/proposals/{proposalId}": {
+      "schema": {
+        "$ref": "#/entities/Proposal"
+      },
+      "description": "Client pitches and proposals"
+    }
+  }
 }

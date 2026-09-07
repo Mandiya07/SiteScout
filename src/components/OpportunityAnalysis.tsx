@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { authedFetch } from "../lib/firebase";
 import { 
   Check, AlertTriangle, ChevronRight, Zap, ArrowLeft, HeartCrack, 
   Flame, CheckCircle2, XCircle, Globe, MapPin, Layers, Sparkles, 
@@ -159,7 +160,7 @@ export default function OpportunityAnalysis({
     setIsAuditingUrl(true);
     const target = testUrl.trim() || `${business.name.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`;
     try {
-      const res = await fetch("/api/audit-url", {
+      const res = await authedFetch("/api/audit-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: target, businessName: business.name })
@@ -227,6 +228,15 @@ export default function OpportunityAnalysis({
           <ArrowLeft className="h-4 w-4" /> Back to Prospecting Directory
         </button>
         <div className="flex items-center gap-2">
+          {business.dataType === "demo" || business.isDemo ? (
+            <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md font-bold bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
+              ⚠️ Demo / Synthetic Data
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40">
+              <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600" /> Verified
+            </span>
+          )}
           <span className="text-xs text-slate-400 dark:text-slate-500">
             Prospect: <strong className="text-slate-700 dark:text-slate-200">{business.name}</strong> ({business.category})
           </span>
@@ -235,7 +245,94 @@ export default function OpportunityAnalysis({
 
       {/* Main Analysis Card Grid */}
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Left Column: Digital Presence Score Circle and Summary */}
+        {/* Left Column: Prospect Verification and Digital Presence */}
+        <div className="space-y-6">
+          {/* Prospect Verification Card */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 transition-colors">
+            <h3 className="text-base font-extrabold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-emerald-500" />
+              Prospect Verification
+            </h3>
+            
+            <div className="space-y-3">
+              <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-2">
+                Business Information
+              </h4>
+              
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 dark:text-slate-400">Website:</span>
+                  <span className="font-medium text-slate-800 dark:text-slate-200">
+                    {business.presence?.hasWebsite ? "✓ Found" : "❌ None found"}
+                  </span>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 dark:text-slate-400">Google presence:</span>
+                  <span className="font-medium text-slate-800 dark:text-slate-200">
+                    {business.presence?.googleProfileQuality && business.presence.googleProfileQuality !== 'poor' ? "✓ Found" : "❌ None found"}
+                  </span>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 dark:text-slate-400">Reviews:</span>
+                  <span className="font-medium text-slate-800 dark:text-slate-200">
+                    {business.reviewsCount}
+                  </span>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 dark:text-slate-400">Rating:</span>
+                  <span className="font-medium text-slate-800 dark:text-slate-200">
+                    {business.rating}
+                  </span>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 dark:text-slate-400">Facebook:</span>
+                  <span className="font-medium text-slate-800 dark:text-slate-200">
+                    {business.presence?.facebookStatus === 'active' ? "✓ Active" : "❌ Inactive"}
+                  </span>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 dark:text-slate-400">Instagram:</span>
+                  <span className="font-medium text-slate-800 dark:text-slate-200">
+                    {business.presence?.instagramStatus === 'active' ? "✓ Active" : "❌ Inactive"}
+                  </span>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 dark:text-slate-400">Digital opportunity:</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                    {business.opportunityScore ?? (100 - score)}/100
+                  </span>
+                </div>
+              </div>
+              
+              <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-2">
+                  Evidence
+                </h4>
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg text-xs text-slate-600 dark:text-slate-400 border border-slate-200/50 dark:border-slate-700/50">
+                  {customAuditResult ? (
+                    <p>{customAuditResult.evidence?.notes}</p>
+                  ) : business.evidence ? (
+                    <p>{business.evidence.notes}</p>
+                  ) : (
+                    <p className="italic text-slate-400">No verified evidence available.</p>
+                  )}
+                  {(customAuditResult?.evidence?.httpStatus || business.evidence?.httpStatus) && (
+                    <div className="mt-1 flex items-center justify-between text-[10px] text-slate-400">
+                      <span>Source: {customAuditResult ? "Live Ping" : business.evidence?.source || "Directory"}</span>
+                      <span className="font-mono">{customAuditResult?.evidence?.httpStatus || business.evidence?.httpStatus}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 transition-colors">
           <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
             Digital Presence Scorecard
@@ -288,6 +385,20 @@ export default function OpportunityAnalysis({
                 {business.opportunityScore ?? (100 - score)}% Close Probability
               </span>
             </div>
+
+            {/* Score Precision & Provenance Callout */}
+            <div className="p-2.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-900/40 text-[10px] text-amber-900 dark:text-amber-300">
+              <div className="flex items-center justify-between font-bold text-amber-800 dark:text-amber-200 mb-0.5">
+                <span>Score Precision Provenance:</span>
+                <span className="px-1.5 py-0.5 rounded bg-amber-200/60 dark:bg-amber-900/60 text-[9px] uppercase tracking-wide">
+                  {customAuditResult ? "Live Ping Verified" : business.dataType === "demo" || business.isDemo ? "Synthetic Model Baseline" : "Directory Estimate"}
+                </span>
+              </div>
+              <p className="leading-snug text-amber-800/80 dark:text-amber-300/80">
+                Formula: <strong>55% Deficit Weight + 45% Quality Weight</strong>. {customAuditResult ? "Verified via real HTTP ping." : "Score uses synthetic AI heuristics. Connect live Google API feeds for verified precision."}
+              </p>
+            </div>
+
             <div className="flex items-center justify-between text-xs">
               <span className="text-slate-500 dark:text-slate-400 font-medium">Deficits Identified</span>
               <span className="font-extrabold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 px-2 py-0.5 rounded-full">
@@ -318,7 +429,7 @@ export default function OpportunityAnalysis({
               <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 text-[11px] text-emerald-900 dark:text-emerald-300">
                 <div className="flex items-center gap-1.5 font-bold text-emerald-800 dark:text-emerald-200 mb-1">
                   <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
-                  Live HTTP Audit Confirmed
+                  Basic Website Technical Audit Confirmed
                 </div>
                 <p className="text-[11px]">{customAuditResult.evidence?.notes}</p>
                 <div className="mt-1 flex items-center justify-between text-[10px] text-emerald-700 dark:text-emerald-400 font-mono">
@@ -331,7 +442,7 @@ export default function OpportunityAnalysis({
             {/* Real-Time Live URL Auditor tool */}
             <div className="p-3 rounded-xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40">
               <label className="block text-[11px] font-bold text-blue-950 dark:text-blue-200 mb-1.5">
-                Run Real-Time Live Domain / URL Audit
+                Run Basic Website Technical Audit
               </label>
               <div className="flex gap-1.5">
                 <input
@@ -347,11 +458,11 @@ export default function OpportunityAnalysis({
                   className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-blue-700 transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   <RefreshCw className={`h-3 w-3 ${isAuditingUrl ? 'animate-spin' : ''}`} />
-                  {isAuditingUrl ? "Pinging..." : "Live Audit"}
+                  {isAuditingUrl ? "Pinging..." : "Basic Audit"}
                 </button>
               </div>
               <p className="text-[9px] text-blue-700/80 dark:text-blue-300/80 mt-1">
-                Performs a genuine HTTP ping & DOM inspection to check mobile viewport, SSL, and CTAs.
+                Performs a basic technical HTTP ping & DOM inspection (viewport, SSL, title/meta tags, contact CTAs). Deep layout analysis, Core Web Vitals, and accessibility checks require full browser runtime scanning.
               </p>
             </div>
             <div className="flex items-center justify-between text-xs">
@@ -385,12 +496,13 @@ export default function OpportunityAnalysis({
                 </>
               ) : (
                 <>
-                  <Zap className="h-4 w-4 fill-white" /> Generate Custom Solution
+                  <Zap className="h-4 w-4 fill-white" /> Build Free Website Preview
                   <ChevronRight className="h-4 w-4" />
                 </>
               )}
             </button>
           </div>
+        </div>
         </div>
 
         {/* Right Column: The 13-Point Digital Deficit Diagnostic Matrix */}
@@ -509,7 +621,7 @@ export default function OpportunityAnalysis({
                   1. The WhatsApp & Direct Conversion Angle
                 </span>
                 <p className="text-xs text-slate-700 dark:text-slate-300">
-                  "Hi {business.name}, I noticed something specific about your online presence in {business.address.split(',')[0]}—clients searching on mobile can't browse your services or WhatsApp message you directly. I built a live interactive preview so you can see how easily it converts searchers into bookings."
+                  "Hi {business.name}, I noticed something specific about your online presence in {business.address.split(',')[0]}—clients searching on mobile can't browse your services or WhatsApp message you directly. I created a free website preview for your business so you can see how easily it converts searchers into bookings. Once you approve it, let's customize and launch it!"
                 </p>
               </div>
 

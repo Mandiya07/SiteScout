@@ -4,7 +4,9 @@ import {
   Globe, ExternalLink, Edit3, MessageSquare, FileText, 
   Trash2, Copy, Check, Sparkles, Eye, ShieldCheck, Tag,
   Plus, X, ChevronDown, Filter, CheckCircle2, XCircle,
-  MessageCircle, Send, Target, Search, Layers, TrendingUp
+  MessageCircle, Send, Target, Search, Layers, TrendingUp,
+  BarChart3, Calendar, Clock, Smartphone, Laptop, ChevronRight,
+  ShieldAlert, Sparkle, RefreshCw
 } from "lucide-react";
 
 interface MyWebsitesProps {
@@ -16,6 +18,7 @@ interface MyWebsitesProps {
   onDeleteSite: (siteId: string) => void;
   onCreateNewPreview: () => void;
   onUpdateSiteStatus?: (siteId: string, status: SalesStatus, tags?: string[]) => void;
+  onUpdateSite?: (updatedSite: GeneratedSite) => void;
 }
 
 export const SALES_STATUS_CONFIG: Record<SalesStatus, {
@@ -100,11 +103,14 @@ export default function MyWebsites({
   onOpenProposal,
   onDeleteSite,
   onCreateNewPreview,
-  onUpdateSiteStatus
+  onUpdateSiteStatus,
+  onUpdateSite
 }: MyWebsitesProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<"All" | SalesStatus>("All");
+  const [selectedAnalyticsSite, setSelectedAnalyticsSite] = useState<GeneratedSite | null>(null);
+  const [activeModalTab, setActiveModalTab] = useState<"history" | "feedback">("history");
   const [selectedTagFilter, setSelectedTagFilter] = useState<string | null>(null);
   
   // Quick status selector popover state
@@ -554,11 +560,27 @@ export default function MyWebsites({
                         <span className="font-semibold text-emerald-600 dark:text-emerald-400">Active</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span>Live link:</span>
-                        <span className="font-mono text-[11px] text-blue-600 dark:text-blue-400 truncate max-w-[170px]">
-                          /preview/{site.id.slice(0, 10)}...
+                        <span>Total Views:</span>
+                        <span className="font-semibold text-indigo-600 dark:text-indigo-400 font-mono">
+                          {site.previewViews || 0} views
                         </span>
                       </div>
+                      {site.clientFeedback && site.clientFeedback.length > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span>Client Feedback:</span>
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200/50 dark:border-amber-900/50">
+                            {site.clientFeedback.length} comments
+                          </span>
+                        </div>
+                      )}
+                      {site.clientApproved && (
+                        <div className="flex items-center justify-between">
+                          <span>Approval Status:</span>
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-900/50">
+                            Approved ✓
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -582,6 +604,19 @@ export default function MyWebsites({
                       <span>Quick Edit</span>
                     </button>
                   </div>
+
+                  <button
+                    onClick={() => setSelectedAnalyticsSite(site)}
+                    className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-900 transition-colors cursor-pointer"
+                  >
+                    <BarChart3 className="w-3.5 h-3.5" />
+                    <span>Prospect Tracker &amp; Analytics</span>
+                    {(site.previewViews || 0) > 0 && (
+                      <span className="ml-1 px-1.5 py-0.2 text-[10px] bg-indigo-600 text-white rounded-full font-mono font-bold">
+                        {site.previewViews}
+                      </span>
+                    )}
+                  </button>
 
                   <div className="grid grid-cols-3 gap-1.5 pt-1">
                     <button
@@ -787,6 +822,279 @@ export default function MyWebsites({
                 className="px-5 py-2 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all cursor-pointer"
               >
                 Save Changes
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* Prospect Tracker & Analytics Modal */}
+      {selectedAnalyticsSite && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden flex flex-col text-left max-h-[90vh]">
+            
+            {/* Header */}
+            <div className="p-6 pb-4 border-b border-slate-100 dark:border-slate-800 flex items-start justify-between">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2.5 py-1 rounded-md">
+                  Prospect Engagement Tracker
+                </span>
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white mt-2">
+                  {selectedAnalyticsSite.businessName}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Real-time sales triggers & feedback logs for this live preview.
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedAnalyticsSite(null)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Core Metrics Summary */}
+            <div className="p-6 py-4 bg-slate-50 dark:bg-slate-800/20 border-b border-slate-100 dark:border-slate-800 grid grid-cols-3 gap-4">
+              <div className="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800 text-center">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Views</span>
+                <div className="flex items-center justify-center gap-1.5 mt-1">
+                  <Eye className="w-4 h-4 text-indigo-500" />
+                  <span className="text-xl font-black text-slate-900 dark:text-white font-mono">
+                    {selectedAnalyticsSite.previewViews || 0}
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800 text-center">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Recent Activity</span>
+                <div className="flex items-center justify-center gap-1.5 mt-1 text-slate-700 dark:text-slate-300">
+                  <Clock className="w-4 h-4 text-amber-500" />
+                  <span className="text-xs font-bold truncate">
+                    {selectedAnalyticsSite.previewLastViewedAt 
+                      ? new Date(selectedAnalyticsSite.previewLastViewedAt).toLocaleDateString()
+                      : "No views yet"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800 text-center">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Client Status</span>
+                <div className="flex items-center justify-center gap-1 mt-1">
+                  {selectedAnalyticsSite.clientApproved ? (
+                    <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 text-xs font-bold">
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Approved</span>
+                    </span>
+                  ) : selectedAnalyticsSite.proposal?.status === "sent" ? (
+                    <span className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 text-xs font-bold">
+                      <FileText className="w-4 h-4" />
+                      <span>Quoted</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-slate-500 dark:text-slate-400 text-xs font-bold">
+                      <Globe className="w-4 h-4 opacity-50" />
+                      <span>Active Preview</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Tabs */}
+            <div className="px-6 border-b border-slate-100 dark:border-slate-800 flex gap-4">
+              <button
+                onClick={() => setActiveModalTab("history")}
+                className={`py-3 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+                  activeModalTab === "history"
+                    ? "border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400"
+                    : "border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
+                Viewer History Logs
+              </button>
+              <button
+                onClick={() => setActiveModalTab("feedback")}
+                className={`py-3 text-xs font-bold border-b-2 relative transition-all cursor-pointer ${
+                  activeModalTab === "feedback"
+                    ? "border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400"
+                    : "border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
+                Client Feedback Details
+                {selectedAnalyticsSite.clientFeedback && selectedAnalyticsSite.clientFeedback.length > 0 && (
+                  <span className="ml-1.5 px-1.5 py-0.2 text-[9px] bg-amber-500 text-white rounded-full">
+                    {selectedAnalyticsSite.clientFeedback.length}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* Tab Contents (Scrollable) */}
+            <div className="flex-1 p-6 overflow-y-auto space-y-4 max-h-[45vh]">
+              
+              {activeModalTab === "history" ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                      Live Telemetry Entries ({selectedAnalyticsSite.previewHistory?.length || 0})
+                    </h4>
+                    <span className="text-[10px] text-slate-400">
+                      Auto-refreshes on incoming visitor triggers
+                    </span>
+                  </div>
+
+                  {!selectedAnalyticsSite.previewHistory || selectedAnalyticsSite.previewHistory.length === 0 ? (
+                    <div className="p-8 text-center bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+                      <BarChart3 className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                        Awaiting First Client Click
+                      </p>
+                      <p className="text-xs text-slate-400 max-w-md mx-auto mt-1 leading-relaxed">
+                        Copy the shareable preview URL and text/email it to your prospect. Standard analytics metrics (visitor devices, referrer domains, and access timestamps) will automatically record here upon entry.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {selectedAnalyticsSite.previewHistory.map((item, index) => (
+                        <div 
+                          key={index}
+                          className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/60 rounded-xl"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="p-1.5 bg-white dark:bg-slate-800 rounded-lg shadow-2xs">
+                              {item.device === "mobile" ? (
+                                <Smartphone className="w-4 h-4 text-indigo-500" />
+                              ) : (
+                                <Laptop className="w-4 h-4 text-blue-500" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-slate-800 dark:text-slate-200 capitalize">
+                                Client Entered ({item.device || "Unknown Device"})
+                              </p>
+                              <p className="text-[10px] text-slate-400 mt-0.5">
+                                Originating via {item.referrer || "direct share"}
+                              </p>
+                            </div>
+                          </div>
+                          <span className="text-[11px] font-mono text-slate-500 bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-100 dark:border-slate-800/50">
+                            {new Date(item.timestamp).toLocaleDateString()} {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Playbook Pro-tip */}
+                  <div className="p-4 bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/50 rounded-xl flex gap-3">
+                    <Sparkle className="w-5 h-5 text-indigo-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-bold text-indigo-900 dark:text-indigo-200">
+                        Sales Playbook Formula
+                      </p>
+                      <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-1 leading-relaxed">
+                        If a prospect enters the site <strong>3+ times</strong>, it is an extremely strong signal they are reviewing the work. Call them or send a WhatsApp reminder offering custom integrations to immediately book their contract!
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Client Design Feedback & Revisions ({selectedAnalyticsSite.clientFeedback?.length || 0})
+                  </h4>
+
+                  {!selectedAnalyticsSite.clientFeedback || selectedAnalyticsSite.clientFeedback.length === 0 ? (
+                    <div className="p-8 text-center bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+                      <MessageSquare className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                        No Client Feedback Logged
+                      </p>
+                      <p className="text-xs text-slate-400 max-w-md mx-auto mt-1 leading-relaxed">
+                        Clients can directly submit text corrections, request color updates, or comment on service details from the public presenter bar. Submissions will populate here.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {selectedAnalyticsSite.clientFeedback.map((item, index) => {
+                        const isResolved = item.status === "resolved";
+                        return (
+                          <div 
+                            key={index}
+                            className={`p-3.5 rounded-xl border transition-all ${
+                              isResolved 
+                                ? "bg-slate-50/50 border-slate-100 dark:bg-slate-900/30 dark:border-slate-800 opacity-60" 
+                                : "bg-amber-50/40 border-amber-100 dark:bg-amber-950/10 dark:border-amber-900/40"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex gap-2">
+                                <div className="p-1 rounded-full bg-white dark:bg-slate-800 shadow-3xs mt-0.5">
+                                  <MessageCircle className={`w-3.5 h-3.5 ${isResolved ? "text-slate-400" : "text-amber-500"}`} />
+                                </div>
+                                <div>
+                                  <p className="text-xs font-bold text-slate-950 dark:text-white">
+                                    Client Revision Request
+                                  </p>
+                                  <p className="text-xs text-slate-700 dark:text-slate-300 mt-1 leading-relaxed italic">
+                                    "{item.message}"
+                                  </p>
+                                  <span className="text-[10px] text-slate-400 mt-1.5 block">
+                                    Submitted {new Date(item.timestamp).toLocaleString()}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {onUpdateSite && !isResolved && (
+                                <button
+                                  onClick={() => {
+                                    if (!selectedAnalyticsSite) return;
+                                    const updated = [...(selectedAnalyticsSite.clientFeedback || [])];
+                                    updated[index] = { ...updated[index], status: "resolved" };
+                                    const nextSite = { ...selectedAnalyticsSite, clientFeedback: updated };
+                                    setSelectedAnalyticsSite(nextSite);
+                                    onUpdateSite(nextSite);
+                                  }}
+                                  className="px-2 py-1 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-[10px] font-bold text-slate-700 dark:text-slate-300 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors shadow-2xs cursor-pointer"
+                                >
+                                  Mark Reviewed
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {selectedAnalyticsSite.clientApproved && (
+                    <div className="p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/50 rounded-xl flex gap-3">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-bold text-emerald-900 dark:text-emerald-200">
+                          Client Signed Off &amp; Approved!
+                        </p>
+                        <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-1 leading-relaxed">
+                          Verified authorization by <strong>{selectedAnalyticsSite.clientApprovedBy}</strong> on {selectedAnalyticsSite.clientApprovedAt ? new Date(selectedAnalyticsSite.clientApprovedAt).toLocaleString() : "Recently"}. Custom hosting infrastructure and domain pipelines are ready.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+            </div>
+
+            {/* Modal Actions */}
+            <div className="p-6 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedAnalyticsSite(null)}
+                className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-100 dark:hover:bg-slate-200 dark:text-slate-950 text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
+              >
+                Close Tracking Dashboard
               </button>
             </div>
 

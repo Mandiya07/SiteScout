@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { ImageMetadata, VisualBusinessProfile } from "../types";
+import { authedFetch } from "../lib/firebase";
 import { 
   Search, Sparkles, X, Check, Image as ImageIcon, ExternalLink, 
   Filter, ShieldCheck, User, RefreshCw, AlertCircle 
@@ -48,7 +49,7 @@ export default function ImagePickerModal({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/images/search", {
+      const res = await authedFetch("/api/images/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -242,26 +243,40 @@ export default function ImagePickerModal({
 
                     {/* Badge Overlay */}
                     <div className="absolute top-1.5 left-1.5 flex flex-wrap gap-1">
-                      {img.source === "curated_taxonomy" && (
+                      {img.visualAnalysis?.tradeAuthenticity === "high_fidelity_trade_match" ? (
+                        <span className="px-1.5 py-0.5 rounded bg-emerald-600/90 text-white text-[9px] font-bold shadow-xs">
+                          ✓ Authentic Trade Match
+                        </span>
+                      ) : img.visualAnalysis?.tradeAuthenticity === "generic_stock_warning" ? (
+                        <span className="px-1.5 py-0.5 rounded bg-amber-600/90 text-white text-[9px] font-bold shadow-xs">
+                          ⚠ Generic Stock
+                        </span>
+                      ) : (
                         <span className="px-1.5 py-0.5 rounded bg-blue-600/90 text-white text-[9px] font-bold">
                           Taxonomy Match
                         </span>
                       )}
                       {img.relevanceScore && (
-                        <span className="px-1.5 py-0.5 rounded bg-slate-900/80 text-emerald-400 text-[9px] font-mono font-bold">
+                        <span className="px-1.5 py-0.5 rounded bg-slate-900/85 text-emerald-400 text-[9px] font-mono font-bold shadow-xs">
                           {Math.round(img.relevanceScore)}%
                         </span>
                       )}
                     </div>
 
-                    {/* Attribution pill */}
-                    <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-slate-950/80 via-slate-950/40 to-transparent p-2 text-left opacity-90 group-hover:opacity-100 transition-opacity">
+                    {/* Attribution & Visual Intelligence pill */}
+                    <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-slate-950/90 via-slate-950/60 to-transparent p-2 text-left opacity-90 group-hover:opacity-100 transition-opacity">
                       <p className="text-[10px] font-medium text-white line-clamp-1">
                         {img.photographer || "Stock Asset"}
                       </p>
-                      <p className="text-[8px] text-slate-300 uppercase tracking-wider">
-                        {img.license || "Royalty Free"}
-                      </p>
+                      {img.relevanceBreakdown?.visualRelevance !== undefined && (
+                        <div className="flex items-center gap-1.5 text-[8px] text-slate-300 font-mono mt-0.5">
+                          <span>Visual: {img.relevanceBreakdown.visualRelevance}/35</span>
+                          <span>•</span>
+                          <span>Comp: {img.relevanceBreakdown.composition}/20</span>
+                          <span>•</span>
+                          <span>Overlay: {img.relevanceBreakdown.textOverlaySuitability}/20</span>
+                        </div>
+                      )}
                     </div>
 
                     {isSelected && (

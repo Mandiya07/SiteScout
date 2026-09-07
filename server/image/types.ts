@@ -1,6 +1,19 @@
+export interface VisualAnalysisReport {
+  detectedSubject: string;
+  tradeAuthenticity: "high_fidelity_trade_match" | "acceptable_context" | "generic_stock_warning";
+  focalPointPosition: "left_weighted" | "center" | "right_weighted" | "distributed";
+  negativeSpaceLocation: "left" | "right" | "top" | "center" | "minimal";
+  overlayReadabilityScore: number; // 0 - 100
+  contrastRating: "optimal_dark_overlay" | "optimal_light_overlay" | "high_contrast" | "busy_background";
+  analysisSummary: string;
+  visualDefects?: string[];
+}
+
 export interface ImageMetadata {
   id: string;
   provider: "unsplash" | "pexels" | "pixabay" | "curated_taxonomy" | "user_upload" | "business_asset" | "ai_generated";
+  source?: string;
+  selectionMethod?: string;
   sourceUrl: string;
   thumbnailUrl: string;
   fullUrl: string;
@@ -18,14 +31,20 @@ export interface ImageMetadata {
   subcategory?: string;
   relevanceScore: number;
   relevanceBreakdown?: {
-    industryMatch: number; // max 30
-    serviceMatch: number;  // max 25
-    sectionMatch: number;  // max 15
-    visualQuality: number; // max 10
-    composition: number;   // max 10
-    orientation: number;   // max 5
-    resolution: number;    // max 5
+    // 4-Stage Genuine Intelligence Breakdown (User Architecture)
+    metadataRelevance: number;      // max 25 (textual keyword, industry aliases, service name)
+    visualRelevance: number;        // max 35 (actual visual subject authenticity, specific trade tools/environment vs generic worker)
+    composition: number;            // max 20 (rule-of-thirds, visual balance, focal weight distribution)
+    textOverlaySuitability: number; // max 20 (negative space headroom, luminance contrast, readability for headings)
+    // Legacy fields for backward compatibility
+    industryMatch?: number;
+    serviceMatch?: number;
+    sectionMatch?: number;
+    visualQuality?: number;
+    orientation?: number;
+    resolution?: number;
   };
+  visualAnalysis?: VisualAnalysisReport;
   explanation?: string;
   orientation?: "landscape" | "portrait" | "square";
   createdAt: string;
@@ -73,6 +92,7 @@ export interface VisualBusinessProfile {
   aboutRequirement: ImageRequirement;
   servicesRequirements: ImageRequirement[];
   galleryRequirements: ImageRequirement[];
+  businessName?: string;
 }
 
 export interface ImageSearchOptions {
@@ -85,4 +105,8 @@ export interface ImageSearchOptions {
   limit?: number;
   excludeIds?: string[];
   preferredSubjects?: string[];
+  businessName?: string;
+  brandPersonality?: string;
+  customerType?: string[];
+  localContext?: string;
 }

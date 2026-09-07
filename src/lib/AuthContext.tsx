@@ -25,18 +25,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
           const userDocRef = doc(db, 'users', firebaseUser.uid);
           const userDoc = await getDoc(userDocRef);
-          let role: 'Admin' | 'User' = 'User';
+          const isAdminEmail = firebaseUser.email === 'siphom.yati@gmail.com';
+          let role: 'Admin' | 'User' = isAdminEmail ? 'Admin' : 'User';
           
           if (userDoc.exists()) {
             const dataRole = userDoc.data().role;
-            role = (dataRole === 'admin' || dataRole === 'Admin') ? 'Admin' : 'User';
+            if (dataRole === 'admin' || dataRole === 'Admin' || isAdminEmail) {
+              role = 'Admin';
+            }
           } else {
             // Ensure default user document exists
             try {
               await setDoc(userDocRef, {
                 email: firebaseUser.email || '',
                 displayName: firebaseUser.displayName || 'User',
-                role: 'User',
+                role: isAdminEmail ? 'admin' : 'User',
                 createdAt: serverTimestamp()
               }, { merge: true });
             } catch (createErr) {
@@ -54,11 +57,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
         } catch (error) {
           handleFirestoreError(error, OperationType.GET, `users/${firebaseUser.uid}`);
+          const isAdminEmail = firebaseUser.email === 'siphom.yati@gmail.com';
           setUser({
             uid: firebaseUser.uid,
             email: firebaseUser.email || '',
             name: firebaseUser.displayName || 'User',
-            role: 'User',
+            role: isAdminEmail ? 'Admin' : 'User',
             subscription: 'Pro Plan',
             isVerified: firebaseUser.emailVerified
           });

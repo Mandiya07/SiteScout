@@ -86,7 +86,8 @@ export default function Navbar({
     { id: "finder", label: "Find Businesses" },
     { id: "prospects", label: "Prospects" },
     { id: "websites", label: "Websites" },
-    { id: "proposals", label: "Proposals" }
+    { id: "proposals", label: "Proposals" },
+    { id: "crm", label: "CRM Sync" }
   ];
 
   return (
@@ -111,7 +112,8 @@ export default function Navbar({
         <nav className="hidden lg:flex space-x-1 xl:space-x-1.5 shrink-0">
           {navItems.map((tab) => {
             const isActive = activeTab === tab.id || 
-              (tab.id === "finder" && ["finder", "analysis", "generator", "editor", "sales"].includes(activeTab));
+              (tab.id === "finder" && ["finder", "analysis", "generator", "editor", "sales"].includes(activeTab)) ||
+              (tab.id === "websites" && ["websites", "preview", "portal"].includes(activeTab));
             return (
               <button
                 key={tab.id}
@@ -215,7 +217,8 @@ export default function Navbar({
           <div className="grid grid-cols-1 gap-1">
             {navItems.map((tab) => {
               const isActive = activeTab === tab.id || 
-                (tab.id === "finder" && ["finder", "analysis", "generator", "editor", "sales"].includes(activeTab));
+                (tab.id === "finder" && ["finder", "analysis", "generator", "editor", "sales"].includes(activeTab)) ||
+                (tab.id === "websites" && ["websites", "preview", "portal"].includes(activeTab));
               return (
                 <button
                   key={tab.id}

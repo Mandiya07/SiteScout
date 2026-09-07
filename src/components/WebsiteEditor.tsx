@@ -4,9 +4,10 @@ import { getCategoryHeroImage, resolveHeroImageUrl } from "../lib/heroImages";
 import WebsiteView from "./WebsiteView";
 import PublishingModal from "./PublishingModal";
 import ImagePickerModal from "./ImagePickerModal";
+import BusinessTruthProfileCard from "./BusinessTruthProfileCard";
 import { 
   Laptop, Smartphone, Eye, EyeOff, Settings2, Sparkles, Check, 
-  Trash2, Plus, ArrowLeft, ArrowRight, Save, Globe, 
+  Trash2, Plus, ArrowLeft, ArrowRight, Save, Globe, X,
   MapPin, Phone, MessageSquare, ChevronDown, ChevronUp, CheckCircle, Info,
   Undo2, Redo2, ArrowUp, ArrowDown, Image as ImageIcon, Scissors, ShieldCheck, 
   HelpCircle, Briefcase, Home, Camera, Utensils, Wrench, HeartPulse, Scale, Star, Heart
@@ -53,10 +54,11 @@ export default function WebsiteEditor({
   });
 
   const [viewport, setViewport] = useState<"desktop" | "mobile" | "seo">("desktop");
-  const [activeSection, setActiveSection] = useState<string>("sections");
+  const [activeSection, setActiveSection] = useState<string>("content");
   const [activePage, setActivePage] = useState<"home" | "about" | "services" | "gallery" | "blog" | "contact" | "privacy" | "terms" | "404">("home");
   const [saveStatus, setSaveStatus] = useState<string>("");
   const [showPublishModal, setShowPublishModal] = useState<boolean>(false);
+  const [showTruthModal, setShowTruthModal] = useState<boolean>(false);
   const [imagePicker, setImagePicker] = useState<{
     isOpen: boolean;
     target: "hero" | "about" | "services" | "gallery";
@@ -414,8 +416,13 @@ export default function WebsiteEditor({
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {site.gallery.map((img, i) => (
-                <div key={i} className="relative aspect-square overflow-hidden rounded-xl border border-slate-200">
-                  <img src={img.url} alt={img.alt} className="object-cover w-full h-full hover:scale-105 transition-transform duration-300" referrerPolicy="no-referrer" />
+                <div key={i} className="group relative aspect-square overflow-hidden rounded-xl border border-slate-200 shadow-xs">
+                  <img src={img.url} alt={img.alt} className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300" referrerPolicy="no-referrer" />
+                  {img.alt && (
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/80 via-slate-950/40 to-transparent p-2.5 pt-6 text-white text-[11px] font-semibold leading-tight drop-shadow-xs">
+                      {img.alt}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -488,14 +495,20 @@ export default function WebsiteEditor({
               {site.contactPage.title}
             </h3>
             <p className="text-xs text-slate-600 text-center mb-6 font-sans">{site.contactPage.description}</p>
-            <div className="bg-white rounded-xl border border-slate-100 p-5 shadow-sm dark:bg-slate-950 dark:border-slate-800">
-               <div className="space-y-3">
-                 <input type="text" placeholder="Your Name" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs" />
-                 <input type="email" placeholder="Email Address" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs" />
-                 <textarea placeholder="Your Message" rows={4} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs"></textarea>
-                 <button className="w-full py-2.5 rounded-xl text-xs font-bold text-white shadow-md cursor-pointer" style={{ backgroundColor: site.accentColor }}>
-                    Send Message
-                 </button>
+            <div className="bg-white rounded-xl border border-slate-100 p-6 shadow-sm dark:bg-slate-950 dark:border-slate-800 text-center">
+               <div className="flex flex-col items-center justify-center space-y-4">
+                  <p className="text-sm text-slate-600 dark:text-slate-400">Reach out directly via email or phone to discuss your needs.</p>
+                  
+                  <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                    <a href={`mailto:${site.contactPage.email}`} className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold text-white shadow-md cursor-pointer transition-transform hover:scale-105" style={{ backgroundColor: site.accentColor }}>
+                      <MessageSquare className="h-4 w-4" />
+                      Email Us
+                    </a>
+                    <a href={`tel:${site.phone}`} className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold shadow-sm border border-slate-200 bg-white text-slate-800 cursor-pointer transition-transform hover:scale-105 dark:bg-slate-900 dark:border-slate-700 dark:text-white">
+                      <Phone className="h-4 w-4" />
+                      Call {site.phone}
+                    </a>
+                  </div>
                </div>
             </div>
             <div className="mt-6 flex flex-col items-center gap-2 text-xs text-slate-600">
@@ -587,12 +600,20 @@ export default function WebsiteEditor({
         </div>
 
         {/* Draft Saving Status notification */}
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2 sm:space-x-3">
           {saveStatus && (
             <span className="hidden md:inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30 animate-fade-in">
               <CheckCircle className="h-3.5 w-3.5" /> {saveStatus}
             </span>
           )}
+          <button
+            onClick={() => setShowTruthModal(true)}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/80 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 transition-all cursor-pointer shadow-2xs"
+            title="Inspect Business Truth Profile"
+          >
+            <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+            <span className="hidden sm:inline">Truth Profile</span>
+          </button>
           <button
             onClick={triggerSave}
             className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 transition-all cursor-pointer"
@@ -601,15 +622,9 @@ export default function WebsiteEditor({
           </button>
           <button
             onClick={() => setShowPublishModal(true)}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 px-3.5 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer"
-          >
-            <Globe className="h-3.5 w-3.5" /> Export &amp; Custom Domain
-          </button>
-          <button
-            onClick={triggerPublish}
             className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-xs shadow-blue-500/10 hover:bg-blue-500 focus:outline-none dark:bg-blue-600 dark:hover:bg-blue-500 transition-all cursor-pointer"
           >
-            <Globe className="h-3.5 w-3.5" /> Create Client Preview
+            <Globe className="h-3.5 w-3.5" /> Send Preview
           </button>
         </div>
       </div>
@@ -617,21 +632,16 @@ export default function WebsiteEditor({
       {/* Main content grid split */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left Side: Editorial Drawer (35%) */}
-        <div className="w-full md:w-[35%] border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/40 flex flex-col h-full overflow-y-auto">
+        <div className={`w-full md:w-[35%] border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/40 flex-col h-full overflow-y-auto ${activeSection === 'preview' ? 'hidden md:flex' : 'flex'}`}>
           {/* Section index select list */}
           <div className="flex border-b border-slate-100 dark:border-slate-800 scrollbar-none overflow-x-auto shrink-0 bg-slate-50/50 dark:bg-slate-950/20">
             {[
-              { id: "sections", label: "Layout Sections" },
-              { id: "style", label: "Brand Style" },
-              { id: "seo", label: "SEO Meta" },
-              { id: "hero", label: "Hero Block" },
-              { id: "about", label: "About pitch" },
-              { id: "services", label: "Packages" },
-              { id: "gallery", label: "Gallery Assets" },
-              { id: "testimonials", label: "Reviews" },
-              { id: "faqs", label: "FAQs" },
-              { id: "contact", label: "Contact Details" },
-              { id: "legal", label: "Legal Policies" }
+              { id: "content", label: "Content" },
+              { id: "images", label: "Images" },
+              { id: "colors", label: "Colors" },
+              { id: "sections", label: "Sections" },
+              { id: "seo", label: "SEO" },
+              { id: "preview", label: "Preview" }
             ].map((sec) => (
               <button
                 key={sec.id}
@@ -727,7 +737,7 @@ export default function WebsiteEditor({
               </div>
             )}
 
-            {activeSection === "style" && (
+            {activeSection === "colors" && (
               <div className="space-y-4">
                 <div className="rounded-xl border border-blue-50 bg-blue-50/20 p-4 dark:border-blue-900/30 dark:bg-blue-950/10 mb-2">
                   <h4 className="text-xs font-bold text-blue-800 dark:text-blue-300 uppercase tracking-wider flex items-center gap-1">
@@ -945,8 +955,9 @@ export default function WebsiteEditor({
               </div>
             )}
 
-            {activeSection === "hero" && (
-              <div className="space-y-4">
+            {activeSection === "content" && (
+              <div className="space-y-4 pb-6 border-b border-slate-100 dark:border-slate-800">
+                <h3 className="font-extrabold text-slate-800 dark:text-slate-200 text-sm flex items-center gap-2"><Sparkles className="h-4 w-4 text-blue-500" /> Hero Section</h3>
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">Hero Bold Headline</label>
                   <textarea
@@ -1048,8 +1059,9 @@ export default function WebsiteEditor({
               </div>
             )}
 
-            {activeSection === "about" && (
-              <div className="space-y-4">
+            {activeSection === "content" && (
+              <div className="space-y-4 pb-6 border-b border-slate-100 dark:border-slate-800">
+                <h3 className="font-extrabold text-slate-800 dark:text-slate-200 text-sm flex items-center gap-2"><Briefcase className="h-4 w-4 text-blue-500" /> About Section</h3>
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">About Section Title</label>
                   <input
@@ -1115,8 +1127,9 @@ export default function WebsiteEditor({
               </div>
             )}
 
-            {activeSection === "services" && (
-              <div className="space-y-4">
+            {activeSection === "content" && (
+              <div className="space-y-4 pb-6 border-b border-slate-100 dark:border-slate-800">
+                <h3 className="font-extrabold text-slate-800 dark:text-slate-200 text-sm flex items-center gap-2"><Settings2 className="h-4 w-4 text-blue-500" /> Services Packages</h3>
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Business Packages</label>
                   <button
@@ -1199,8 +1212,9 @@ export default function WebsiteEditor({
               </div>
             )}
 
-            {activeSection === "faqs" && (
-              <div className="space-y-4">
+            {activeSection === "content" && (
+              <div className="space-y-4 pb-6 border-b border-slate-100 dark:border-slate-800">
+                <h3 className="font-extrabold text-slate-800 dark:text-slate-200 text-sm flex items-center gap-2"><HelpCircle className="h-4 w-4 text-blue-500" /> FAQs</h3>
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wide">FAQ Accordions</label>
                   <button
@@ -1246,8 +1260,9 @@ export default function WebsiteEditor({
               </div>
             )}
 
-            {activeSection === "gallery" && (
-              <div className="space-y-4">
+            {activeSection === "images" && (
+              <div className="space-y-4 pb-6 border-b border-slate-100 dark:border-slate-800">
+                <h3 className="font-extrabold text-slate-800 dark:text-slate-200 text-sm flex items-center gap-2"><ImageIcon className="h-4 w-4 text-blue-500" /> Visual Gallery</h3>
                 <div className="rounded-xl border border-blue-50 bg-blue-50/20 p-4 dark:border-blue-900/30 dark:bg-blue-950/10 mb-2">
                   <h4 className="text-xs font-bold text-blue-800 dark:text-blue-300 uppercase tracking-wider flex items-center gap-1.5">
                     <ImageIcon className="h-4 w-4" /> Gallery Asset Images
@@ -1340,8 +1355,9 @@ export default function WebsiteEditor({
               </div>
             )}
 
-            {activeSection === "testimonials" && (
-              <div className="space-y-4">
+            {activeSection === "content" && (
+              <div className="space-y-4 pb-6 border-b border-slate-100 dark:border-slate-800">
+                <h3 className="font-extrabold text-slate-800 dark:text-slate-200 text-sm flex items-center gap-2"><Star className="h-4 w-4 text-amber-500" /> Client Reviews</h3>
                 <div className="rounded-xl border border-blue-50 bg-blue-50/20 p-4 dark:border-blue-900/30 dark:bg-blue-950/10 mb-2">
                   <h4 className="text-xs font-bold text-blue-800 dark:text-blue-300 uppercase tracking-wider">Client Reviews</h4>
                   <p className="text-[11px] text-blue-600 dark:text-blue-400/80 mt-1 leading-relaxed">
@@ -1379,8 +1395,9 @@ export default function WebsiteEditor({
               </div>
             )}
 
-            {activeSection === "contact" && (
-              <div className="space-y-4">
+            {activeSection === "content" && (
+              <div className="space-y-4 pb-6 border-b border-slate-100 dark:border-slate-800">
+                <h3 className="font-extrabold text-slate-800 dark:text-slate-200 text-sm flex items-center gap-2"><MessageSquare className="h-4 w-4 text-blue-500" /> Contact Details</h3>
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">Contact Page Email</label>
                   <input 
@@ -1408,8 +1425,9 @@ export default function WebsiteEditor({
               </div>
             )}
 
-            {activeSection === "legal" && (
-              <div className="space-y-4">
+            {activeSection === "content" && (
+              <div className="space-y-4 pb-6 border-b border-slate-100 dark:border-slate-800">
+                <h3 className="font-extrabold text-slate-800 dark:text-slate-200 text-sm flex items-center gap-2"><Scale className="h-4 w-4 text-blue-500" /> Legal Policies</h3>
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">Privacy Policy</label>
                   <textarea 
@@ -1436,11 +1454,21 @@ export default function WebsiteEditor({
                 </div>
               </div>
             )}
+            
+            {activeSection === "preview" && (
+              <div className="flex flex-col items-center justify-center h-64 text-slate-400 space-y-4">
+                <Eye className="h-8 w-8 opacity-20" />
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Preview Mode Active</p>
+                <p className="text-[10px] text-center max-w-[200px] text-slate-400">
+                  Select a tab above to continue editing content.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Right Side: Responsive Render Stage (65%) */}
-        <div className="hidden md:flex flex-1 flex-col bg-slate-100 dark:bg-slate-950 p-6 items-center justify-center overflow-y-auto relative">
+        <div className={`${activeSection === 'preview' ? 'flex' : 'hidden md:flex'} flex-1 flex-col bg-slate-100 dark:bg-slate-950 p-6 items-center justify-center overflow-y-auto relative`}>
           <div className="absolute top-2 right-4 text-[10px] font-mono text-slate-400 bg-slate-200/50 px-2 py-0.5 rounded dark:bg-slate-900/45">
             DEVICE: {viewport.toUpperCase()} RENDER
           </div>
@@ -1526,6 +1554,42 @@ export default function WebsiteEditor({
           serviceName={imagePicker.serviceName}
           location={site.address}
         />
+      )}
+
+      {showTruthModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-xs animate-fade-in">
+          <div className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Business Truth Profile Audit
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowTruthModal(false)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              SiteScout enforces absolute trust transparency. Confirmed facts are embedded directly, unconfirmed fields require client verification, and AI copy is labeled as draft suggestions.
+            </p>
+
+            <BusinessTruthProfileCard truthProfile={site.truthProfile} business={{ name: site.businessName, category: site.category, phone: site.phone, address: site.address } as any} />
+
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setShowTruthModal(false)}
+                className="px-5 py-2 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-bold hover:bg-slate-800 dark:hover:bg-white cursor-pointer"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

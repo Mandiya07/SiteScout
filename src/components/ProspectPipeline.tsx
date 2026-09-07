@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { Business, ProspectStatus, GeneratedSite } from "../types";
+import { normalizePhoneNumber } from "../lib/formatters";
 import { 
   Building2, Phone, MapPin, Globe, ArrowRight, MessageSquare, 
   Calendar, CheckCircle2, Clock, Flame, Filter, Plus, FileText, 
   Sparkles, ExternalLink, RefreshCw, XCircle, AlertCircle, Eye,
-  Check, ChevronRight
+  Check, ChevronRight, Mail
 } from "lucide-react";
+import DraftEmailModal from "./DraftEmailModal";
 
 interface ProspectPipelineProps {
   prospects: Business[];
@@ -18,15 +20,13 @@ interface ProspectPipelineProps {
 }
 
 const STAGES: { id: ProspectStatus; label: string; color: string; bg: string; border: string }[] = [
-  { id: "New", label: "New Lead", color: "text-slate-700 dark:text-slate-300", bg: "bg-slate-100 dark:bg-slate-800", border: "border-slate-300 dark:border-slate-700" },
+  { id: "New", label: "New", color: "text-slate-700 dark:text-slate-300", bg: "bg-slate-100 dark:bg-slate-800", border: "border-slate-300 dark:border-slate-700" },
   { id: "Analyzed", label: "Analyzed", color: "text-blue-700 dark:text-blue-300", bg: "bg-blue-50 dark:bg-blue-950/40", border: "border-blue-200 dark:border-blue-900" },
-  { id: "Preview Ready", label: "Preview Generated", color: "text-purple-700 dark:text-purple-300", bg: "bg-purple-50 dark:bg-purple-950/40", border: "border-purple-200 dark:border-purple-900" },
+  { id: "Preview Ready", label: "Preview Ready", color: "text-purple-700 dark:text-purple-300", bg: "bg-purple-50 dark:bg-purple-950/40", border: "border-purple-200 dark:border-purple-900" },
   { id: "Preview Sent", label: "Preview Sent", color: "text-amber-700 dark:text-amber-300", bg: "bg-amber-50 dark:bg-amber-950/40", border: "border-amber-200 dark:border-amber-900" },
-  { id: "Follow-up 1", label: "Follow-up 1", color: "text-orange-700 dark:text-orange-300", bg: "bg-orange-50 dark:bg-orange-950/40", border: "border-orange-200 dark:border-orange-900" },
-  { id: "Follow-up 2", label: "Follow-up 2", color: "text-amber-800 dark:text-amber-200", bg: "bg-amber-50 dark:bg-amber-950/50", border: "border-amber-300 dark:border-amber-800" },
   { id: "Interested", label: "Interested", color: "text-teal-700 dark:text-teal-300", bg: "bg-teal-50 dark:bg-teal-950/40", border: "border-teal-200 dark:border-teal-900" },
-  { id: "Proposal Sent", label: "Proposal Sent", color: "text-indigo-700 dark:text-indigo-300", bg: "bg-indigo-50 dark:bg-indigo-950/40", border: "border-indigo-200 dark:border-indigo-900" },
-  { id: "Won", label: "Won / Closed", color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-50 dark:bg-emerald-950/40", border: "border-emerald-200 dark:border-emerald-900" },
+  { id: "Proposal", label: "Proposal", color: "text-indigo-700 dark:text-indigo-300", bg: "bg-indigo-50 dark:bg-indigo-950/40", border: "border-indigo-200 dark:border-indigo-900" },
+  { id: "Won", label: "Won", color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-50 dark:bg-emerald-950/40", border: "border-emerald-200 dark:border-emerald-900" },
   { id: "Lost", label: "Lost", color: "text-rose-700 dark:text-rose-300", bg: "bg-rose-50 dark:bg-rose-950/40", border: "border-rose-200 dark:border-rose-900" }
 ];
 
@@ -40,12 +40,26 @@ export default function ProspectPipeline({
   userSites
 }: ProspectPipelineProps) {
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [dataTypeFilter, setDataTypeFilter] = useState<'all' | 'real' | 'demo'>('all');
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [editingNotesId, setEditingNotesId] = useState<string | null>(null);
   const [tempNotes, setTempNotes] = useState<string>("");
   const [schedulingBizId, setSchedulingBizId] = useState<string | null>(null);
+  const [draftEmailBiz, setDraftEmailBiz] = useState<Business | null>(null);
+  const [demoSafetyModalBiz, setDemoSafetyModalBiz] = useState<Business | null>(null);
+
+  const isDemoBiz = (biz: Business) => {
+    return biz.isDemo === true || biz.dataType === "demo" || biz.evidence?.verificationStatus === "sample_demo";
+  };
+
+  const realProspects = prospects.filter(p => !isDemoBiz(p));
+  const demoProspects = prospects.filter(p => isDemoBiz(p));
 
   const filteredProspects = prospects.filter((p) => {
+    const isDemo = isDemoBiz(p);
+    if (dataTypeFilter === 'real' && isDemo) return false;
+    if (dataTypeFilter === 'demo' && !isDemo) return false;
+
     const matchesStatus = selectedStatus === "all" || (p.prospectStatus || "New") === selectedStatus;
     const matchesSearch = !searchTerm || 
       p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -58,7 +72,7 @@ export default function ProspectPipeline({
     const updated: Business = {
       ...business,
       prospectStatus: newStatus,
-      lastContactedAt: ["Preview Sent", "Follow-up 1", "Follow-up 2", "Proposal Sent"].includes(newStatus)
+      lastContactedAt: ["Preview Sent", "Proposal"].includes(newStatus)
         ? new Date().toISOString()
         : business.lastContactedAt
     };
@@ -103,12 +117,11 @@ export default function ProspectPipeline({
   };
 
   const getWhatsappHref = (biz: Business, site?: GeneratedSite) => {
-    const cleanPhone = (biz.phone || "").replace(/[^0-9]/g, "");
     const previewUrl = site 
       ? (site.previewToken ? `${window.location.origin}/preview/${site.previewToken}` : `${window.location.origin}/preview/${site.id}`)
       : window.location.origin;
     const msg = `Hi! I noticed something specific about ${biz.name}'s online presence in ${biz.address} and thought I could help you improve it. I put together a live interactive preview customized for your business: ${previewUrl}`;
-    return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
+    return `https://wa.me/${normalizePhoneNumber(biz.phone)}?text=${encodeURIComponent(msg)}`;
   };
 
   return (
@@ -118,7 +131,7 @@ export default function ProspectPipeline({
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2.5">
             <Building2 className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            Prospect Pipeline & Sales Queue
+            Prospect Pipeline &amp; Sales Queue
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             Manage your discovered businesses from initial audit to closed client deals.
@@ -148,6 +161,80 @@ export default function ProspectPipeline({
           </select>
         </div>
       </div>
+
+      {/* Strict Data Classification Filter Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-slate-100/70 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-slate-600 dark:text-slate-400">Data Filter:</span>
+          <button
+            type="button"
+            onClick={() => setDataTypeFilter('all')}
+            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              dataTypeFilter === 'all'
+                ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs border border-slate-200 dark:border-slate-700"
+                : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+            }`}
+          >
+            All Leads ({prospects.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setDataTypeFilter('real')}
+            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              dataTypeFilter === 'real'
+                ? "bg-emerald-600 text-white shadow-xs"
+                : "text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+            }`}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            Verified Real Prospects ({realProspects.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setDataTypeFilter('demo')}
+            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              dataTypeFilter === 'demo'
+                ? "bg-amber-600 text-white shadow-xs"
+                : "text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+            }`}
+          >
+            <AlertCircle className="w-3.5 h-3.5" />
+            Demo Sandbox Records ({demoProspects.length})
+          </button>
+        </div>
+
+        {demoProspects.length > 0 && (
+          <div className="text-[11px] text-amber-700 dark:text-amber-400 font-semibold flex items-center gap-1.5">
+            <span>⚠️ Live WhatsApp outreach locked on demo samples</span>
+          </div>
+        )}
+      </div>
+
+      {/* Demo Sandbox Alert Banner */}
+      {demoProspects.length > 0 && (dataTypeFilter === 'all' || dataTypeFilter === 'demo') && (
+        <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 flex items-start justify-between gap-3 text-left">
+          <div className="flex items-start gap-2.5">
+            <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                Pipeline Contains Demonstration Sandbox Records ({demoProspects.length})
+              </p>
+              <p className="text-[11px] text-amber-800/90 dark:text-amber-300/90 mt-0.5 leading-relaxed">
+                Demo records are synthetic samples used for testing layout generation and workflow simulation. Direct WhatsApp pitching is disabled on these records to prevent accidental messaging to fictitious numbers.
+              </p>
+            </div>
+          </div>
+          {realProspects.length > 0 && dataTypeFilter === 'all' && (
+            <button
+              type="button"
+              onClick={() => setDataTypeFilter('real')}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shrink-0 cursor-pointer shadow-xs whitespace-nowrap"
+            >
+              Show Real Only ({realProspects.length})
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Stage KPI Pills */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
@@ -202,9 +289,20 @@ export default function ProspectPipeline({
                 <div>
                   {/* Top Bar: Category & Stage */}
                   <div className="flex items-center justify-between gap-2 mb-3">
-                    <span className="text-xs font-semibold uppercase tracking-wider px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                      {biz.category}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xs font-semibold uppercase tracking-wider px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                        {biz.category}
+                      </span>
+                      {isDemoBiz(biz) ? (
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
+                          ⚠️ Demo / Synthetic Data
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40 flex items-center gap-1">
+                          <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" /> Verified
+                        </span>
+                      )}
+                    </div>
 
                     <select
                       value={status}
@@ -223,14 +321,15 @@ export default function ProspectPipeline({
                       {biz.name}
                     </h3>
                     <span 
-                      className={`text-xs font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                      className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1 ${
                         oppScore >= 85 
                           ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
                           : "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300"
                       }`}
-                      title="Opportunity Score (Higher = Stronger candidate for a website)"
+                      title={isDemoBiz(biz) ? "Opportunity Score based on Synthetic Model Baseline (55% Deficit + 45% Quality)" : "Opportunity Score based on Directory Data (55% Deficit + 45% Quality)"}
                     >
-                      {oppScore}% Opp
+                      <span>{oppScore}% Opp</span>
+                      <span className="text-[9px] font-normal opacity-75">({isDemoBiz(biz) ? "Synthetic" : "Estimated"})</span>
                     </span>
                   </div>
 
@@ -239,10 +338,12 @@ export default function ProspectPipeline({
                     <div className="flex items-center gap-1.5">
                       <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       <span className="truncate">{biz.address}</span>
+                      {isDemoBiz(biz) && <span className="text-amber-600 text-[10px] font-semibold">(Synthetic)</span>}
                     </div>
                     <div className="flex items-center gap-1.5">
                       <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       <span>{biz.phone}</span>
+                      {isDemoBiz(biz) && <span className="text-amber-600 text-[10px] font-semibold">(Demo Phone)</span>}
                     </div>
                     <div className="flex items-center gap-1.5">
                       <Globe className="w-3.5 h-3.5 text-rose-500 shrink-0" />
@@ -458,24 +559,111 @@ export default function ProspectPipeline({
                     )}
                   </div>
 
+                  {/* AI Email Drafter based on Digital Gaps */}
+                  <button
+                    onClick={() => setDraftEmailBiz(biz)}
+                    className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:hover:bg-blue-900/60 dark:text-blue-300 border border-blue-200 dark:border-blue-900 transition-all cursor-pointer shadow-xs"
+                    title="AI-powered email drafter with pre-filled subject and body based on this business's digital gaps"
+                  >
+                    <Mail className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                    <span>Draft AI Outreach Email</span>
+                    <Sparkles className="w-3 h-3 text-blue-500 ml-0.5" />
+                  </button>
+
                   {/* 1-Click WhatsApp Instant Pitch */}
                   {biz.phone && (
-                    <a
-                      href={getWhatsappHref(biz, site)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white transition-colors shadow-xs shadow-emerald-500/10"
-                      title="Open WhatsApp with customized outreach pitch & preview link"
-                    >
-                      <MessageSquare className="w-3.5 h-3.5 fill-white" />
-                      1-Click WhatsApp Pitch
-                    </a>
+                    isDemoBiz(biz) ? (
+                      <button
+                        type="button"
+                        onClick={() => setDemoSafetyModalBiz(biz)}
+                        className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-bold bg-amber-100 hover:bg-amber-200 text-amber-900 dark:bg-amber-950/60 dark:hover:bg-amber-900/80 dark:text-amber-300 border border-amber-300 dark:border-amber-800 transition-colors cursor-pointer shadow-xs"
+                        title="Outreach is locked because this is a synthetic demonstration record"
+                      >
+                        <AlertCircle className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400" />
+                        <span>Locked: Demo Record (WhatsApp Guardrail)</span>
+                      </button>
+                    ) : (
+                      <a
+                        href={getWhatsappHref(biz, site)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white transition-colors shadow-xs shadow-emerald-500/10"
+                        title="Open WhatsApp with customized outreach pitch & preview link"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5 fill-white" />
+                        1-Click WhatsApp Pitch
+                      </a>
+                    )
                   )}
                 </div>
               </div>
             );
           })}
         </div>
+      )}
+
+      {/* Safety Guardrail Modal for Demo Businesses */}
+      {demoSafetyModalBiz && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 shadow-2xl space-y-4 text-left">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Demo Sample Guardrail Active
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {demoSafetyModalBiz.name} is a synthetic demonstration sample.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/40 text-xs text-amber-900 dark:text-amber-200 space-y-2 leading-relaxed">
+              <p className="font-semibold">
+                Direct WhatsApp outreach is intentionally disabled for this record.
+              </p>
+              <p className="text-[11px] text-amber-800/90 dark:text-amber-300/90">
+                The contact number <span className="font-mono font-bold">{demoSafetyModalBiz.phone}</span> is simulated placeholder data generated for testing. To perform genuine sales outreach, discover verified local prospects in the <strong>Business Finder</strong> tab or filter your pipeline to <strong>Verified Real Prospects</strong>.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setDemoSafetyModalBiz(null)}
+                className="px-4 py-2 text-xs font-semibold rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 cursor-pointer"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDemoSafetyModalBiz(null);
+                  setDataTypeFilter('real');
+                }}
+                className="px-4 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shadow-xs"
+              >
+                Show Verified Real Only
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Draft Email Modal targeting identified digital gaps */}
+      {draftEmailBiz && (
+        <DraftEmailModal
+          isOpen={!!draftEmailBiz}
+          onClose={() => setDraftEmailBiz(null)}
+          business={draftEmailBiz}
+          site={getSiteForBusiness(draftEmailBiz)}
+          onUpdateProspect={(updated) => {
+            onUpdateProspect(updated);
+            setDraftEmailBiz(updated);
+          }}
+        />
       )}
     </div>
   );

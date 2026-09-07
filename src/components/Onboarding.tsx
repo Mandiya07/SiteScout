@@ -9,32 +9,32 @@ interface OnboardingProps {
 export default function Onboarding({ onClose, onStartSearch }: OnboardingProps) {
   const steps = [
     {
-      title: "Identify Opportunities",
-      description: "Search local cities and trade categories. The system automatically highlights businesses operating with NO website or lacking mobile optimization.",
+      title: "Find & Filter Real Leads",
+      description: "Search local cities to discover real businesses, filter for 'No Website', verify digital absence, and rank the best local prospects.",
       icon: Search,
       color: "text-blue-500 bg-blue-50 dark:bg-blue-950/40"
     },
     {
-      title: "Analyze Presence Scores",
-      description: "Generate a complete Digital Presence analysis. SiteScout inspects Google profile quality, reviews counts, and social activities, scoring them from 0-100.",
-      icon: ShieldAlert,
-      color: "text-amber-500 bg-amber-50 dark:bg-amber-950/40"
-    },
-    {
-      title: "Create Instant AI Previews",
-      description: "Click 'Generate Website'. The AI instantly parses Google presence data, creates a beautiful themed site preview with personalized images, copy, and contact widgets.",
+      title: "Build & Review Preview",
+      description: "Select a business and automatically build a tailored website preview. Review facts with 3 Content Levels to ensure zero hallucinations.",
       icon: FileText,
       color: "text-indigo-500 bg-indigo-50 dark:bg-indigo-950/40"
     },
     {
-      title: "Launch Outreach Campaigns",
-      description: "Instantly draft highly personalized cold emails, WhatsApp messages, and call scripts matched with custom tones (Concise, Casual, Professional).",
+      title: "Send Free Preview URL",
+      description: "Send the live preview URL with low-friction copy: 'I created a free website preview for your business. Once you approve it, let's customize and launch it.'",
       icon: Send,
       color: "text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40"
     },
     {
-      title: "Deliver Dynamic Proposals",
-      description: "Bundle the interactive preview link with a branded proposal contract, customizable pricing estimators, and a direct digital approval sheet.",
+      title: "Proposal & Follow-up",
+      description: "If interested, send an interactive proposal. If no response, deploy automated 48-hr and 7-day gentle follow-up reminders.",
+      icon: ShieldAlert,
+      color: "text-amber-500 bg-amber-50 dark:bg-amber-950/40"
+    },
+    {
+      title: "Sale, Payment & Launch",
+      description: "Secure digital approval, collect payment, and publish the actual website live to their custom domain name.",
       icon: DollarSign,
       color: "text-purple-500 bg-purple-50 dark:bg-purple-950/40"
     }

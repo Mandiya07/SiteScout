@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { GeneratedSite, SalesOutreach } from "../types";
+import { normalizePhoneNumber } from "../lib/formatters";
+import { authedFetch } from "../lib/firebase";
 import { 
   Copy, Check, MessageSquare, Mail, Phone, Send, Sparkles, Loader2, Info, ArrowLeft, RefreshCw,
   Smartphone, MessageCircle, Linkedin, ChevronRight, Share2, AlertCircle
@@ -19,11 +21,13 @@ export default function SalesAssistant({ site, onBack }: SalesAssistantProps) {
   const [activeChannel, setActiveChannel] = useState<ChannelType>("whatsapp");
   const [outreach, setOutreach] = useState<SalesOutreach | null>(null);
 
+  const isDemo = site.isDemo === true || site.dataType === "demo";
+
   const fetchOutreachTemplates = async (selectedTone: string) => {
     setLoading(true);
     const link = `${window.location.origin}/preview/${site.id}`;
     try {
-      const response = await fetch("/api/generate-sales-copy", {
+      const response = await authedFetch("/api/generate-sales-copy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -56,19 +60,19 @@ export default function SalesAssistant({ site, onBack }: SalesAssistantProps) {
                          selectedTone === "Professional" ? "💼 Business Inquiry: " : "✨ Custom Proposal: ";
 
       const customTemplates: SalesOutreach = {
-        whatsapp: `Hi ${site.businessName} team! 👋\n\nWe designed and published an interactive website draft customized specifically for your ${site.category} business in ${locationCity}.\n\nThis isn't a static mockup - it's fully functional with mobile clicks, direct WhatsApp links, and enquiry routing already built in to capture more customer calls.\n\nYou can view and test the live interactive preview here: \n👉 ${link}\n\nLet me know what you think or if you would like me to adjust any of the colors/text!`,
+        whatsapp: `Hi ${site.businessName} team! 👋\n\nI created a free website preview for your business in ${locationCity}:\n👉 ${link}\n\nIt includes your verified phone number, WhatsApp messaging, and service list.\n\nTake a quick look on your phone or computer. Once you approve it, let's customize and launch it!`,
         
-        email: `Subject: ${tonePrefix}Custom Website Layout Built For ${site.businessName}\n\nHi ${site.businessName} Team,\n\nI was reviewing local ${site.category} businesses in ${locationCity} and noticed that you don't have a mobile-optimized website to capture online search traffic and map booking dispatches.\n\nTo save you time, we went ahead and designed a complete, fully interactive custom website preview for your team. This isn't a mock image, but a live prototype:\n\n🔗 ${link}\n\nKey features configured for your brand:\n- 1-Click WhatsApp Instant Chat\n- Fast Click-to-Call Customer Hotline\n- Direct Service Request and Enquiry Form\n- Modern Responsive Layout & Trust badges\n\nCould we jump on a short 5-minute call this week to talk about publishing this live to your own custom domain?\n\nBest regards,\nWeb Design Partners`,
+        email: `Subject: ${tonePrefix}Free Website Preview for ${site.businessName}\n\nHi ${site.businessName} Team,\n\nI was reviewing top ${site.category} businesses in ${locationCity} and noticed that you don't have a website listed on Google to capture online search traffic.\n\nI created a free website preview for your business:\n🔗 ${link}\n\nKey features configured for your brand:\n- Instant 1-Click WhatsApp Instant Chat & Phone Hotline\n- Verified Business Truth facts & service catalog\n- Direct Service Request and Enquiry Form\n- Modern Responsive Layout & Trust badges\n\nOnce you review and approve it, let's customize and launch it on your custom domain!\n\nBest regards,\nLocal Digital Development`,
         
-        sms: `Hi ${site.businessName}! We built a custom mobile website preview for your ${site.category} service to capture more local leads: ${link}`,
+        sms: `Hi ${site.businessName}! I created a free website preview for your ${site.category} business to capture more local leads: ${link} - once you check it out, let's customize and launch it!`,
         
-        coldCall: `[OPENING LINE]\n"Hi is this the manager or owner at ${site.businessName}? Hi, my name is Alex, I'm a local digital developer. I was actually looking for a ${site.category} in ${locationCity} and noticed your Google listing has great reviews but no website linked.\n\nTo show you what's possible, I actually went ahead and pre-built a fully functional, mobile-optimized website prototype specifically for your business. It's completely customized with your phone number and service menu.\n\nDo you have 2 minutes to open a link on your phone right now so I can show you how it works?"\n\n[OBJECTION PLAYBOOK]\n- Objection: "We don't need a website."\n- Response: "I completely understand! Many businesses rely on word of mouth. But did you know that over 80% of customers search on mobile before calling? Since we already designed it, there's zero upfront obligation to view."`,
+        coldCall: `[OPENING LINE]\n"Hi is this the manager or owner at ${site.businessName}? Hi, my name is Alex, I'm a local digital developer. I was actually looking for a ${site.category} in ${locationCity} and noticed your Google listing has great reviews but no website linked.\n\nTo show you what's possible, I created a free website preview for your business. It's completely tailored with your phone number and service menu.\n\nDo you have 2 minutes to open a quick preview link on your phone right now so you can take a look? Once you approve it, let's customize and launch it for you."\n\n[OBJECTION PLAYBOOK]\n- Objection: "We don't need a website."\n- Response: "I completely understand! Many businesses rely on word of mouth. But over 80% of customers search on mobile before calling. Since I already created this free preview, there's zero obligation to view."`,
         
-        followUp: `Hi ${site.businessName} Team! 👋 Just checking if you had a moment to play around with the customized interactive draft we created for you: ${link}\n\nWe can have this launched and pointing to your official domain in less than 24 hours to help capture this weekend's customers. Let me know when is best to connect!`,
+        followUp: `Hi ${site.businessName} Team! 👋 Just checking if you had a moment to check out the free website preview I created for your business: ${link}\n\nOnce you approve it, let's customize and launch it on your domain! Let me know when is best to connect!`,
         
-        linkedin: `Hello ${site.businessName} Team,\n\nI hope you're doing well. I noticed your prominent local profile in ${locationCity} and put together a customized, live interactive website layout specifically optimized to convert more mobile traffic for your ${site.category} services.\n\nYou can test the live preview and action buttons directly here: ${link}\n\nI would love to help you launch this to your custom domain. Let me know if you are open to a brief chat!`,
+        linkedin: `Hello ${site.businessName} Team,\n\nI hope you're doing well. I noticed your prominent local profile in ${locationCity} and created a free website preview for your business optimized to convert mobile searchers for your ${site.category} services.\n\nYou can view the live preview directly here: ${link}\n\nOnce you review and approve it, let's customize and launch it on your custom domain. Let me know if you are open to a brief chat!`,
         
-        messenger: `Hi ${site.businessName}! we love your Google rating and customer reviews. We designed a custom, mobile-ready interactive layout for your ${site.category} services in ${locationCity} to help you convert search traffic into direct bookings. You can test the responsive layout instantly here: ${link} Let us know what you think!`
+        messenger: `Hi ${site.businessName}! We love your Google rating and customer reviews. I created a free website preview for your ${site.category} business in ${locationCity} to help you convert search traffic into direct bookings: ${link} Once you check it out and approve it, let's customize and launch it!`
       };
 
       setOutreach(customTemplates);
@@ -94,8 +98,7 @@ export default function SalesAssistant({ site, onBack }: SalesAssistantProps) {
   };
 
   const getWhatsappHref = (msg: string) => {
-    const cleanPhone = (site.phone || "").replace(/[^0-9]/g, "");
-    return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
+    return `https://wa.me/${normalizePhoneNumber(site.phone)}?text=${encodeURIComponent(msg)}`;
   };
 
   // Helper to parse subject and body from the email template
@@ -174,7 +177,7 @@ export default function SalesAssistant({ site, onBack }: SalesAssistantProps) {
       color: "text-amber-600 dark:text-amber-400",
       bg: "bg-amber-50 dark:bg-amber-950/30",
       border: "border-amber-100 dark:border-amber-900/30",
-      tip: "Follow up exactly 48 hours later. Re-emphasize that the customized design is already completely built and ready to go live."
+      tip: "Follow up exactly 48 hours later. Re-emphasize that the free website preview is ready to review, and once approved, you can customize and launch it for them."
     },
     {
       id: "linkedin",
@@ -241,6 +244,16 @@ export default function SalesAssistant({ site, onBack }: SalesAssistantProps) {
           </button>
         </div>
       </div>
+
+      {/* Demo Sandbox Alert Banner */}
+      {isDemo && (
+        <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 flex items-start gap-2.5 text-left">
+          <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+          <div className="text-xs text-amber-900 dark:text-amber-200 leading-relaxed">
+            <strong className="font-bold">Sandbox Demonstration Prototype:</strong> This sales playbook is for a simulated test business (<span className="font-mono">{site.phone}</span>). Live outbound WhatsApp dispatch is locked to prevent contacting fictitious numbers. Copying and practicing playbook scripts are fully active.
+          </div>
+        </div>
+      )}
 
       {/* Consultative Golden Rule Card */}
       <div className="rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50/60 via-indigo-50/40 to-slate-50 p-4 dark:border-blue-900/40 dark:from-slate-900 dark:via-blue-950/30 dark:to-slate-900 shadow-xs">
@@ -522,14 +535,26 @@ export default function SalesAssistant({ site, onBack }: SalesAssistantProps) {
                   )}
                   
                   {activeChannel === "whatsapp" && outreach && (
-                    <a
-                      href={getWhatsappHref(outreach.whatsapp)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2.5 text-xs font-bold transition-all shadow-md shadow-emerald-500/10 cursor-pointer"
-                    >
-                      <Send className="h-3.5 w-3.5 fill-white" /> Open Chat
-                    </a>
+                    isDemo ? (
+                      <button
+                        type="button"
+                        disabled
+                        className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-300 px-4 py-2.5 text-xs font-bold cursor-not-allowed"
+                        title="Live WhatsApp outreach is locked for simulated demonstration data"
+                      >
+                        <AlertCircle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                        <span>Locked: Demo Data</span>
+                      </button>
+                    ) : (
+                      <a
+                        href={getWhatsappHref(outreach.whatsapp)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2.5 text-xs font-bold transition-all shadow-md shadow-emerald-500/10 cursor-pointer"
+                      >
+                        <Send className="h-3.5 w-3.5 fill-white" /> Open Chat
+                      </a>
+                    )
                   )}
                 </div>
               </div>

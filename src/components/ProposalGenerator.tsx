@@ -14,6 +14,7 @@ import {
   getCountryByCode,
   getCountryBySymbol
 } from "../lib/countryCurrency";
+import { downloadProposalPdf } from "../lib/pdfExport";
 
 interface ProposalGeneratorProps {
   site: GeneratedSite;
@@ -113,6 +114,11 @@ export default function ProposalGenerator({
 
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // PDF download state
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState("");
+  const [downloadSuccess, setDownloadSuccess] = useState(false);
 
   // Reference for proposal printing
   const printRef = useRef<HTMLDivElement>(null);
@@ -324,6 +330,28 @@ export default function ProposalGenerator({
     }
   };
 
+  const handleDownloadPdf = async () => {
+    if (!printRef.current) return;
+    setIsDownloadingPdf(true);
+    setDownloadSuccess(false);
+    setDownloadProgress("Preparing high-resolution PDF...");
+    try {
+      await downloadProposalPdf({
+        element: printRef.current,
+        businessName: businessName || site.businessName,
+        proposalId: site.id,
+        onProgress: (step) => setDownloadProgress(step),
+      });
+      setDownloadSuccess(true);
+      setTimeout(() => setDownloadSuccess(false), 4500);
+    } catch (err) {
+      console.error("Error generating proposal PDF:", err);
+    } finally {
+      setIsDownloadingPdf(false);
+      setDownloadProgress("");
+    }
+  };
+
   const triggerPrint = () => {
     window.print();
   };
@@ -404,10 +432,16 @@ export default function ProposalGenerator({
         </div>
 
         {/* Global Save Controls */}
-        <div className="flex items-center gap-2 w-full lg:w-auto justify-end">
+        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto justify-end">
           {saveSuccess && (
             <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1.5 rounded-lg dark:bg-emerald-950/30 dark:text-emerald-400 flex items-center gap-1">
               <Check className="h-3.5 w-3.5" /> Proposal Saved &amp; Cloud Synced
+            </span>
+          )}
+
+          {downloadSuccess && (
+            <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1.5 rounded-lg dark:bg-emerald-950/30 dark:text-emerald-400 flex items-center gap-1 animate-in fade-in">
+              <CheckCircle className="h-3.5 w-3.5" /> PDF Downloaded
             </span>
           )}
           
@@ -428,10 +462,28 @@ export default function ProposalGenerator({
           </button>
 
           <button
-            onClick={triggerPrint}
-            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-md shadow-blue-500/10"
+            onClick={handleDownloadPdf}
+            disabled={isDownloadingPdf}
+            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-md shadow-blue-500/10 disabled:opacity-75"
+            title="Download high-resolution offline PDF document"
           >
-            <Printer className="h-3.5 w-3.5" /> Print / Export PDF
+            {isDownloadingPdf ? (
+              <>
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" /> {downloadProgress || "Generating PDF..."}
+              </>
+            ) : (
+              <>
+                <FileDown className="h-3.5 w-3.5" /> Download PDF
+              </>
+            )}
+          </button>
+
+          <button
+            onClick={triggerPrint}
+            className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+            title="Open system print preview"
+          >
+            <Printer className="h-3.5 w-3.5" /> Print
           </button>
         </div>
       </div>
@@ -444,7 +496,7 @@ export default function ProposalGenerator({
           {/* Section 1: Client & Delivery Info */}
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 space-y-4 text-left">
             <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-50 pb-2 dark:border-slate-850">
-              <User className="h-4 w-4 text-blue-500" /> 1. Client Details &amp; Roadmap
+              <User className="h-4 w-4 text-blue-500" /> 1. Client Details
             </h3>
             
             <div className="grid gap-4 sm:grid-cols-2">
@@ -479,11 +531,11 @@ export default function ProposalGenerator({
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-slate-500 block mb-1">Project Timeline SLA</label>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">Client Location</label>
                 <input
                   type="text"
-                  value={timeline}
-                  onChange={(e) => setTimeline(e.target.value)}
+                  value={clientAddress}
+                  onChange={(e) => setClientAddress(e.target.value)}
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-850 dark:text-white font-semibold focus:ring-1 focus:ring-blue-500 outline-none"
                 />
               </div>
@@ -503,11 +555,11 @@ export default function ProposalGenerator({
             </div>
           </div>
 
-          {/* Section 2: Interactive Pricing Calculator */}
+          {/* Section 2: Simple Price Form */}
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 space-y-4 text-left">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-50 pb-2 dark:border-slate-850">
               <h3 className="text-xs font-extrabold text-blue-600 dark:text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
-                <DollarSign className="h-4 w-4" /> 2. One-Off Setup Investments
+                <DollarSign className="h-4 w-4" /> 2. Simple Proposal Pricing
               </h3>
 
               {/* Country & Currency Selector */}
@@ -535,28 +587,39 @@ export default function ProposalGenerator({
 
             {/* Quick Country-Specific Market Rate Preset */}
             <div className="p-3 rounded-xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
-              <div>
+              <div className="text-left">
                 <p className="text-[11px] font-bold text-blue-900 dark:text-blue-200 flex items-center gap-1.5">
                   <span>{activeCountry.flag}</span>
-                  <span>{activeCountry.name} Standard Market Rates</span>
+                  <span>{activeCountry.name} Standard Baseline Pricing</span>
                 </p>
                 <p className="text-[10px] text-blue-600 dark:text-blue-400 mt-0.5">
-                  {currencySymbol}{activeCountry.defaultPricing.packagePrice.toLocaleString()} Setup • {currencySymbol}{activeCountry.defaultPricing.hostingPrice.toLocaleString()}/mo Hosting • {currencySymbol}{activeCountry.defaultPricing.seoPrice.toLocaleString()} SEO
+                  {currencySymbol}{activeCountry.defaultPricing.packagePrice.toLocaleString()} Setup • {currencySymbol}{activeCountry.defaultPricing.hostingPrice.toLocaleString()}/mo Hosting
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => handleApplyCountryPreset(activeCountry)}
+                onClick={() => {
+                  setPricing({
+                    ...activeCountry.defaultPricing,
+                    emailPrice: 0,
+                    seoPrice: 0,
+                    gbpOtpPrice: 0,
+                    logoPrice: 0,
+                    supportMonthlyPrice: 0
+                  });
+                  setSelectedCountryCode(activeCountry.countryCode);
+                  setCurrencySymbol(activeCountry.currencySymbol);
+                }}
                 className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[10px] transition-all cursor-pointer shrink-0 shadow-xs flex items-center gap-1"
               >
                 <RefreshCw className="h-3 w-3" />
-                <span>Apply {activeCountry.currencyCode} Pricing</span>
+                <span>Apply {activeCountry.currencyCode}</span>
               </button>
             </div>
             
-            <div className="grid gap-3.5 sm:grid-cols-2">
+            <div className="space-y-4">
               <div>
-                <label className="text-[10px] font-bold text-slate-500 block mb-1">Website Package ({currencySymbol})</label>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">Website Design ({currencySymbol})</label>
                 <input
                   type="number"
                   value={pricing.packagePrice}
@@ -566,27 +629,7 @@ export default function ProposalGenerator({
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-slate-500 block mb-1">SEO ({currencySymbol})</label>
-                <input
-                  type="number"
-                  value={pricing.seoPrice}
-                  onChange={(e) => handlePriceChange("seoPrice", Number(e.target.value))}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-850 dark:text-white font-mono font-bold focus:ring-1 focus:ring-blue-500 outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] font-bold text-slate-500 block mb-1">Logo Design ({currencySymbol})</label>
-                <input
-                  type="number"
-                  value={pricing.logoPrice}
-                  onChange={(e) => handlePriceChange("logoPrice", Number(e.target.value))}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-850 dark:text-white font-mono font-bold focus:ring-1 focus:ring-blue-500 outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] font-bold text-slate-500 block mb-1">Domain Registration ({currencySymbol})</label>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">Domain Setup ({currencySymbol})</label>
                 <input
                   type="number"
                   value={pricing.domainPrice}
@@ -596,177 +639,24 @@ export default function ProposalGenerator({
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-slate-500 block mb-1">Email Setup ({currencySymbol})</label>
-                <input
-                  type="number"
-                  value={pricing.emailPrice}
-                  onChange={(e) => handlePriceChange("emailPrice", Number(e.target.value))}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-850 dark:text-white font-mono font-bold focus:ring-1 focus:ring-blue-500 outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] font-bold text-slate-500 block mb-1">Google Business Optimization ({currencySymbol})</label>
-                <input
-                  type="number"
-                  value={pricing.gbpOtpPrice}
-                  onChange={(e) => handlePriceChange("gbpOtpPrice", Number(e.target.value))}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-850 dark:text-white font-mono font-bold focus:ring-1 focus:ring-blue-500 outline-none"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Section 3: SLA Recurring Support Fees */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 space-y-4 text-left">
-            <h3 className="text-xs font-extrabold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-50 pb-2 dark:border-slate-850">
-              <Clock className="h-4 w-4" /> 3. Monthly Recurring SLA Support
-            </h3>
-            
-            <div className="grid gap-3.5 sm:grid-cols-3">
-              <div>
-                <label className="text-[9px] font-bold text-slate-500 block mb-1">Hosting ({currencySymbol})</label>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">Hosting ({currencySymbol} / month)</label>
                 <input
                   type="number"
                   value={pricing.hostingPrice}
                   onChange={(e) => handlePriceChange("hostingPrice", Number(e.target.value))}
-                  className="w-full rounded-xl border border-slate-200 px-2 py-2 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-850 dark:text-white font-mono font-bold focus:ring-1 focus:ring-blue-500 outline-none"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-850 dark:text-white font-mono font-bold focus:ring-1 focus:ring-blue-500 outline-none"
                 />
               </div>
 
               <div>
-                <label className="text-[9px] font-bold text-slate-500 block mb-1">Maintenance ({currencySymbol})</label>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">Optional Maintenance ({currencySymbol} / month)</label>
                 <input
                   type="number"
                   value={pricing.maintenancePrice}
                   onChange={(e) => handlePriceChange("maintenancePrice", Number(e.target.value))}
-                  className="w-full rounded-xl border border-slate-200 px-2 py-2 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-850 dark:text-white font-mono font-bold focus:ring-1 focus:ring-blue-500 outline-none"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-850 dark:text-white font-mono font-bold focus:ring-1 focus:ring-blue-500 outline-none"
                 />
               </div>
-
-              <div>
-                <label className="text-[9px] font-bold text-slate-500 block mb-1">Monthly Support ({currencySymbol})</label>
-                <input
-                  type="number"
-                  value={pricing.supportMonthlyPrice}
-                  onChange={(e) => handlePriceChange("supportMonthlyPrice", Number(e.target.value))}
-                  className="w-full rounded-xl border border-slate-200 px-2 py-2 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-850 dark:text-white font-mono font-bold focus:ring-1 focus:ring-blue-500 outline-none"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Section 4: Narrative overview, features & deliverables */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 space-y-4 text-left">
-            <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-50 pb-2 dark:border-slate-850">
-              <Sparkles className="h-4 w-4 text-yellow-500" /> 4. Project Scope Narrative
-            </h3>
-
-            <div>
-              <label className="text-[10px] font-bold text-slate-500 block mb-1">Client Project Overview Pitch</label>
-              <textarea
-                value={projectOverview}
-                onChange={(e) => setProjectOverview(e.target.value)}
-                rows={4}
-                className="w-full rounded-xl border border-slate-200 p-3 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-700 dark:text-slate-300 focus:ring-1 focus:ring-blue-500 outline-none leading-relaxed"
-              />
-            </div>
-
-            {/* Custom Features Manager */}
-            <div className="space-y-2">
-              <label className="text-[10px] font-bold text-slate-500 block">Design &amp; Layout Features Included</label>
-              <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1 border border-slate-100 p-2 rounded-xl dark:border-slate-850 dark:bg-slate-950/20">
-                {features.map((feat, index) => (
-                  <div key={index} className="flex items-center justify-between text-[11px] font-medium text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-100 dark:border-slate-850 gap-2">
-                    <span className="truncate">✓ {feat}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveFeature(index)}
-                      className="text-slate-400 hover:text-red-500 transition-colors"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <div className="flex gap-2 pt-1">
-                <input
-                  type="text"
-                  placeholder="Add custom layout feature..."
-                  value={newFeature}
-                  onChange={(e) => setNewFeature(e.target.value)}
-                  className="flex-grow rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] dark:border-slate-800 dark:bg-slate-950 text-slate-800 dark:text-white outline-none focus:ring-1 focus:ring-blue-500"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddFeature}
-                  className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-bold text-xs p-1.5 rounded-lg border border-slate-200 dark:border-slate-750 shrink-0"
-                >
-                  <Plus className="h-4.5 w-4.5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Custom Deliverables Manager */}
-            <div className="space-y-2">
-              <label className="text-[10px] font-bold text-slate-500 block">Deliverables / Assets list</label>
-              <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1 border border-slate-100 p-2 rounded-xl dark:border-slate-850 dark:bg-slate-950/20">
-                {deliverables.map((del, index) => (
-                  <div key={index} className="flex items-center justify-between text-[11px] font-medium text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-100 dark:border-slate-850 gap-2">
-                    <span className="truncate">✓ {del}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveDeliverable(index)}
-                      className="text-slate-400 hover:text-red-500 transition-colors"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <div className="flex gap-2 pt-1">
-                <input
-                  type="text"
-                  placeholder="Add custom deliverable..."
-                  value={newDeliverable}
-                  onChange={(e) => setNewDeliverable(e.target.value)}
-                  className="flex-grow rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] dark:border-slate-800 dark:bg-slate-950 text-slate-800 dark:text-white outline-none focus:ring-1 focus:ring-blue-500"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddDeliverable}
-                  className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-bold text-xs p-1.5 rounded-lg border border-slate-200 dark:border-slate-750 shrink-0"
-                >
-                  <Plus className="h-4.5 w-4.5" />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Section 5: Legal Terms & Payments */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 space-y-4 text-left">
-            <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-50 pb-2 dark:border-slate-850">
-              <Shield className="h-4 w-4 text-emerald-500" /> 5. Legal Terms &amp; Payment Options
-            </h3>
-
-            <div>
-              <label className="text-[10px] font-bold text-slate-500 block mb-1">Payment Instructions &amp; Milestones</label>
-              <textarea
-                value={paymentDetails}
-                onChange={(e) => setPaymentDetails(e.target.value)}
-                rows={3}
-                className="w-full rounded-xl border border-slate-200 p-3 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-700 dark:text-slate-300 focus:ring-1 focus:ring-blue-500 outline-none leading-relaxed"
-              />
-            </div>
-
-            <div>
-              <label className="text-[10px] font-bold text-slate-500 block mb-1">Contract Rules &amp; Intellectual Property</label>
-              <textarea
-                value={contractTerms}
-                onChange={(e) => setContractTerms(e.target.value)}
-                rows={5}
-                className="w-full rounded-xl border border-slate-200 p-3 text-xs dark:border-slate-800 dark:bg-slate-950 text-slate-700 dark:text-slate-300 focus:ring-1 focus:ring-blue-500 outline-none leading-relaxed"
-              />
             </div>
           </div>
 
@@ -776,14 +666,30 @@ export default function ProposalGenerator({
         <div className="lg:col-span-7 space-y-6">
           
           {/* Action indicator above the paper - hidden in print */}
-          <div className="flex items-center justify-between rounded-xl bg-blue-50/50 p-4 border border-blue-100 dark:bg-blue-950/20 dark:border-blue-900/40 text-xs text-blue-700 dark:text-blue-300 no-print">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between rounded-xl bg-blue-50/60 p-4 border border-blue-100 dark:bg-blue-950/25 dark:border-blue-900/40 text-xs text-blue-700 dark:text-blue-300 gap-3 no-print">
             <div className="flex items-start gap-2 text-left">
               <Sparkles className="h-4.5 w-4.5 text-blue-500 shrink-0 mt-0.5" />
               <div>
                 <p className="font-bold">Premium High-Fidelity Stationery View</p>
-                <p className="text-[10px] opacity-80 mt-0.5">The document below will be perfectly printed or exported as a clean A4 PDF. Buttons and sidebar configuration controls are completely stripped automatically in the PDF layout.</p>
+                <p className="text-[10px] opacity-80 mt-0.5">The document below will be exported as a clean A4 PDF or printed directly. Interactive controls and sidebars are automatically excluded.</p>
               </div>
             </div>
+
+            <button
+              onClick={handleDownloadPdf}
+              disabled={isDownloadingPdf}
+              className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shrink-0 shadow-xs disabled:opacity-75"
+            >
+              {isDownloadingPdf ? (
+                <>
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Generating PDF...
+                </>
+              ) : (
+                <>
+                  <FileDown className="h-3.5 w-3.5" /> Download PDF
+                </>
+              )}
+            </button>
           </div>
 
           {/* Beautiful Document Stationery Sheet */}
@@ -817,100 +723,25 @@ export default function ProposalGenerator({
                 <h5 className="font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1"><Briefcase className="h-3.5 w-3.5 text-blue-500" /> CLIENT INFORMATION</h5>
                 <p className="font-extrabold text-sm text-slate-850 dark:text-slate-200">{businessName}</p>
                 <p className="text-slate-500 dark:text-slate-450 mt-1 flex items-center gap-1"><MapPin className="h-3 w-3 shrink-0" /> {clientAddress}</p>
-                <p className="text-slate-500 dark:text-slate-450 flex items-center gap-1"><Phone className="h-3 w-3 shrink-0" /> {clientPhone}</p>
               </div>
               <div className="bg-slate-50/50 dark:bg-slate-950/30 p-4 rounded-xl border border-slate-100 dark:border-slate-850">
                 <h5 className="font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1"><User className="h-3.5 w-3.5 text-blue-500" /> DIRECT RECIPIENT</h5>
                 <p className="font-extrabold text-sm text-slate-850 dark:text-slate-200">{clientName}</p>
                 <p className="text-slate-500 dark:text-slate-450 mt-1 flex items-center gap-1"><Mail className="h-3 w-3 shrink-0" /> {clientEmail}</p>
-                <p className="text-slate-500 dark:text-slate-450 flex items-center gap-1"><Clock className="h-3 w-3 shrink-0" /> Target Timeline: <strong className="text-blue-600 dark:text-blue-400">{timeline}</strong></p>
               </div>
             </div>
 
-            {/* Section 1: Project Overview */}
-            <div className="space-y-3">
-              <h4 className="text-xs font-black text-slate-900 dark:text-white border-b border-slate-100 pb-2 dark:border-slate-800 uppercase tracking-widest flex items-center gap-1.5">
-                <span className="h-5 w-5 rounded-md bg-blue-600 text-white flex items-center justify-center text-[10px] font-extrabold">01</span> Project Overview
-              </h4>
-              <p className="text-xs text-slate-600 dark:text-slate-350 leading-relaxed whitespace-pre-line text-justify">
-                {projectOverview}
-              </p>
-            </div>
-
-            {/* Section 2: Website Layout Features */}
+            {/* Section 1: Proposed Services & Pricing */}
             <div className="space-y-4">
               <h4 className="text-xs font-black text-slate-900 dark:text-white border-b border-slate-100 pb-2 dark:border-slate-800 uppercase tracking-widest flex items-center gap-1.5">
-                <span className="h-5 w-5 rounded-md bg-blue-600 text-white flex items-center justify-center text-[10px] font-extrabold">02</span> Layout &amp; Interactive Features
-              </h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                The bespoke website layout is engineered for speed, secure browsing, and local lead conversion. The following elements will be fully integrated:
-              </p>
-              <div className="grid gap-2 sm:grid-cols-2 text-xs text-slate-700 dark:text-slate-300 font-medium">
-                {features.map((feat, index) => (
-                  <div key={index} className="flex items-start gap-2 bg-slate-50/40 p-2 rounded-lg border border-slate-100/50 dark:bg-slate-950/20 dark:border-slate-850">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
-                    <span>{feat}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Page break during printing for a perfectly formatted clean multi-page document */}
-            <div className="page-break" />
-
-            {/* Section 3: Structured Delivery Timeline */}
-            <div className="space-y-4 pt-4 print:pt-0">
-              <h4 className="text-xs font-black text-slate-900 dark:text-white border-b border-slate-100 pb-2 dark:border-slate-800 uppercase tracking-widest flex items-center gap-1.5">
-                <span className="h-5 w-5 rounded-md bg-blue-600 text-white flex items-center justify-center text-[10px] font-extrabold">03</span> Delivery Timeline &amp; Milestones
-              </h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                We employ an agile design roadmap to complete copy mapping and live server connections. Below is our phased timeline:
-              </p>
-              <div className="space-y-3">
-                {timelinePhases.map((phaseItem, index) => (
-                  <div key={index} className="flex gap-3 items-start">
-                    <div className="flex flex-col items-center shrink-0">
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-50 text-[10px] font-bold text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 font-mono">
-                        {index + 1}
-                      </span>
-                    </div>
-                    <div>
-                      <h5 className="text-xs font-bold text-slate-850 dark:text-white">
-                        {phaseItem.phase} <span className="text-[10px] font-bold text-blue-600 bg-blue-50/80 px-2 py-0.2 rounded ml-1.5 dark:bg-blue-950/40 dark:text-blue-300">{phaseItem.duration}</span>
-                      </h5>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">{phaseItem.task}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Section 4: Project Deliverables */}
-            <div className="space-y-3">
-              <h4 className="text-xs font-black text-slate-900 dark:text-white border-b border-slate-100 pb-2 dark:border-slate-800 uppercase tracking-widest flex items-center gap-1.5">
-                <span className="h-5 w-5 rounded-md bg-blue-600 text-white flex items-center justify-center text-[10px] font-extrabold">04</span> Contract Deliverables
-              </h4>
-              <ul className="space-y-2 text-xs text-slate-700 dark:text-slate-350 pl-1">
-                {deliverables.map((del, index) => (
-                  <li key={index} className="flex items-start gap-2.5">
-                    <span className="text-blue-500 shrink-0 select-none font-extrabold">▪</span>
-                    <span className="leading-relaxed">{del}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Section 5: Dynamic Investment & Pricing */}
-            <div className="space-y-4">
-              <h4 className="text-xs font-black text-slate-900 dark:text-white border-b border-slate-100 pb-2 dark:border-slate-800 uppercase tracking-widest flex items-center gap-1.5">
-                <span className="h-5 w-5 rounded-md bg-blue-600 text-white flex items-center justify-center text-[10px] font-extrabold">05</span> Investment Schedule
+                <span className="h-5 w-5 rounded-md bg-blue-600 text-white flex items-center justify-center text-[10px] font-extrabold">01</span> Proposed Investment Schedule
               </h4>
               
               <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
                 <table className="w-full text-left border-collapse text-[11px]">
                   <thead>
                     <tr className="bg-slate-50 text-[9px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider border-b border-slate-200 dark:bg-slate-950 dark:border-slate-800">
-                      <th className="p-3">Deliverable Item Details</th>
+                      <th className="p-3">Service Deliverable Details</th>
                       <th className="p-3 text-center">Billing Frequency</th>
                       <th className="p-3 text-right">Investment Quote</th>
                     </tr>
@@ -919,61 +750,41 @@ export default function ProposalGenerator({
                     {pricing.packagePrice > 0 && (
                       <tr>
                         <td className="p-3">
-                          <p className="font-extrabold text-slate-900 dark:text-white">{pricing.packageName}</p>
-                          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-normal mt-0.5">Professional custom layout configuration, mobile theme, content reviews.</p>
+                          <p className="font-extrabold text-slate-900 dark:text-white">Website Design</p>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-normal mt-0.5">High-fidelity custom-designed homepage layout, optimized for local search, mobile theme integration, and high conversion.</p>
                         </td>
-                        <td className="p-3 text-center text-slate-500 uppercase text-[9px]">One-Off Design</td>
+                        <td className="p-3 text-center text-slate-500 uppercase text-[9px]">One-Off Setup</td>
                         <td className="p-3 text-right font-mono font-bold">{currencySymbol}{pricing.packagePrice.toLocaleString()}</td>
                       </tr>
                     )}
-                    {(pricing.seoPrice > 0 || pricing.gbpOtpPrice > 0) && (
+                    {pricing.domainPrice > 0 && (
                       <tr>
                         <td className="p-3">
-                          <p className="font-extrabold text-slate-900 dark:text-white">Local Search SEO &amp; Google Map Grounding</p>
-                          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-normal mt-0.5">Custom localized meta titles, keywords indexing tag schemas, and map syncing.</p>
-                        </td>
-                        <td className="p-3 text-center text-slate-500 uppercase text-[9px]">One-Off SEO</td>
-                        <td className="p-3 text-right font-mono font-bold">{currencySymbol}{(pricing.seoPrice + pricing.gbpOtpPrice).toLocaleString()}</td>
-                      </tr>
-                    )}
-                    {pricing.logoPrice > 0 && (
-                      <tr>
-                        <td className="p-3">
-                          <p className="font-extrabold text-slate-900 dark:text-white">Branded Logo Design &amp; Asset Deliverables</p>
-                          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-normal mt-0.5">Vector source assets, color configurations, favicon assets.</p>
-                        </td>
-                        <td className="p-3 text-center text-slate-500 uppercase text-[9px]">One-Off Logo</td>
-                        <td className="p-3 text-right font-mono font-bold">{currencySymbol}{pricing.logoPrice.toLocaleString()}</td>
-                      </tr>
-                    )}
-                    {(pricing.domainPrice > 0 || pricing.emailPrice > 0) && (
-                      <tr>
-                        <td className="p-3">
-                          <p className="font-extrabold text-slate-900 dark:text-white">Domain Acquisition &amp; Business Email Setups</p>
-                          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-normal mt-0.5">Custom domain registrations and MX mail server routing set up.</p>
+                          <p className="font-extrabold text-slate-900 dark:text-white">Domain Setup</p>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-normal mt-0.5">Custom domain name registration, configuration, and linkage with modern SSL padlock security.</p>
                         </td>
                         <td className="p-3 text-center text-slate-500 uppercase text-[9px]">One-Off Setup</td>
-                        <td className="p-3 text-right font-mono font-bold">{currencySymbol}{(pricing.domainPrice + pricing.emailPrice).toLocaleString()}</td>
+                        <td className="p-3 text-right font-mono font-bold">{currencySymbol}{pricing.domainPrice.toLocaleString()}</td>
                       </tr>
                     )}
                     {pricing.hostingPrice > 0 && (
                       <tr>
                         <td className="p-3">
-                          <p className="font-extrabold text-slate-900 dark:text-white">Secure Hosting, SSL Certificates, &amp; CDN Edge Serving</p>
-                          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-normal mt-0.5">SSL secure padlock protection, ultra-low latency global site deliveries.</p>
+                          <p className="font-extrabold text-slate-900 dark:text-white">Hosting</p>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-normal mt-0.5">SSL secure server encryption, ultra-low latency CDN edge serving, and automated daily performance diagnostics.</p>
                         </td>
                         <td className="p-3 text-center text-slate-500 uppercase text-[9px]">Monthly Recurring</td>
-                        <td className="p-3 text-right font-mono font-bold">{currencySymbol}{pricing.hostingPrice.toLocaleString()}/mo</td>
+                        <td className="p-3 text-right font-mono font-bold">{currencySymbol}{pricing.hostingPrice.toLocaleString()} / month</td>
                       </tr>
                     )}
-                    {(pricing.maintenancePrice > 0 || pricing.supportMonthlyPrice > 0) && (
+                    {pricing.maintenancePrice > 0 && (
                       <tr>
                         <td className="p-3">
-                          <p className="font-extrabold text-slate-900 dark:text-white">Weekly Backups &amp; Support SLA Updates</p>
-                          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-normal mt-0.5">Continuous security updates, weekly copies backup, and up to 2 monthly maintenance SLA hours.</p>
+                          <p className="font-extrabold text-slate-900 dark:text-white">Optional Maintenance</p>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-normal mt-0.5">Continuous text updates, weekly safety database backups, security patch updates, and direct support SLA.</p>
                         </td>
                         <td className="p-3 text-center text-slate-500 uppercase text-[9px]">Monthly Recurring</td>
-                        <td className="p-3 text-right font-mono font-bold">{currencySymbol}{(pricing.maintenancePrice + pricing.supportMonthlyPrice).toLocaleString()}/mo</td>
+                        <td className="p-3 text-right font-mono font-bold">{currencySymbol}{pricing.maintenancePrice.toLocaleString()} / month</td>
                       </tr>
                     )}
                   </tbody>
@@ -993,37 +804,17 @@ export default function ProposalGenerator({
                   </div>
                   <div className="border-l border-slate-200 h-8 dark:border-slate-800" />
                   <div>
-                    <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider block">SLA Support Monthly</span>
-                    <p className="text-lg font-black text-blue-600 dark:text-blue-400 font-mono">{currencySymbol}{monthlyTotal.toLocaleString()}/mo</p>
+                    <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider block">Monthly Recurring</span>
+                    <p className="text-lg font-black text-blue-600 dark:text-blue-400 font-mono">{currencySymbol}{monthlyTotal.toLocaleString()} / month</p>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Section 6: Payment Instructions */}
-            <div className="space-y-3">
-              <h4 className="text-xs font-black text-slate-900 dark:text-white border-b border-slate-100 pb-2 dark:border-slate-800 uppercase tracking-widest flex items-center gap-1.5">
-                <span className="h-5 w-5 rounded-md bg-blue-600 text-white flex items-center justify-center text-[10px] font-extrabold">06</span> Payment Instructions &amp; Setup Details
-              </h4>
-              <p className="text-xs text-slate-600 dark:text-slate-350 leading-relaxed whitespace-pre-wrap">
-                {renderedPaymentDetails}
-              </p>
-            </div>
-
-            {/* Section 7: Terms of Agreement */}
-            <div className="space-y-3">
-              <h4 className="text-xs font-black text-slate-900 dark:text-white border-b border-slate-100 pb-2 dark:border-slate-800 uppercase tracking-widest flex items-center gap-1.5">
-                <span className="h-5 w-5 rounded-md bg-blue-600 text-white flex items-center justify-center text-[10px] font-extrabold">07</span> Terms of Service &amp; Agreement
-              </h4>
-              <div className="rounded-xl bg-slate-50 p-4 border border-slate-150 dark:bg-slate-950 dark:border-slate-800 max-h-[180px] overflow-y-auto leading-relaxed text-[11px] text-slate-500 dark:text-slate-400 text-justify whitespace-pre-wrap font-medium">
-                {contractTerms}
-              </div>
-            </div>
-
-            {/* Section 8: Interactive Acceptance Signatures */}
+            {/* Section 2: Interactive Acceptance Signatures */}
             <div className="border-t border-slate-100 pt-6 dark:border-slate-800/80 space-y-4">
               <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-1.5">
-                <span className="h-5 w-5 rounded-md bg-blue-600 text-white flex items-center justify-center text-[10px] font-extrabold">08</span> Execution of Agreement (Signatures)
+                <span className="h-5 w-5 rounded-md bg-blue-600 text-white flex items-center justify-center text-[10px] font-extrabold">02</span> Execution of Agreement (Signatures)
               </h4>
               
               <div className="grid gap-6 sm:grid-cols-2 text-xs">

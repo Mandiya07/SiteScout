@@ -36,6 +36,47 @@ export interface AuditEvidence {
   httpStatus?: number | string;
   websiteVerified: boolean;
   notes: string;
+  sourceUrls?: string[];
+  verificationStatus?: "verified_live_listing" | "directory_found" | "sample_demo";
+  isEstimated?: boolean;
+}
+
+export type ContentLevel = "VERIFIED" | "BUSINESS_SUPPLIED" | "AI_DRAFT";
+
+export interface TruthField {
+  label: string;
+  key: string;
+  value: string;
+  status: "confirmed" | "unconfirmed" | "not_found";
+  statusText: string;
+  level: ContentLevel;
+  notes?: string;
+  source?: string;
+}
+
+export interface BusinessTruthProfile {
+  id: string;
+  businessId: string;
+  businessName: TruthField;
+  phone: TruthField;
+  address: TruthField;
+  website: TruthField;
+  category: TruthField;
+  services: TruthField;
+  openingHours: TruthField;
+  rating: TruthField;
+  reviews: TruthField;
+  email: TruthField;
+  socialLinks: TruthField;
+  summary: {
+    confirmedCount: number;
+    unconfirmedCount: number;
+    verifiedCount: number;
+    businessSuppliedCount: number;
+    aiDraftCount: number;
+    draftPolicy: string;
+  };
+  generatedAt?: string;
 }
 
 export interface Business {
@@ -56,10 +97,23 @@ export interface Business {
   deficitCount?: number;
   evidence?: AuditEvidence;
   sourceUrl?: string;
+  isDemo?: boolean;
+  dataType?: "real" | "demo";
+  truthProfile?: BusinessTruthProfile;
   // Enhanced Tripartite Scoring (Point 43, 44, 45)
   businessQualityScore?: number;
   digitalDeficitScore?: number;
   websiteOpportunityScore?: number;
+  // Pipeline Architecture Classification
+  pipelineBranch?: "BRANCH_A_WEBSITE_AUDITED" | "BRANCH_B_CANDIDATE_VERIFIED";
+  pipelineStage?: "REAL_SOURCE_FETCHED" | "URL_DETECTED_AUDITED" | "CANDIDATE_VERIFIED" | "CONFIRMED_REVAMP_PROSPECT" | "GENERATION_READY";
+  liveAuditDetails?: {
+    rawUrl?: string;
+    httpStatus?: string;
+    responseTimeMs?: number;
+    isSsl?: boolean;
+    geminiAnalysisSummary?: string;
+  };
   // Prospect pipeline fields
   prospectStatus?: ProspectStatus;
   lastContactedAt?: string;
@@ -77,10 +131,8 @@ export type ProspectStatus =
   | "Analyzed"
   | "Preview Ready"
   | "Preview Sent"
-  | "Follow-up 1"
-  | "Follow-up 2"
   | "Interested"
-  | "Proposal Sent"
+  | "Proposal"
   | "Won"
   | "Lost";
 
@@ -99,9 +151,22 @@ export interface SeoMetadata {
   keywords: string;
 }
 
+export interface VisualAnalysisReport {
+  detectedSubject: string;
+  tradeAuthenticity: "high_fidelity_trade_match" | "acceptable_context" | "generic_stock_warning";
+  focalPointPosition: "left_weighted" | "center" | "right_weighted" | "distributed";
+  negativeSpaceLocation: "left" | "right" | "top" | "center" | "minimal";
+  overlayReadabilityScore: number; // 0 - 100
+  contrastRating: "optimal_dark_overlay" | "optimal_light_overlay" | "high_contrast" | "busy_background";
+  analysisSummary: string;
+  visualDefects?: string[];
+}
+
 export interface ImageMetadata {
   id: string;
   provider: "unsplash" | "pexels" | "pixabay" | "curated_taxonomy" | "user_upload" | "business_asset" | "ai_generated";
+  source?: string;
+  selectionMethod?: string;
   sourceUrl: string;
   thumbnailUrl: string;
   fullUrl: string;
@@ -119,14 +184,19 @@ export interface ImageMetadata {
   subcategory?: string;
   relevanceScore: number;
   relevanceBreakdown?: {
-    industryMatch: number;
-    serviceMatch: number;
-    sectionMatch: number;
-    visualQuality: number;
-    composition: number;
-    orientation: number;
-    resolution: number;
+    metadataRelevance?: number;      // max 25
+    visualRelevance?: number;        // max 35 (authentic trade tools/scene vs generic stock)
+    composition?: number;            // max 20 (rule-of-thirds, visual balance)
+    textOverlaySuitability?: number; // max 20 (clean negative space, headline headroom)
+    // Legacy support
+    industryMatch?: number;
+    serviceMatch?: number;
+    sectionMatch?: number;
+    visualQuality?: number;
+    orientation?: number;
+    resolution?: number;
   };
+  visualAnalysis?: VisualAnalysisReport;
   explanation?: string;
   orientation?: "landscape" | "portrait" | "square";
   createdAt: string;
@@ -282,6 +352,7 @@ export interface GeneratedSite {
   previewLastViewedAt?: string;
   previewHistory?: { timestamp: string; device: "mobile" | "desktop"; referrer?: string }[];
   proposal?: Proposal;
+  truthProfile?: BusinessTruthProfile;
   publishing?: {
     customDomain?: string;
     subdomain?: string;
@@ -292,8 +363,12 @@ export interface GeneratedSite {
     status?: "published" | "unpublished";
   };
   crmSynced?: boolean;
+  isDemo?: boolean;
+  dataType?: "real" | "demo";
   visualProfile?: VisualBusinessProfile;
   imageAttributions?: ImageMetadata[];
+  presence?: any;
+  deficits?: any;
 }
 
 export interface SalesOutreach {
@@ -342,6 +417,7 @@ export interface SearchFilters {
   category: string;
   keywords: string;
   radius: string;
+  page?: number;
   directorySource?: string;
   deficitFilters?: {
     noWebsite?: boolean;

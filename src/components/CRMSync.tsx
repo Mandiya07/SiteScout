@@ -43,7 +43,9 @@ export default function CRMSync({ businesses, sites, onBack }: CRMSyncProps) {
     }, 2000);
   };
 
-  const leadsCount = businesses.length;
+  const realBusinesses = businesses.filter(b => b.dataType !== "demo" && !b.isDemo && b.evidence?.verificationStatus !== "sample_demo");
+  const leadsCount = realBusinesses.length;
+  const demoCount = businesses.length - realBusinesses.length;
   const clientsCount = sites.filter(s => s.clientApproved).length;
   const activeProjectsCount = sites.length;
 
@@ -71,10 +73,10 @@ export default function CRMSync({ businesses, sites, onBack }: CRMSyncProps) {
         </div>
       </div>
 
-      <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-600 dark:text-slate-400">
+      <div className="p-3.5 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 flex items-center justify-between text-xs text-amber-800 dark:text-amber-300 animate-fade-in">
         <div className="flex items-center gap-2">
-          <Database className="h-4 w-4 text-blue-500 shrink-0" />
-          <span><strong>Integration Preview Mode:</strong> Test field mapping & webhook payloads locally before connecting enterprise OAuth credentials.</span>
+          <Database className="h-4 w-4 text-amber-500 shrink-0" />
+          <span><strong>Simulated Sandbox Mode:</strong> Real OAuth connections for HubSpot, Salesforce, Pipedrive, and Zoho are planned for Phase 2. This is currently non-priority; explore mapping rules and test simulated synchronization flow below.</span>
         </div>
       </div>
 
@@ -248,12 +250,18 @@ export default function CRMSync({ businesses, sites, onBack }: CRMSyncProps) {
             </h3>
             
             <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800/50">
-                <div className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-slate-400" />
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Total Leads</span>
+              <div className="flex flex-col gap-1 p-3 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800/50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-slate-400" />
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Total Leads</span>
+                  </div>
+                  <span className="text-sm font-mono font-bold text-blue-600 dark:text-blue-400">{leadsCount}</span>
                 </div>
-                <span className="text-sm font-mono font-bold text-blue-600 dark:text-blue-400">{leadsCount}</span>
+                <div className="flex items-center justify-between text-[10px] text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">
+                  <span>✨ Live Verified Scope</span>
+                  <span>100% Exclude Synthetic</span>
+                </div>
               </div>
               <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800/50">
                 <div className="flex items-center gap-2">
@@ -269,6 +277,13 @@ export default function CRMSync({ businesses, sites, onBack }: CRMSyncProps) {
                 </div>
                 <span className="text-sm font-mono font-bold text-emerald-600 dark:text-emerald-500">{clientsCount}</span>
               </div>
+
+              {demoCount > 0 && (
+                <div className="p-3 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/30 text-[11px] text-amber-800 dark:text-amber-300">
+                  <span className="font-bold block mb-0.5">⚠️ Data Export Guardrail:</span>
+                  {demoCount} synthetic demo records were automatically filtered out to prevent directory contamination.
+                </div>
+              )}
             </div>
 
             <div className="pt-4 border-t border-slate-100 dark:border-slate-800">

@@ -851,13 +851,25 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
                               <span className="text-[10px] px-2 py-0.2 rounded-full font-semibold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                                 {biz.category}
                               </span>
-                              {isDemo ? (
+                              {isDemo || biz.verificationState === "DEMO" ? (
                                 <span className="inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-md font-bold bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
                                   ⚠️ Demo / Synthetic Data
                                 </span>
+                              ) : biz.verificationState === "CONTACT_READY" ? (
+                                <span className="inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-md font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40" title="Identity, contact phone, and website status independently verified and ready for outreach.">
+                                  <CheckCircle2 className="h-2.5 w-2.5" /> Contact Ready
+                                </span>
+                              ) : biz.verificationState === "VERIFIED" || biz.evidence?.verificationStatus === "verified_live_listing" ? (
+                                <span className="inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-md font-bold bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/40" title="SiteScout has validated the business identity and contact information.">
+                                  <CheckCircle2 className="h-2.5 w-2.5" /> Verified Lead
+                                </span>
+                              ) : biz.verificationState === "CANDIDATE" ? (
+                                <span className="inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-md font-bold bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/40" title="Discovered in directory listings. Audit recommended to verify contact line and operating status.">
+                                  🔍 Candidate
+                                </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-md font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40">
-                                  <CheckCircle2 className="h-2.5 w-2.5" /> Verified
+                                <span className="inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-md font-bold bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700" title="Record discovered but unverified.">
+                                  Unverified
                                 </span>
                               )}
                               {/* Pipeline Architecture Branch Badges */}

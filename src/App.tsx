@@ -248,6 +248,38 @@ export default function App() {
         }
       };
       fetchUserSites();
+
+      // Load user's saved businesses from Firestore
+      const fetchUserBusinesses = async () => {
+        try {
+          const q = query(collection(db, "businesses"), where("userId", "==", session.uid));
+          const querySnapshot = await getDocs(q);
+          const bizList: Business[] = [];
+          querySnapshot.forEach((docSnap) => {
+            bizList.push(docSnap.data() as Business);
+          });
+          if (bizList.length > 0) {
+            setBusinesses(bizList);
+            try {
+              localStorage.setItem("sitescout_user_businesses", JSON.stringify(bizList));
+            } catch (e) {}
+          }
+        } catch (err) {
+          console.error("Error fetching user businesses from Firestore:", err);
+          try {
+            const cached = localStorage.getItem("sitescout_user_businesses");
+            if (cached) {
+              const parsed = JSON.parse(cached);
+              if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+                setBusinesses(parsed);
+              }
+            }
+          } catch (cacheErr) {
+            console.error("Fallback business cache error:", cacheErr);
+          }
+        }
+      };
+      fetchUserBusinesses();
     }
   }, [session, activeTab]);
 
@@ -274,10 +306,45 @@ export default function App() {
     });
   }, [userSites, businesses]);
 
-  const handleUpdateProspect = (updated: Business) => {
+  const handleUpdateProspect = async (updated: Business) => {
     setBusinesses(prev => prev.map(b => b.id === updated.id ? updated : b));
     if (selectedBusiness?.id === updated.id) {
       setSelectedBusiness(updated);
+    }
+    try {
+      localStorage.setItem("sitescout_user_businesses", JSON.stringify(
+        businesses.map(b => b.id === updated.id ? updated : b)
+      ));
+    } catch (e) {}
+
+    if (session && !updated.isDemo) {
+      try {
+        const bizDoc = {
+          ...updated,
+          userId: session.uid,
+          ownerId: session.uid,
+          updatedAt: new Date().toISOString()
+        };
+        await setDoc(doc(db, "businesses", updated.id), bizDoc, { merge: true });
+
+        // Record activity in subcollection: /businesses/{businessId}/activities/{activityId}
+        const actId = `act-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        await setDoc(doc(db, "businesses", updated.id, "activities", actId), {
+          id: actId,
+          businessId: updated.id,
+          type: updated.prospectStatus === "Won" 
+            ? "deal_won" 
+            : (updated.prospectStatus === "Proposal" 
+              ? "proposal_sent" 
+              : (updated.prospectStatus === "Preview Sent" ? "preview_sent" : "follow_up_sent")),
+          title: `Prospect Updated: ${updated.prospectStatus || "Stage Change"}`,
+          description: updated.prospectNotes ? `Notes: ${updated.prospectNotes.slice(0, 100)}` : `Stage updated to ${updated.prospectStatus}`,
+          timestamp: new Date().toISOString(),
+          actorId: session.uid
+        });
+      } catch (err) {
+        console.warn("Firestore update business error:", err);
+      }
     }
   };
 
@@ -314,11 +381,41 @@ export default function App() {
       const newBizs = data.businesses || [];
       
       setBusinesses(prev => {
-        if (!isAppend) return newBizs;
-        const existingNames = new Set(prev.map(b => b.name.toLowerCase()));
-        const uniqueNew = newBizs.filter(b => !existingNames.has(b.name.toLowerCase()));
-        return [...prev, ...uniqueNew];
+        const updated = !isAppend ? newBizs : [...prev, ...newBizs.filter(b => !new Set(prev.map(p => p.name.toLowerCase())).has(b.name.toLowerCase()))];
+        try {
+          localStorage.setItem("sitescout_user_businesses", JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
       });
+
+      if (session && newBizs.length > 0) {
+        newBizs.forEach(async (biz: Business) => {
+          if (biz.isDemo) return;
+          try {
+            const bizDoc = {
+              ...biz,
+              userId: session.uid,
+              ownerId: session.uid,
+              createdAt: biz.createdAt || new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            };
+            await setDoc(doc(db, "businesses", biz.id), bizDoc, { merge: true });
+
+            const actId = `act-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+            await setDoc(doc(db, "businesses", biz.id, "activities", actId), {
+              id: actId,
+              businessId: biz.id,
+              type: "business_discovered",
+              title: "Discovered via Directory Search",
+              description: `Source: ${biz.directorySource || "Directory Listing"}. Opportunity Score: ${biz.opportunityScore || 0}%`,
+              timestamp: new Date().toISOString(),
+              actorId: session.uid
+            });
+          } catch (e) {
+            console.warn("Firestore save business error:", e);
+          }
+        });
+      }
       
       if (data.source === "error_fallback") {
         setApiNotice("sandbox_simulated");
@@ -1634,6 +1731,9 @@ export default function App() {
               onBack={() => setActiveTab("dashboard")}
               onGenerateWebsite={handleGenerateWebsite}
               loading={loading}
+              onVerifyBusiness={(updated) => {
+                handleUpdateProspect(updated);
+              }}
             />
           )}
 

@@ -26,9 +26,24 @@ service cloud.firestore {
     }
 
     // User profiles & user-scoped subcollections (e.g. /users/{userId}/businesses/{businessId})
+    // PREVENTS PRIVILEGE ESCALATION: Ordinary users cannot grant themselves 'admin' role
     match /users/{userId} {
       allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      allow create, update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow create: if isSignedIn() && request.auth.uid == userId && (
+        !('role' in request.resource.data) || 
+        request.resource.data.role == 'user' || 
+        request.resource.data.role == 'User' ||
+        request.auth.token.email == 'siphom.yati@gmail.com'
+      );
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        (
+          request.auth.uid == userId && (
+            !('role' in request.resource.data) || 
+            request.resource.data.role == resource.data.get('role', 'user')
+          )
+        )
+      );
       allow delete: if isAdmin();
 
       // Nested user-owned subcollections (e.g. /users/{userId}/businesses/{businessId})
@@ -61,6 +76,12 @@ service cloud.firestore {
         isAdmin()
       );
       allow delete: if isSignedIn() && (isOwner(resource.data) || isAdmin());
+
+      // Telemetry events subcollection (e.g. /publicPreviews/{previewToken}/events/{eventId})
+      match /events/{eventId} {
+        allow create: if true;
+        allow read: if isSignedIn();
+      }
     }
 
     // Prospects / Businesses collection: strict user ownership & isolation
@@ -72,6 +93,11 @@ service cloud.firestore {
         isAdmin()
       );
       allow update, delete: if isSignedIn() && (isOwner(resource.data) || isAdmin());
+
+      // Prospect activity timeline (e.g. /businesses/{businessId}/activities/{activityId})
+      match /activities/{activityId} {
+        allow read, write: if isSignedIn();
+      }
     }
 
     // Proposals collection: strict user ownership isolation (User A <-> User A, User B <-> User B, Admin <-> All)

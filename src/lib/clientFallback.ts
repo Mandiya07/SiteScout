@@ -273,7 +273,9 @@ export function getClientMockBusinesses(city: string, category: string, country:
         deficits: defs
       },
       isDemo: true,
-      dataType: "demo",
+      dataType: "demo" as const,
+      verificationState: "DEMO" as const,
+      salesStage: "NEW" as const,
       description: p.desc,
       deficitCount: defCount,
       presenceScore,

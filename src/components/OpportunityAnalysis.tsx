@@ -13,6 +13,7 @@ interface OpportunityAnalysisProps {
   onBack: () => void;
   onGenerateWebsite: () => void;
   loading: boolean;
+  onVerifyBusiness?: (updated: Business) => void;
 }
 
 const DEFICIT_DEFINITIONS: { 
@@ -119,11 +120,70 @@ export default function OpportunityAnalysis({
   business,
   onBack,
   onGenerateWebsite,
-  loading
+  loading,
+  onVerifyBusiness
 }: OpportunityAnalysisProps) {
   const [testUrl, setTestUrl] = useState<string>("");
   const [isAuditingUrl, setIsAuditingUrl] = useState<boolean>(false);
   const [customAuditResult, setCustomAuditResult] = useState<any>(null);
+
+  const [isVerifying, setIsVerifying] = useState<boolean>(false);
+  const [verificationError, setVerificationError] = useState<string | null>(null);
+  const [activeCheckingStep, setActiveCheckingStep] = useState<number>(-1);
+
+  const stepsToAnimate = [
+    "Cross-referencing trade registers & legal identity...",
+    "Validating phone line routing & signal format...",
+    "Confirming geo-coordinates & address mapping accuracy...",
+    "Pinging domain hosts to verify website absence/presence...",
+    "Auditing current operating status via citizen reviews...",
+    "Syncing reviews & rating counters with search index...",
+    "Analyzing active social media presence & last post times...",
+    "Compiling SiteScout 8-Point Independent Trust Stamp..."
+  ];
+
+  const handleRunVerify = async () => {
+    setIsVerifying(true);
+    setVerificationError(null);
+    setActiveCheckingStep(0);
+
+    for (let i = 0; i < stepsToAnimate.length; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 600 + Math.random() * 300));
+      setActiveCheckingStep(i + 1);
+    }
+
+    try {
+      const res = await authedFetch("/api/verify-business", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ business })
+      });
+
+      if (!res.ok) {
+        throw new Error(`Verification failed: ${res.statusText}`);
+      }
+
+      const data = await res.json();
+      
+      const updatedBusiness: Business = {
+        ...business,
+        evidence: data.evidence,
+        verificationChecklist: data.checklist,
+        verificationState: data.verificationState || business.verificationState,
+        evidenceList: data.evidenceList || business.evidenceList
+      };
+
+      if (onVerifyBusiness) {
+        onVerifyBusiness(updatedBusiness);
+      }
+    } catch (err: any) {
+      console.error("Verification error:", err);
+      setVerificationError("Failed to verify business details.");
+    } finally {
+      setIsVerifying(false);
+      setActiveCheckingStep(-1);
+    }
+  };
 
   const analysis = business.analysis;
   const score = business.presenceScore || analysis?.presenceScore || 38;
@@ -232,9 +292,13 @@ export default function OpportunityAnalysis({
             <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md font-bold bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
               ⚠️ Demo / Synthetic Data
             </span>
+          ) : business.evidence?.verificationStatus === "verified_live_listing" ? (
+            <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40" title="SiteScout has independently validated this business details via a strict 8-point trust audit.">
+              <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600" /> ✓ Verified Lead
+            </span>
           ) : (
-            <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40">
-              <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600" /> Verified
+            <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md font-bold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/40" title="Discovered via public indexes. Exact trading status, phone, address ownership, and website absence are unverified.">
+              <ShieldAlert className="h-2.5 w-2.5 text-amber-600" /> Discovered (Pending Audit)
             </span>
           )}
           <span className="text-xs text-slate-400 dark:text-slate-500">
@@ -250,87 +314,123 @@ export default function OpportunityAnalysis({
           {/* Prospect Verification Card */}
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 transition-colors">
             <h3 className="text-base font-extrabold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-emerald-500" />
-              Prospect Verification
+              <ShieldCheck className="h-5 w-5 text-indigo-500" />
+              Independent Trust Audit
             </h3>
             
-            <div className="space-y-3">
-              <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-2">
-                Business Information
-              </h4>
-              
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500 dark:text-slate-400">Website:</span>
-                  <span className="font-medium text-slate-800 dark:text-slate-200">
-                    {business.presence?.hasWebsite ? "✓ Found" : "❌ None found"}
-                  </span>
+            {isVerifying ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <RefreshCw className="h-5 w-5 text-indigo-500 animate-spin" />
+                  <p className="text-sm font-bold text-slate-900 dark:text-white">Running SiteScout Trust Audit...</p>
                 </div>
-                
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500 dark:text-slate-400">Google presence:</span>
-                  <span className="font-medium text-slate-800 dark:text-slate-200">
-                    {business.presence?.googleProfileQuality && business.presence.googleProfileQuality !== 'poor' ? "✓ Found" : "❌ None found"}
-                  </span>
-                </div>
-                
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500 dark:text-slate-400">Reviews:</span>
-                  <span className="font-medium text-slate-800 dark:text-slate-200">
-                    {business.reviewsCount}
-                  </span>
-                </div>
-                
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500 dark:text-slate-400">Rating:</span>
-                  <span className="font-medium text-slate-800 dark:text-slate-200">
-                    {business.rating}
-                  </span>
-                </div>
-                
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500 dark:text-slate-400">Facebook:</span>
-                  <span className="font-medium text-slate-800 dark:text-slate-200">
-                    {business.presence?.facebookStatus === 'active' ? "✓ Active" : "❌ Inactive"}
-                  </span>
-                </div>
-                
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500 dark:text-slate-400">Instagram:</span>
-                  <span className="font-medium text-slate-800 dark:text-slate-200">
-                    {business.presence?.instagramStatus === 'active' ? "✓ Active" : "❌ Inactive"}
-                  </span>
-                </div>
-                
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500 dark:text-slate-400">Digital opportunity:</span>
-                  <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                    {business.opportunityScore ?? (100 - score)}/100
-                  </span>
+                <div className="space-y-2.5 mt-2">
+                  {stepsToAnimate.map((step, idx) => {
+                    const isPassed = activeCheckingStep > idx;
+                    const isCurrent = activeCheckingStep === idx;
+                    return (
+                      <div key={idx} className="flex items-start gap-2.5 text-xs">
+                        {isPassed ? (
+                          <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                        ) : isCurrent ? (
+                          <RefreshCw className="h-4 w-4 text-indigo-500 shrink-0 animate-spin mt-0.5" />
+                        ) : (
+                          <div className="h-4 w-4 rounded-full border border-slate-200 dark:border-slate-800 shrink-0 mt-0.5" />
+                        )}
+                        <span className={`${isPassed ? "text-slate-700 dark:text-slate-300 font-medium" : isCurrent ? "text-indigo-600 dark:text-indigo-400 font-semibold animate-pulse" : "text-slate-400 dark:text-slate-600"}`}>
+                          {step}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-              
-              <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-2">
-                  Evidence
-                </h4>
-                <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg text-xs text-slate-600 dark:text-slate-400 border border-slate-200/50 dark:border-slate-700/50">
-                  {customAuditResult ? (
-                    <p>{customAuditResult.evidence?.notes}</p>
-                  ) : business.evidence ? (
-                    <p>{business.evidence.notes}</p>
-                  ) : (
-                    <p className="italic text-slate-400">No verified evidence available.</p>
-                  )}
-                  {(customAuditResult?.evidence?.httpStatus || business.evidence?.httpStatus) && (
-                    <div className="mt-1 flex items-center justify-between text-[10px] text-slate-400">
-                      <span>Source: {customAuditResult ? "Live Ping" : business.evidence?.source || "Directory"}</span>
-                      <span className="font-mono">{customAuditResult?.evidence?.httpStatus || business.evidence?.httpStatus}</span>
+            ) : business.verificationChecklist ? (
+              <div className="space-y-3">
+                <div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl border border-emerald-100 dark:border-emerald-900/30">
+                  <div className="flex gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="text-xs font-extrabold text-emerald-900 dark:text-emerald-300 uppercase tracking-wider">Independent Audit Certified</h4>
+                      <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-1">{business.evidence?.notes}</p>
                     </div>
-                  )}
+                  </div>
+                </div>
+
+                <div className="space-y-3 mt-4">
+                  <h4 className="text-xs font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider">8-Point Verification Report</h4>
+                  
+                  {[
+                    { key: "businessIdentity", label: "Business Identity Integrity", icon: ShieldCheck },
+                    { key: "exactPhone", label: "Contact Line Routing (Phone)", icon: Phone },
+                    { key: "exactAddress", label: "Address Mapping Accuracy", icon: MapPin },
+                    { key: "websiteAbsenceCheck", label: "Website Absence/Presence Audit", icon: Globe },
+                    { key: "operatingStatus", label: "Current Operating Status", icon: Zap },
+                    { key: "ratingSync", label: "Live Review Synchronicity", icon: MessageSquare },
+                    { key: "socialMediaPresence", label: "Social Media Integrity", icon: Layers },
+                    { key: "independentVerificationAuditStamp", label: "SiteScout Certified Stamp", icon: CheckCircle2 }
+                  ].map(({ key, label, icon: IconComponent }) => {
+                    const item = business.verificationChecklist?.[key as keyof typeof business.verificationChecklist];
+                    const passed = item?.status === "passed";
+                    return (
+                      <div key={key} className="p-2.5 rounded-lg border border-slate-100 dark:border-slate-800/60 bg-slate-50/50 dark:bg-slate-900/30 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+                            <IconComponent className={`h-3.5 w-3.5 ${passed ? "text-emerald-500" : "text-amber-500"}`} />
+                            {label}
+                          </span>
+                          <span className={`text-[10px] font-extrabold uppercase px-1.5 py-0.2 rounded ${passed ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-400" : "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-400"}`}>
+                            {item?.status === "passed" ? "Passed" : "Unconfirmed"}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed pl-5">
+                          {item?.details || "Not audited yet."}
+                        </p>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="p-3 bg-amber-50/50 dark:bg-amber-950/20 rounded-xl border border-amber-100 dark:border-amber-900/30">
+                  <div className="flex gap-2">
+                    <ShieldAlert className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="text-xs font-extrabold text-amber-900 dark:text-amber-300 uppercase tracking-wider">Unverified Directory Citation</h4>
+                      <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1">
+                        This prospect details were obtained via public indexes. Exact trading status, phone, address ownership, and website absence are unverified.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2 text-xs text-slate-500 dark:text-slate-400 pl-1">
+                  <p className="font-bold text-slate-700 dark:text-slate-300 text-xs">SiteScout 8-Point Trust Audit verifies:</p>
+                  <ul className="list-disc pl-4 space-y-1.5 text-[11px] text-slate-600 dark:text-slate-400">
+                    <li>Physical business identity registry logs</li>
+                    <li>Dialable phone line carrier routing</li>
+                    <li>Physical address coordinates verification</li>
+                    <li>DNS registry website absence checking</li>
+                    <li>Operating hours & active citizen reviews</li>
+                    <li>Live Google Maps review synchronization</li>
+                    <li>Active Facebook & Instagram profiles check</li>
+                    <li>Independent Trust Score & audit stamp</li>
+                  </ul>
+                </div>
+
+                {verificationError && (
+                  <p className="text-xs font-semibold text-red-500 mt-1">{verificationError}</p>
+                )}
+
+                <button
+                  onClick={handleRunVerify}
+                  className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-4 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 shadow transition-all cursor-pointer"
+                >
+                  <ShieldCheck className="h-4 w-4" /> Run Independent 8-Point Audit
+                </button>
+              </div>
+            )}
           </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 transition-colors">

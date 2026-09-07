@@ -124,13 +124,23 @@ export function validateHostname(hostname: string): { valid: boolean; error?: st
     ".onion",
     ".example",
     ".test",
+    "metadata.google.internal",
+    "metadata"
   ];
 
   if (
     cleanHost === "localhost" ||
+    cleanHost === "metadata" ||
+    cleanHost.includes("metadata.google") ||
+    cleanHost.includes("169.254") ||
     forbiddenSuffixes.some((suffix) => cleanHost.endsWith(suffix))
   ) {
-    return { valid: false, error: "Access to internal or local hostnames is prohibited." };
+    return { valid: false, error: "Access to internal, local, or cloud metadata hostnames is prohibited." };
+  }
+
+  // Prevent decimal/hex encoded IPv4 strings (e.g. 2130706433, 0x7f000001, 017700000001)
+  if (/^0x[0-9a-f]+$/i.test(cleanHost) || /^\d+$/.test(cleanHost)) {
+    return { valid: false, error: "Encoded integer or hexadecimal IP address formats are prohibited." };
   }
 
   // If host is a direct IP address literal

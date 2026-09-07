@@ -14,9 +14,116 @@ export interface DigitalDeficitAudit {
   missingContact: boolean;
 }
 
+export type EvidenceSourceType =
+  | "GOOGLE_MAPS"
+  | "GOOGLE_SEARCH"
+  | "BUSINESS_WEBSITE"
+  | "BUSINESS_DIRECTORY"
+  | "SOCIAL_PROFILE";
+
+export interface EvidenceItem {
+  sourceType: EvidenceSourceType;
+  url: string;
+  title?: string;
+  retrievedAt: string;
+  supports: string[];
+}
+
+export type BusinessVerificationState =
+  | "DEMO"
+  | "UNVERIFIED"
+  | "CANDIDATE"
+  | "VERIFIED"
+  | "CONTACT_READY";
+
+export type WebsiteStatus =
+  | "NONE"
+  | "LIVE"
+  | "BROKEN"
+  | "PARKED"
+  | "DIRECTORY_ONLY"
+  | "SOCIAL_ONLY"
+  | "UNKNOWN";
+
+export type DeficitFindingStatus = "PRESENT" | "MISSING" | "UNKNOWN" | "WEAK" | "BROKEN";
+
+export interface DeficitFinding {
+  status: DeficitFindingStatus;
+  notes?: string;
+  verifiedAt?: string;
+  source?: string;
+}
+
+export type CanonicalSalesStage =
+  | "NEW"
+  | "ANALYZED"
+  | "PREVIEW_READY"
+  | "PREVIEW_SENT"
+  | "FOLLOW_UP_1"
+  | "FOLLOW_UP_2"
+  | "INTERESTED"
+  | "PROPOSAL_SENT"
+  | "WON"
+  | "LOST";
+
+export type ActivityType =
+  | "business_discovered"
+  | "business_verified"
+  | "website_checked"
+  | "audit_completed"
+  | "opportunity_scored"
+  | "preview_generated"
+  | "preview_sent"
+  | "preview_viewed"
+  | "whatsapp_clicked"
+  | "phone_clicked"
+  | "email_clicked"
+  | "follow_up_sent"
+  | "prospect_replied"
+  | "proposal_sent"
+  | "proposal_accepted"
+  | "deal_won";
+
+export interface ProspectActivity {
+  id: string;
+  businessId: string;
+  type: ActivityType;
+  title: string;
+  description?: string;
+  timestamp: string;
+  actorId?: string;
+  metadata?: Record<string, any>;
+}
+
+export type PreviewEventType =
+  | "preview_opened"
+  | "page_viewed"
+  | "cta_clicked"
+  | "whatsapp_clicked"
+  | "phone_clicked"
+  | "email_clicked"
+  | "feedback_submitted"
+  | "approval_submitted";
+
+export interface PreviewTelemetryEvent {
+  id: string;
+  previewToken: string;
+  eventType: PreviewEventType;
+  timestamp: string;
+  device: "mobile" | "desktop";
+  referrer?: string;
+  details?: Record<string, any>;
+}
+
 export interface PresenceMetrics {
   hasWebsite: boolean;
+  websiteStatus?: WebsiteStatus;
   websiteUrl?: string;
+  canonicalUrl?: string;
+  domain?: string;
+  httpStatus?: number | string;
+  sslStatus?: boolean;
+  lastCheckedAt?: string;
   hasEmail: boolean;
   facebookStatus: "active" | "weak" | "none";
   instagramStatus: "active" | "weak" | "none";
@@ -28,6 +135,7 @@ export interface PresenceMetrics {
   contactCompleteness: "complete" | "partial" | "missing";
   // Detailed 13-point deficit flags
   deficits?: DigitalDeficitAudit;
+  detailedDeficits?: Record<string, DeficitFinding>;
 }
 
 export interface AuditEvidence {
@@ -39,6 +147,22 @@ export interface AuditEvidence {
   sourceUrls?: string[];
   verificationStatus?: "verified_live_listing" | "directory_found" | "sample_demo";
   isEstimated?: boolean;
+}
+
+export interface VerificationChecklistItem {
+  status: "passed" | "failed" | "unconfirmed";
+  details: string;
+}
+
+export interface VerificationChecklist {
+  businessIdentity: VerificationChecklistItem;
+  exactPhone: VerificationChecklistItem;
+  exactAddress: VerificationChecklistItem;
+  websiteAbsenceCheck: VerificationChecklistItem;
+  operatingStatus: VerificationChecklistItem;
+  ratingSync: VerificationChecklistItem;
+  socialMediaPresence: VerificationChecklistItem;
+  independentVerificationAuditStamp: VerificationChecklistItem;
 }
 
 export type ContentLevel = "VERIFIED" | "BUSINESS_SUPPLIED" | "AI_DRAFT";
@@ -96,10 +220,18 @@ export interface Business {
   directorySource?: string;
   deficitCount?: number;
   evidence?: AuditEvidence;
+  evidenceList?: EvidenceItem[];
+  verificationState?: BusinessVerificationState;
+  verificationChecklist?: VerificationChecklist;
   sourceUrl?: string;
   isDemo?: boolean;
   dataType?: "real" | "demo";
   truthProfile?: BusinessTruthProfile;
+  userId?: string;
+  ownerId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  salesStage?: CanonicalSalesStage;
   // Enhanced Tripartite Scoring (Point 43, 44, 45)
   businessQualityScore?: number;
   digitalDeficitScore?: number;

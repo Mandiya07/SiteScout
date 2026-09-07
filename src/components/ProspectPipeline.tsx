@@ -5,7 +5,7 @@ import {
   Building2, Phone, MapPin, Globe, ArrowRight, MessageSquare, 
   Calendar, CheckCircle2, Clock, Flame, Filter, Plus, FileText, 
   Sparkles, ExternalLink, RefreshCw, XCircle, AlertCircle, Eye,
-  Check, ChevronRight, Mail
+  Check, ChevronRight, Mail, ShieldCheck
 } from "lucide-react";
 import DraftEmailModal from "./DraftEmailModal";
 
@@ -297,9 +297,21 @@ export default function ProspectPipeline({
                         <span className="text-[9px] font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
                           ⚠️ Demo / Synthetic Data
                         </span>
-                      ) : (
+                      ) : biz.verificationState === "CONTACT_READY" ? (
                         <span className="text-[9px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40 flex items-center gap-1">
-                          <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" /> Verified
+                          <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" /> Contact Ready
+                        </span>
+                      ) : biz.verificationState === "VERIFIED" ? (
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/40 flex items-center gap-1">
+                          <CheckCircle2 className="w-2.5 h-2.5 text-blue-600" /> Verified Lead
+                        </span>
+                      ) : biz.verificationState === "CANDIDATE" ? (
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/40 flex items-center gap-1">
+                          🔍 Candidate
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">
+                          Unverified
                         </span>
                       )}
                     </div>
@@ -571,29 +583,47 @@ export default function ProspectPipeline({
                   </button>
 
                   {/* 1-Click WhatsApp Instant Pitch */}
-                  {biz.phone && (
-                    isDemoBiz(biz) ? (
-                      <button
-                        type="button"
-                        onClick={() => setDemoSafetyModalBiz(biz)}
-                        className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-bold bg-amber-100 hover:bg-amber-200 text-amber-900 dark:bg-amber-950/60 dark:hover:bg-amber-900/80 dark:text-amber-300 border border-amber-300 dark:border-amber-800 transition-colors cursor-pointer shadow-xs"
-                        title="Outreach is locked because this is a synthetic demonstration record"
-                      >
-                        <AlertCircle className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400" />
-                        <span>Locked: Demo Record (WhatsApp Guardrail)</span>
-                      </button>
-                    ) : (
-                      <a
-                        href={getWhatsappHref(biz, site)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white transition-colors shadow-xs shadow-emerald-500/10"
-                        title="Open WhatsApp with customized outreach pitch & preview link"
-                      >
-                        <MessageSquare className="w-3.5 h-3.5 fill-white" />
-                        1-Click WhatsApp Pitch
-                      </a>
-                    )
+                  {isDemoBiz(biz) ? (
+                    <button
+                      type="button"
+                      onClick={() => setDemoSafetyModalBiz(biz)}
+                      className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-bold bg-amber-100 hover:bg-amber-200 text-amber-900 dark:bg-amber-950/60 dark:hover:bg-amber-900/80 dark:text-amber-300 border border-amber-300 dark:border-amber-800 transition-colors cursor-pointer shadow-xs"
+                      title="Outreach is locked because this is a synthetic demonstration record"
+                    >
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400" />
+                      <span>Locked: Demo Record (WhatsApp Guardrail)</span>
+                    </button>
+                  ) : biz.phone === "Unlisted" ? (
+                    <button
+                      type="button"
+                      onClick={() => onViewAudit && onViewAudit(biz)}
+                      className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-semibold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+                      title="Direct phone unlisted. Run 8-point audit to verify contact details."
+                    >
+                      <Phone className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Phone Unlisted — Run Audit</span>
+                    </button>
+                  ) : biz.verificationState !== "CONTACT_READY" && biz.verificationState !== "VERIFIED" ? (
+                    <button
+                      type="button"
+                      onClick={() => onViewAudit && onViewAudit(biz)}
+                      className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-bold bg-sky-50 hover:bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:hover:bg-sky-900/50 dark:text-sky-300 border border-sky-200 dark:border-sky-800 transition-colors cursor-pointer"
+                      title="Verify contact line and business identity before outreach"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                      <span>Audit Contact Before Outreach</span>
+                    </button>
+                  ) : (
+                    <a
+                      href={getWhatsappHref(biz, site)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white transition-colors shadow-xs shadow-emerald-500/10"
+                      title="Open WhatsApp with customized outreach pitch & preview link"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5 fill-white" />
+                      1-Click WhatsApp Pitch
+                    </a>
                   )}
                 </div>
               </div>

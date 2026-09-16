@@ -10,6 +10,11 @@ export function buildBusinessTruthProfile(biz: any): BusinessTruthProfile {
   const reviewsCount = biz?.reviewsCount ?? 0;
   const presence = biz?.presence || {};
 
+  const isDemo = biz?.isDemo || biz?.dataType === "demo";
+  const defaultDirSource = isDemo 
+    ? "Demo Sample Database" 
+    : (biz?.directorySource || (biz?.evidence?.source ? biz.evidence.source : "Public Directory Search Grounding"));
+
   const hasWebsite = presence.hasWebsite ?? false;
   const websiteUrl = presence.websiteUrl || biz?.websiteUrl || "";
 
@@ -27,9 +32,11 @@ export function buildBusinessTruthProfile(biz: any): BusinessTruthProfile {
       value: name,
       status: "confirmed",
       statusText: "✓ Confirmed",
-      level: "VERIFIED",
-      notes: "Obtained from trusted Google / directory listing record",
-      source: "Google Places API"
+      level: isDemo ? "AI_DRAFT" : "VERIFIED",
+      notes: isDemo 
+        ? "Synthetic demonstration profile placeholder" 
+        : `Discovered on ${defaultDirSource}`,
+      source: defaultDirSource
     },
     phone: {
       label: "Phone",
@@ -37,9 +44,11 @@ export function buildBusinessTruthProfile(biz: any): BusinessTruthProfile {
       value: phone || "Not listed",
       status: phone ? "confirmed" : "unconfirmed",
       statusText: phone ? "✓ Confirmed" : "? Unconfirmed",
-      level: phone ? "VERIFIED" : "AI_DRAFT",
-      notes: phone ? "Direct telephone line verified on public record" : "No verified direct telephone number — draft placeholder used",
-      source: phone ? "Verified Directory" : "AI Draft Default"
+      level: phone ? (isDemo ? "AI_DRAFT" : "VERIFIED") : "AI_DRAFT",
+      notes: phone 
+        ? (isDemo ? "Demo contact number placeholder" : `Direct telephone line confirmed on ${defaultDirSource}`)
+        : "No confirmed telephone number listed — draft contact used",
+      source: phone ? defaultDirSource : "AI Draft Default"
     },
     address: {
       label: "Address",
@@ -47,9 +56,11 @@ export function buildBusinessTruthProfile(biz: any): BusinessTruthProfile {
       value: address || "Not listed",
       status: address ? "confirmed" : "unconfirmed",
       statusText: address ? "✓ Confirmed" : "? Unconfirmed",
-      level: address ? "VERIFIED" : "AI_DRAFT",
-      notes: address ? "Physical location address verified on Maps" : "Physical location unconfirmed",
-      source: address ? "Verified Maps Listing" : "AI Draft Default"
+      level: address ? (isDemo ? "AI_DRAFT" : "VERIFIED") : "AI_DRAFT",
+      notes: address 
+        ? (isDemo ? "Demo geographical placeholder" : `Physical area/address referenced on ${defaultDirSource}`)
+        : "Physical address unconfirmed",
+      source: address ? defaultDirSource : "AI Draft Default"
     },
     website: {
       label: "Website",
@@ -57,9 +68,11 @@ export function buildBusinessTruthProfile(biz: any): BusinessTruthProfile {
       value: hasWebsite ? (websiteUrl || "Existing site") : "No website found",
       status: hasWebsite ? "confirmed" : "not_found",
       statusText: hasWebsite ? "✓ Confirmed" : "✓ No website found",
-      level: "VERIFIED",
-      notes: hasWebsite ? "Existing web presence verified" : "Verified gap — business currently lacks a website",
-      source: "Audit Engine"
+      level: isDemo ? "AI_DRAFT" : "VERIFIED",
+      notes: hasWebsite 
+        ? "Existing web presence discovered" 
+        : "Verified gap — no active web domain indexed for this business",
+      source: isDemo ? "Demo Sample Audit" : (biz?.evidence?.source || "Live Domain & Directory Audit")
     },
     category: {
       label: "Category",
@@ -78,7 +91,9 @@ export function buildBusinessTruthProfile(biz: any): BusinessTruthProfile {
       status: biz?.customServices ? "confirmed" : "unconfirmed",
       statusText: biz?.customServices ? "✓ Confirmed" : "? Not confirmed",
       level: biz?.customServices ? "BUSINESS_SUPPLIED" : "AI_DRAFT",
-      notes: biz?.customServices ? "Services catalog provided by business owner" : "Service catalog inferred by AI — marked as draft copy",
+      notes: biz?.customServices 
+        ? "Services catalog confirmed by business owner" 
+        : "Service catalog inferred by AI — marked as draft copy",
       source: biz?.customServices ? "Business Owner Entry" : "AI Trade Suggestion"
     },
     openingHours: {
@@ -88,7 +103,9 @@ export function buildBusinessTruthProfile(biz: any): BusinessTruthProfile {
       status: hasCompleteHours ? "confirmed" : "unconfirmed",
       statusText: hasCompleteHours ? "✓ Confirmed" : "? Unconfirmed",
       level: hasCompleteHours ? "BUSINESS_SUPPLIED" : "AI_DRAFT",
-      notes: hasCompleteHours ? "Verified owner-supplied operating schedule" : "Operating schedule unconfirmed — default draft schedule used",
+      notes: hasCompleteHours 
+        ? "Owner-supplied operating schedule" 
+        : "Operating schedule unconfirmed — default draft schedule used",
       source: hasCompleteHours ? "Business Owner Entry" : "AI Draft Default"
     },
     rating: {
@@ -97,9 +114,11 @@ export function buildBusinessTruthProfile(biz: any): BusinessTruthProfile {
       value: rating > 0 ? `${rating} ★` : "No public rating",
       status: rating > 0 ? "confirmed" : "unconfirmed",
       statusText: rating > 0 ? "✓ Confirmed" : "? Unconfirmed",
-      level: rating > 0 ? "VERIFIED" : "AI_DRAFT",
-      notes: rating > 0 ? `Public Google review rating score (${rating}/5.0)` : "No public rating recorded",
-      source: "Google Places API"
+      level: (rating > 0 && !isDemo) ? "VERIFIED" : "AI_DRAFT",
+      notes: rating > 0 
+        ? `Public review rating (${rating}/5.0) on ${defaultDirSource}` 
+        : "No public rating recorded on directory",
+      source: rating > 0 ? defaultDirSource : "AI Draft Default"
     },
     reviews: {
       label: "Reviews",
@@ -107,9 +126,11 @@ export function buildBusinessTruthProfile(biz: any): BusinessTruthProfile {
       value: reviewsCount >= 0 ? `${reviewsCount} customer reviews` : "0 reviews",
       status: reviewsCount > 0 ? "confirmed" : "unconfirmed",
       statusText: reviewsCount > 0 ? "✓ Confirmed" : "? Unconfirmed",
-      level: reviewsCount > 0 ? "VERIFIED" : "AI_DRAFT",
-      notes: reviewsCount > 0 ? `Verified public feedback volume (${reviewsCount} reviews)` : "No public reviews recorded",
-      source: "Google Places API"
+      level: (reviewsCount > 0 && !isDemo) ? "VERIFIED" : "AI_DRAFT",
+      notes: reviewsCount > 0 
+        ? `Public feedback volume (${reviewsCount} reviews) recorded on ${defaultDirSource}` 
+        : "No public reviews recorded on directory",
+      source: reviewsCount > 0 ? defaultDirSource : "AI Draft Default"
     },
     email: {
       label: "Email",
@@ -118,7 +139,7 @@ export function buildBusinessTruthProfile(biz: any): BusinessTruthProfile {
       status: email ? "confirmed" : "unconfirmed",
       statusText: email ? "✓ Confirmed" : "? Unconfirmed",
       level: email ? "BUSINESS_SUPPLIED" : "AI_DRAFT",
-      notes: email ? "Email contact supplied by business owner" : "Email contact unconfirmed — fallback lead routing used",
+      notes: email ? "Email contact supplied by business owner" : "Email contact unconfirmed — draft lead routing used",
       source: email ? "Business Owner Entry" : "AI Draft Fallback"
     },
     socialLinks: {
@@ -127,9 +148,9 @@ export function buildBusinessTruthProfile(biz: any): BusinessTruthProfile {
       value: hasSocial ? "Active social presence" : "Unconfirmed",
       status: hasSocial ? "confirmed" : "unconfirmed",
       statusText: hasSocial ? "✓ Confirmed" : "? Unconfirmed",
-      level: hasSocial ? "VERIFIED" : "AI_DRAFT",
-      notes: hasSocial ? "Verified social media presence" : "Social media profiles unconfirmed",
-      source: hasSocial ? "Social Audit" : "AI Draft Fallback"
+      level: (hasSocial && !isDemo) ? "VERIFIED" : "AI_DRAFT",
+      notes: hasSocial ? "Public social media profile detected" : "Social media profiles unconfirmed",
+      source: hasSocial ? defaultDirSource : "AI Draft Fallback"
     }
   };
 

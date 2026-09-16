@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Business, GeneratedSite } from "../types";
-import { normalizePhoneNumber } from "../lib/formatters";
+import { generateWhatsappLink } from "../lib/formatters";
 import CashEngineWorkflow from "./CashEngineWorkflow";
 import { 
   Zap, Globe, MapPin, Search, ArrowRight, CheckCircle2, 
@@ -168,13 +168,8 @@ Can I send you a quick preview link on WhatsApp or SMS right now so you can take
   };
 
   const handleSendViaWhatsApp = () => {
-    const phoneClean = normalizePhoneNumber(targetBiz?.phone);
-    const textEncoded = encodeURIComponent(pitchMessageText);
-    if (phoneClean.length >= 7) {
-      window.open(`https://wa.me/${phoneClean}?text=${textEncoded}`, "_blank");
-    } else {
-      window.open(`https://wa.me/?text=${textEncoded}`, "_blank");
-    }
+    const waLink = generateWhatsappLink(targetBiz?.phone, pitchMessageText, targetBiz?.address);
+    window.open(waLink, "_blank");
   };
 
   const handleSendViaEmail = () => {

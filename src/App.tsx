@@ -25,6 +25,7 @@ import ProspectPipeline from "./components/ProspectPipeline";
 import MyWebsites from "./components/MyWebsites";
 import ThreeStepRevenueEngine from "./components/ThreeStepRevenueEngine";
 import { getClientMockBusinesses, generateClientMockSite } from "./lib/clientFallback";
+import { generateSecurePreviewToken, sanitizePublicPreview } from "./lib/security";
 import { 
   Search, Globe, Award, Trophy, User, MessageSquare, Phone, MapPin, 
   CheckCircle2, AlertTriangle, ShieldCheck, HeartCrack, Flame, TrendingUp, Users, ArrowRight, BookOpen, Database, Handshake, Sparkles, Clock, Calendar,
@@ -1132,62 +1133,32 @@ export default function App() {
 
     if (session) {
       try {
-        // Save private site document to /sites/{siteId}
-        await setDoc(doc(db, "sites", updatedSite.id), {
+        // Ensure a cryptographically secure previewToken exists
+        const previewToken = updatedSite.previewToken || generateSecurePreviewToken();
+        const siteToPersist: GeneratedSite = {
           ...updatedSite,
+          previewToken
+        };
+
+        // Save private site document to /sites/{siteId}
+        await setDoc(doc(db, "sites", siteToPersist.id), {
+          ...siteToPersist,
           userId: session.uid,
           ownerId: session.uid,
           updatedAt: serverTimestamp()
         }, { merge: true });
 
-        // Save sanitized public preview document to /publicPreviews/{siteId} (no private CRM notes or internal flags)
+        // Save sanitized public preview document to /publicPreviews/{previewToken} (no private CRM notes or internal flags)
         const sanitizedPublic = {
-          id: updatedSite.id,
-          previewToken: updatedSite.previewToken || updatedSite.id,
-          businessName: updatedSite.businessName || "",
-          phone: updatedSite.phone || "",
-          address: updatedSite.address || "",
-          category: updatedSite.category || "",
-          primaryColor: updatedSite.primaryColor || "#4f46e5",
-          secondaryColor: updatedSite.secondaryColor || "#0284c7",
-          accentColor: updatedSite.accentColor || "#10b981",
-          backgroundColor: updatedSite.backgroundColor || "#ffffff",
-          textColor: updatedSite.textColor || "#0f172a",
-          fontStyle: updatedSite.fontStyle || "Modern Sans",
-          seo: updatedSite.seo || null,
-          hero: updatedSite.hero || null,
-          about: updatedSite.about || null,
-          services: updatedSite.services || [],
-          features: updatedSite.features || [],
-          gallery: updatedSite.gallery || [],
-          faqs: updatedSite.faqs || [],
-          testimonials: updatedSite.testimonials || [],
-          blog: updatedSite.blog || [],
-          whatsappMessage: updatedSite.whatsappMessage || "",
-          contactPage: updatedSite.contactPage || null,
-          privacyPolicy: updatedSite.privacyPolicy || null,
-          termsOfService: updatedSite.termsOfService || null,
-          notFoundPage: updatedSite.notFoundPage || null,
-          logoUrl: updatedSite.logoUrl || "",
-          logoType: updatedSite.logoType || "text",
-          logoIcon: updatedSite.logoIcon || "",
-          sectionsOrder: updatedSite.sectionsOrder || [],
-          clientApproved: updatedSite.clientApproved || false,
-          clientApprovedBy: updatedSite.clientApprovedBy || "",
-          clientApprovedAt: updatedSite.clientApprovedAt || "",
-          previewViews: updatedSite.previewViews || 0,
-          previewLastViewedAt: updatedSite.previewLastViewedAt || "",
-          clientFeedback: updatedSite.clientFeedback || [],
-          presence: updatedSite.presence || null,
-          deficits: updatedSite.deficits || null,
+          ...sanitizePublicPreview(siteToPersist),
           userId: session.uid,
           ownerId: session.uid,
           updatedAt: serverTimestamp()
         };
 
-        await setDoc(doc(db, "publicPreviews", updatedSite.id), sanitizedPublic, { merge: true });
-        if (updatedSite.previewToken && updatedSite.previewToken !== updatedSite.id) {
-          await setDoc(doc(db, "publicPreviews", updatedSite.previewToken), sanitizedPublic, { merge: true });
+        await setDoc(doc(db, "publicPreviews", siteToPersist.id), sanitizedPublic, { merge: true });
+        if (siteToPersist.previewToken && siteToPersist.previewToken !== siteToPersist.id) {
+          await setDoc(doc(db, "publicPreviews", siteToPersist.previewToken), sanitizedPublic, { merge: true });
         }
 
         console.log("Draft and public preview successfully saved to Firestore!");
@@ -1654,6 +1625,8 @@ export default function App() {
             <ProspectPipeline 
               prospects={businesses}
               userSites={userSites}
+              userId={session?.uid}
+              userName={session?.displayName || session?.email || "Agent"}
               onUpdateProspect={handleUpdateProspect}
               onViewAudit={(biz) => {
                 setSelectedBusiness(biz);

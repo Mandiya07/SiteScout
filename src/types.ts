@@ -14,6 +14,72 @@ export interface DigitalDeficitAudit {
   missingContact: boolean;
 }
 
+export interface TechnicalMetrics {
+  statusCode: number;
+  statusText: string;
+  responseTimeMs: number;
+  speedGrade: "FAST" | "AVERAGE" | "SLOW" | "FAILED";
+  isSsl: boolean;
+  hasViewport: boolean;
+  hasTitle: boolean;
+  titleText: string;
+  hasMetaDescription: boolean;
+  metaDescriptionText: string;
+  hasOpenGraph: boolean;
+  hasH1: boolean;
+  h1Text: string;
+  hasTelLink: boolean;
+  hasMailtoLink: boolean;
+  hasWhatsappCta: boolean;
+  hasBookingEngine: boolean;
+  hasLeadForm: boolean;
+  hasSocialLinks: boolean;
+  socialNetworksFound: string[];
+  isLegacyMarkup: boolean;
+  detectedLegacyTags: string[];
+  contentLengthBytes: number;
+}
+
+export interface ConversionBottleneck {
+  severity: "CRITICAL" | "MAJOR" | "MINOR";
+  label: string;
+  finding: string;
+  revenueImpact: string;
+  recommendedPitch: string;
+}
+
+export interface ModernizationPitch {
+  hook: string;
+  coreArgument: string;
+  quickWinSolution: string;
+}
+
+export interface WebsiteAuditPayload {
+  success: boolean;
+  url: string;
+  businessName?: string;
+  audit: {
+    hasWebsite: boolean;
+    httpStatus: string;
+    responseTimeMs: number;
+    isSsl: boolean;
+    notes: string;
+    deficits: DigitalDeficitAudit;
+    technicalMetrics?: TechnicalMetrics;
+    conversionBottlenecks?: ConversionBottleneck[];
+    executiveSummary?: string;
+    modernizationPitch?: ModernizationPitch;
+  };
+  technicalMetrics?: TechnicalMetrics;
+  conversionBottlenecks?: ConversionBottleneck[];
+  executiveSummary?: string;
+  modernizationPitch?: ModernizationPitch;
+  deficitCount: number;
+  presenceScore: number;
+  opportunityScore: number;
+  evidence?: AuditEvidence;
+}
+
 export type EvidenceSourceType =
   | "GOOGLE_MAPS"
   | "GOOGLE_SEARCH"
@@ -95,6 +161,57 @@ export interface ProspectActivity {
   metadata?: Record<string, any>;
 }
 
+export interface ProspectNote {
+  id: string;
+  businessId: string;
+  content: string;
+  category?: "general" | "call_summary" | "objection" | "pricing" | "meeting";
+  isPinned?: boolean;
+  createdAt: string;
+  updatedAt?: string;
+  authorId?: string;
+  authorName?: string;
+}
+
+export interface ProspectFollowUp {
+  id: string;
+  businessId: string;
+  title: string;
+  dueDate: string;
+  dueTime?: string;
+  channel: "whatsapp" | "phone" | "email" | "in_person" | "other";
+  status: "pending" | "completed" | "cancelled";
+  notes?: string;
+  createdAt: string;
+  completedAt?: string;
+  actorId?: string;
+}
+
+export interface OpportunityScoreExplanation {
+  totalScore: number;
+  digitalDeficitScore: number;
+  businessQualityScore: number;
+  deficitWeight: number;
+  qualityWeight: number;
+  formulaDescription: string;
+  deficitItems: {
+    key: string;
+    label: string;
+    points: number;
+    detected: boolean;
+    reason: string;
+  }[];
+  qualityFactors: {
+    key: string;
+    label: string;
+    points: number;
+    value: string | number;
+    reason: string;
+  }[];
+  summaryExplanation: string;
+  recommendedPitchStrategy: string;
+}
+
 export type PreviewEventType =
   | "preview_opened"
   | "page_viewed"
@@ -142,6 +259,7 @@ export interface AuditEvidence {
   checkedAt: string;
   source: string;
   httpStatus?: number | string;
+  responseTimeMs?: number;
   websiteVerified: boolean;
   notes: string;
   sourceUrls?: string[];
@@ -256,7 +374,10 @@ export interface Business {
   previewViews?: number;
   previewLastViewedAt?: string;
   previewDevice?: "mobile" | "desktop";
+  deploymentStatus?: DeploymentStatus;
 }
+
+export type Prospect = Business;
 
 export type ProspectStatus = 
   | "New"
@@ -335,7 +456,7 @@ export interface ImageMetadata {
 }
 
 export interface ImageRequirement {
-  section: "hero" | "about" | "services" | "gallery" | "contact";
+  section: "hero" | "about" | "services" | "gallery" | "contact" | "features";
   subject: string;
   serviceName?: string;
   style: string;
@@ -426,12 +547,23 @@ export interface GalleryImage {
   imageMetadata?: ImageMetadata;
 }
 
+export type DeploymentStatus = 
+  | "DRAFT"
+  | "PREVIEW_READY"
+  | "CLIENT_APPROVED"
+  | "DEPLOYING"
+  | "LIVE"
+  | "DEPLOY_FAILED";
+
 export type SalesStatus = "Lead" | "Contacted" | "Negotiation" | "Proposal Sent" | "Closed" | "Lost";
 
 export interface GeneratedSite {
   id: string;
   businessId?: string;
+  deploymentStatus?: DeploymentStatus;
+  deploymentLogs?: string[];
   salesStatus?: SalesStatus;
+  salesStage?: CanonicalSalesStage;
   tags?: string[];
   ownerId?: string;
   previewToken?: string;

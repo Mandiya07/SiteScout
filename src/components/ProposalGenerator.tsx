@@ -488,6 +488,44 @@ export default function ProposalGenerator({
         </div>
       </div>
 
+      {/* Prospect-Linked Evidence & Interactive Preview Bar */}
+      <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-4 dark:border-blue-900/50 dark:bg-blue-950/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 no-print text-left">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1 text-xs font-extrabold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
+              <Globe className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" /> Linked Public Interactive Preview:
+            </span>
+            <code className="text-xs font-mono bg-white dark:bg-slate-900 px-2 py-0.5 rounded border border-blue-100 dark:border-blue-900 text-slate-800 dark:text-slate-200 font-semibold">
+              {`${window.location.origin}/preview/${site.previewToken || site.id}`}
+            </code>
+          </div>
+          <p className="text-xs text-slate-600 dark:text-slate-400">
+            Grounding Evidence: Addressing verified audit deficits for <strong className="text-slate-900 dark:text-white">{site.businessName}</strong> ({site.category || "Local Business"} in {site.address || "Local Area"}).
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => {
+              const link = `${window.location.origin}/preview/${site.previewToken || site.id}`;
+              navigator.clipboard.writeText(link);
+              alert("Public Interactive Preview link copied to clipboard!");
+            }}
+            className="px-3 py-1.5 bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800 border border-blue-200 dark:border-blue-800 rounded-xl text-xs font-bold text-blue-700 dark:text-blue-300 flex items-center gap-1.5 cursor-pointer shadow-xs"
+          >
+            Copy Preview Link
+          </button>
+          <a
+            href={`/preview/${site.previewToken || site.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+          >
+            Open Live Preview <ArrowRight className="h-3 w-3" />
+          </a>
+        </div>
+      </div>
+
       <div className="grid gap-6 lg:grid-cols-12 items-start">
         
         {/* Left Column: Estimator Pricing Setup (45% width - hidden during print) */}

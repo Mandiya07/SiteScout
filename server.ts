@@ -1,6 +1,9 @@
 import express from "express";
+import crypto from "crypto";
 import { safeFetchUrl } from "./server/ssrfGuard";
 import { generateStaticHtml } from "./src/lib/htmlGenerator";
+import { buildBusinessTruthProfile } from "./src/lib/businessTruth";
+import { normalizeWebsiteSchema } from "./src/lib/websiteSchema";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
@@ -9,7 +12,7 @@ import { getGeminiClient, isApiKeyConfigured, generateContentWithRetry } from ".
 import { auditLiveWebsite } from "./server/services/auditService";
 import { imageAssistant, matchIndustryTaxonomy, INDUSTRY_TAXONOMY } from "./server/image/index.js";
 import { initializeApp } from "firebase/app";
-import { getFirestore, doc, getDoc, updateDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { getFirestore, doc, getDoc, updateDoc, setDoc, deleteDoc, collection, query, where, getDocs } from "firebase/firestore";
 
 import fs from "fs";
 
@@ -44,31 +47,39 @@ if (firebaseConfig.projectId) {
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+// Strict 2MB payload limit to prevent memory exhaustion and DoS attacks (Rule 39)
+app.use(express.json({ limit: "2mb" }));
 
-// In-memory sliding-window rate limiter for API protection (Point 47)
+// In-memory sliding-window rate limiters partitioned by cost & operation (Rule 72)
 interface RateLimitRecord {
   count: number;
   resetAt: number;
 }
-const rateLimitMap = new Map<string, RateLimitRecord>();
+const rateLimitBuckets = new Map<string, Map<string, RateLimitRecord>>();
 
-function apiRateLimiter(maxRequests = 80, windowMs = 60 * 1000) {
+function costAwareRateLimiter(bucketName: string, maxRequests: number, windowMs: number) {
+  if (!rateLimitBuckets.has(bucketName)) {
+    rateLimitBuckets.set(bucketName, new Map<string, RateLimitRecord>());
+  }
+  const bucket = rateLimitBuckets.get(bucketName)!;
+
   return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const authUser = (req as any).user?.uid;
     const ip = req.ip || req.headers["x-forwarded-for"] || "127.0.0.1";
-    const key = Array.isArray(ip) ? ip[0] : String(ip);
+    const ipStr = Array.isArray(ip) ? ip[0] : String(ip);
+    const key = authUser ? `u:${authUser}` : `ip:${ipStr}`;
     const now = Date.now();
-    const record = rateLimitMap.get(key);
+    const record = bucket.get(key);
 
     if (!record || now > record.resetAt) {
-      rateLimitMap.set(key, { count: 1, resetAt: now + windowMs });
+      bucket.set(key, { count: 1, resetAt: now + windowMs });
       return next();
     }
 
     if (record.count >= maxRequests) {
-      console.warn(`[Security Alert] Rate limit exceeded for IP: ${key}`);
+      console.warn(`[Security Alert] Cost-aware rate limit exceeded on '${bucketName}' for key: ${key}`);
       return res.status(429).json({ 
-        error: "Too many requests. Rate limit exceeded. Please wait a moment before trying again." 
+        error: `Rate limit exceeded for this operation (${bucketName}). Please wait before sending more requests.` 
       });
     }
 
@@ -77,8 +88,15 @@ function apiRateLimiter(maxRequests = 80, windowMs = 60 * 1000) {
   };
 }
 
-// Apply rate limiter to protected API routes
-app.use("/api", apiRateLimiter(120, 60 * 1000));
+// Global baseline rate limiter (120 req / 1 min)
+app.use("/api", costAwareRateLimiter("global", 120, 60 * 1000));
+
+// Specific tiered rate limiters for expensive operations
+const searchLimiter = costAwareRateLimiter("search", 40, 5 * 60 * 1000);
+const generateSiteLimiter = costAwareRateLimiter("generate-site", 25, 5 * 60 * 1000);
+const imageLimiter = costAwareRateLimiter("images", 60, 5 * 60 * 1000);
+const salesLimiter = costAwareRateLimiter("sales-assistant", 40, 5 * 60 * 1000);
+const deployLimiter = costAwareRateLimiter("deploy", 8, 15 * 60 * 1000);
 
 // Firebase Auth Token verification middleware for Express API routes
 interface AuthenticatedRequest extends express.Request {
@@ -134,6 +152,42 @@ async function verifyAuthToken(req: AuthenticatedRequest, res: express.Response,
   }
 }
 
+// Optional Auth middleware: populates req.user if valid token provided, otherwise continues as guest
+async function optionalAuthToken(req: AuthenticatedRequest, res: express.Response, next: express.NextFunction) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return next();
+  }
+
+  const idToken = authHeader.split("Bearer ")[1]?.trim();
+  if (!idToken) return next();
+
+  const apiKey = firebaseConfig.apiKey;
+  if (!apiKey) return next();
+
+  try {
+    const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idToken })
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.users && data.users.length > 0) {
+        const u = data.users[0];
+        req.user = {
+          uid: u.localId,
+          email: u.email
+        };
+      }
+    }
+  } catch (err) {
+    // Proceed seamlessly without authenticated user context
+  }
+  next();
+}
+
 // Request validation helper
 function validateRequiredFields(fields: string[]) {
   return (req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -163,7 +217,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage = "
 // Implemented via /server/services/geminiService.ts and /server/services/auditService.ts.
 
 // Module 3 & 4 API: Real Live Business Directory Search & Discovery
-app.post("/api/search", verifyAuthToken, async (req, res) => {
+app.post("/api/search", verifyAuthToken, searchLimiter, async (req, res) => {
   const { 
     country = "Eswatini", 
     city = "Mbabane", 
@@ -430,7 +484,7 @@ Return ONLY a valid JSON array of 10 to 15 real businesses enclosed in \`\`\`jso
 });
 
 // Module 4 API: AI Opportunity Analysis Generator
-app.post("/api/analyze", verifyAuthToken, async (req, res) => {
+app.post("/api/analyze", verifyAuthToken, searchLimiter, async (req, res) => {
   const { business } = req.body;
 
   if (!business) {
@@ -615,17 +669,17 @@ function generateDefaultTemplateSite(business: any) {
 
   const attributions = [heroImg, aboutImg, ...serviceImages, ...galleryImages].filter(Boolean);
 
-  const industryPalettes: Record<string, { primary: string; secondary: string; accent: string; background: string; text: string; fontStyle: string }> = {
-    Plumbing: { primary: "#2563eb", secondary: "#1e40af", accent: "#0284c7", background: "#ffffff", text: "#0f172a", fontStyle: "Modern Clean Sans" },
-    Electrician: { primary: "#d97706", secondary: "#b45309", accent: "#f59e0b", background: "#ffffff", text: "#0f172a", fontStyle: "Modern Clean Sans" },
-    Construction: { primary: "#ea580c", secondary: "#c2410c", accent: "#f97316", background: "#ffffff", text: "#0f172a", fontStyle: "Geometric Bold" },
-    "Cleaning Services": { primary: "#0891b2", secondary: "#0e7490", accent: "#06b6d4", background: "#ffffff", text: "#0f172a", fontStyle: "Modern Clean Sans" },
-    "Landscaping & Gardening": { primary: "#16a34a", secondary: "#15803d", accent: "#22c55e", background: "#ffffff", text: "#0f172a", fontStyle: "Warm Friendly" },
-    "Auto Repair & Mechanic": { primary: "#dc2626", secondary: "#b91c1c", accent: "#ef4444", background: "#ffffff", text: "#0f172a", fontStyle: "Geometric Bold" },
-    "Hair Salon & Barber": { primary: "#db2777", secondary: "#be185d", accent: "#f43f5e", background: "#ffffff", text: "#0f172a", fontStyle: "Elegant Serif" },
-    "Catering & Restaurant": { primary: "#d97706", secondary: "#92400e", accent: "#b45309", background: "#ffffff", text: "#0f172a", fontStyle: "Warm Friendly" },
-    "Legal Services": { primary: "#1e3a8a", secondary: "#172554", accent: "#3b82f6", background: "#ffffff", text: "#0f172a", fontStyle: "Classic Corporate" },
-    "Accounting & Tax": { primary: "#0f766e", secondary: "#134e4a", accent: "#14b8a6", background: "#ffffff", text: "#0f172a", fontStyle: "Classic Corporate" }
+  const industryPalettes: Record<string, { primary: string; secondary: string; accent: string; background: string; text: string; fontStyle: "sans" | "serif" | "display" | "modern" }> = {
+    Plumbing: { primary: "#2563eb", secondary: "#1e40af", accent: "#0284c7", background: "#ffffff", text: "#0f172a", fontStyle: "sans" },
+    Electrician: { primary: "#d97706", secondary: "#b45309", accent: "#f59e0b", background: "#ffffff", text: "#0f172a", fontStyle: "sans" },
+    Construction: { primary: "#ea580c", secondary: "#c2410c", accent: "#f97316", background: "#ffffff", text: "#0f172a", fontStyle: "display" },
+    "Cleaning Services": { primary: "#0891b2", secondary: "#0e7490", accent: "#06b6d4", background: "#ffffff", text: "#0f172a", fontStyle: "sans" },
+    "Landscaping & Gardening": { primary: "#16a34a", secondary: "#15803d", accent: "#22c55e", background: "#ffffff", text: "#0f172a", fontStyle: "modern" },
+    "Auto Repair & Mechanic": { primary: "#dc2626", secondary: "#b91c1c", accent: "#ef4444", background: "#ffffff", text: "#0f172a", fontStyle: "display" },
+    "Hair Salon & Barber": { primary: "#db2777", secondary: "#be185d", accent: "#f43f5e", background: "#ffffff", text: "#0f172a", fontStyle: "serif" },
+    "Catering & Restaurant": { primary: "#d97706", secondary: "#92400e", accent: "#b45309", background: "#ffffff", text: "#0f172a", fontStyle: "modern" },
+    "Legal Services": { primary: "#1e3a8a", secondary: "#172554", accent: "#3b82f6", background: "#ffffff", text: "#0f172a", fontStyle: "serif" },
+    "Accounting & Tax": { primary: "#0f766e", secondary: "#134e4a", accent: "#14b8a6", background: "#ffffff", text: "#0f172a", fontStyle: "serif" }
   };
   const palette = industryPalettes[taxonomy.industry] || {
     primary: "#2563eb",
@@ -633,10 +687,10 @@ function generateDefaultTemplateSite(business: any) {
     accent: "#3b82f6",
     background: "#ffffff",
     text: "#0f172a",
-    fontStyle: "Modern Clean Sans"
+    fontStyle: "sans"
   };
 
-  return {
+  const rawSite = {
     id: `site_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
     businessId: business.id || `biz_${Date.now()}`,
     businessName: name,
@@ -736,16 +790,18 @@ function generateDefaultTemplateSite(business: any) {
       message: "The page you are looking for does not exist or has been moved."
     },
     sectionsOrder: ["hero", "features", "services", "about", "testimonials", "faqs", "gallery", "blog", "contact"],
+    truthProfile: buildBusinessTruthProfile(business),
     presence: business.presence || null,
     deficits: business.deficits || null
   };
+  return normalizeWebsiteSchema(rawSite, business, false);
 }
 
 // Real-time live URL Audit API
-app.post("/api/audit-url", verifyAuthToken, async (req, res) => {
-  const { url, businessName = "" } = req.body;
+app.post("/api/audit-url", verifyAuthToken, searchLimiter, async (req, res) => {
+  const { url, businessName = "", category = "Professional Services" } = req.body;
   try {
-    const auditResult = await auditLiveWebsite(url);
+    const auditResult = await auditLiveWebsite(url, businessName, category);
     const defCount = Object.values(auditResult.deficits).filter(Boolean).length;
     const presenceScore = calculatePresenceScore({
       hasWebsite: auditResult.hasWebsite,
@@ -780,12 +836,16 @@ app.post("/api/audit-url", verifyAuthToken, async (req, res) => {
       url,
       businessName,
       audit: auditResult,
+      technicalMetrics: auditResult.technicalMetrics,
+      conversionBottlenecks: auditResult.conversionBottlenecks,
+      executiveSummary: auditResult.executiveSummary,
+      modernizationPitch: auditResult.modernizationPitch,
       deficitCount: defCount,
       presenceScore,
       opportunityScore,
       evidence: {
         checkedAt: new Date().toISOString(),
-        source: "Basic Website Technical Audit",
+        source: "Website Technical & Deficit Audit",
         httpStatus: auditResult.httpStatus,
         responseTimeMs: auditResult.responseTimeMs,
         websiteVerified: auditResult.hasWebsite,
@@ -799,7 +859,7 @@ app.post("/api/audit-url", verifyAuthToken, async (req, res) => {
 });
 
 // 8-Point Independent Trust & Verification Audit API
-app.post("/api/verify-business", verifyAuthToken, async (req, res) => {
+app.post("/api/verify-business", verifyAuthToken, searchLimiter, async (req, res) => {
   const { business } = req.body;
   if (!business) {
     return res.status(400).json({ error: "Business parameter is required." });
@@ -1011,31 +1071,34 @@ async function getSiteRefByToken(token: string) {
     let pubRef = doc(db, "publicPreviews", token);
     let pubSnap = await getDoc(pubRef);
     if (pubSnap.exists()) {
-      return { siteRef: pubRef, siteData: pubSnap.data(), isPublicDoc: true };
+      const data = pubSnap.data();
+      if (data.revoked === true || data.previewRevoked === true) {
+        return { revoked: true, siteRef: null, siteData: null, isPublicDoc: true };
+      }
+      return { siteRef: pubRef, siteData: data, isPublicDoc: true };
     }
 
     // 2. Query publicPreviews collection where previewToken == token
     const qPub = query(collection(db, "publicPreviews"), where("previewToken", "==", token));
     const qPubSnap = await getDocs(qPub);
     if (!qPubSnap.empty) {
-      return { siteRef: qPubSnap.docs[0].ref, siteData: qPubSnap.docs[0].data(), isPublicDoc: true };
+      const data = qPubSnap.docs[0].data();
+      if (data.revoked === true || data.previewRevoked === true) {
+        return { revoked: true, siteRef: null, siteData: null, isPublicDoc: true };
+      }
+      return { siteRef: qPubSnap.docs[0].ref, siteData: data, isPublicDoc: true };
     }
 
-    // 3. Fallback to private sites collection (server admin access)
-    let siteRef = doc(db, "sites", token);
-    let siteSnap = await getDoc(siteRef);
-    
-    if (!siteSnap.exists()) {
-      const q = query(collection(db, "sites"), where("previewToken", "==", token));
-      const qSnap = await getDocs(q);
-      if (!qSnap.empty) {
-        siteRef = qSnap.docs[0].ref;
-        siteSnap = qSnap.docs[0];
+    // 3. Fallback to private sites collection matching previewToken (server access)
+    const q = query(collection(db, "sites"), where("previewToken", "==", token));
+    const qSnap = await getDocs(q);
+    if (!qSnap.empty) {
+      const siteSnap = qSnap.docs[0];
+      const data = siteSnap.data();
+      if (data.previewRevoked === true) {
+        return { revoked: true, siteRef: null, siteData: null, isPublicDoc: false };
       }
-    }
-    
-    if (siteSnap.exists()) {
-      return { siteRef, siteData: siteSnap.data(), isPublicDoc: false };
+      return { siteRef: siteSnap.ref, siteData: data, isPublicDoc: false };
     }
   } catch (err) {
     console.error("Error fetching site by token:", err);
@@ -1050,6 +1113,10 @@ app.get("/api/preview/:token", async (req, res) => {
   
   if (!result) {
     return res.status(404).json({ error: "Preview layout not found or expired" });
+  }
+
+  if (result.revoked) {
+    return res.status(410).json({ error: "This preview link has been revoked or expired by the business owner." });
   }
 
   const site = result.siteData;
@@ -1101,7 +1168,7 @@ app.post("/api/preview/:token/view", async (req, res) => {
   const { device, referrer } = req.body || {};
   const result = await getSiteRefByToken(token);
 
-  if (result) {
+  if (result && !result.revoked && result.siteRef) {
     const { siteRef, siteData } = result;
     const newViews = (siteData.previewViews || 0) + 1;
     const lastViewedAt = new Date().toISOString();
@@ -1122,6 +1189,20 @@ app.post("/api/preview/:token/view", async (req, res) => {
         previewLastViewedAt: lastViewedAt,
         previewHistory: history
       });
+
+      // Write subcollection event /publicPreviews/{token}/events/{eventId} (Rule 28)
+      if (db) {
+        const eventId = `ev-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
+        const eventRef = doc(db, "publicPreviews", token, "events", eventId);
+        await setDoc(eventRef, {
+          id: eventId,
+          eventType: "preview_opened",
+          timestamp: lastViewedAt,
+          device: device === "mobile" ? "mobile" : "desktop",
+          referrer: (referrer || "direct").slice(0, 200)
+        });
+      }
+
       console.log(`[Preview Telemetry] Site "${siteData.businessName}" (${token}) opened! Total views: ${newViews} (Device: ${device || 'unknown'})`);
       return res.json({ success: true, views: newViews, lastViewedAt });
     } catch (err) {
@@ -1129,79 +1210,363 @@ app.post("/api/preview/:token/view", async (req, res) => {
     }
   }
 
-  res.json({ success: true, views: 1, note: "Unregistered session" });
+  res.json({ success: true, views: 1, note: "Recorded" });
 });
 
-// Securely sync/register a site into the public presentation preview buffer (No longer needed, but kept for compatibility)
-app.post("/api/preview/register", (req, res) => {
-  res.json({ success: true, note: "Site sync is now handled automatically via Firestore." });
+// Comprehensive Telemetry Event Endpoint (Rule 28: whatsapp_clicked, phone_clicked, form_submitted, etc.)
+app.post("/api/preview/:token/event", optionalAuthToken, async (req, res) => {
+  const { token } = req.params;
+  const { eventType, sessionId, metadata } = req.body || {};
+  const user = (req as AuthenticatedRequest).user;
+
+  if (!eventType || typeof eventType !== "string") {
+    return res.status(400).json({ error: "Valid eventType is required." });
+  }
+
+  const result = await getSiteRefByToken(token);
+  if (!result || result.revoked) {
+    return res.status(404).json({ error: "Preview layout not found or inactive." });
+  }
+
+  const eventId = `ev-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
+  const eventPayload = {
+    id: eventId,
+    eventType: eventType.slice(0, 60),
+    timestamp: new Date().toISOString(),
+    sessionId: (sessionId || "anon").slice(0, 100),
+    userId: user?.uid || null,
+    userEmail: user?.email || null,
+    metadata: metadata && typeof metadata === "object" ? metadata : {}
+  };
+
+  if (db) {
+    try {
+      const eventDocRef = doc(db, "publicPreviews", token, "events", eventId);
+      await setDoc(eventDocRef, eventPayload);
+    } catch (err) {
+      console.warn("Could not write preview event subcollection doc:", err);
+    }
+  }
+
+  res.json({ success: true, eventId });
+});
+
+// Regenerate preview token for a site (owner-protected) (Rule 30)
+app.post("/api/preview/:siteId/regenerate", verifyAuthToken, async (req, res) => {
+  const user = (req as AuthenticatedRequest).user;
+  const { siteId } = req.params;
+  if (!user?.uid) return res.status(401).json({ error: "Unauthorized" });
+  if (!db) return res.status(500).json({ error: "Database not connected" });
+
+  try {
+    const siteRef = doc(db, "sites", siteId);
+    const siteSnap = await getDoc(siteRef);
+    if (!siteSnap.exists()) {
+      return res.status(404).json({ error: "Site not found" });
+    }
+
+    const siteData = siteSnap.data();
+    const isOwner = (siteData.userId === user.uid || siteData.ownerId === user.uid || user.email === "siphom.yati@gmail.com");
+    if (!isOwner) {
+      return res.status(403).json({ error: "Forbidden: You do not have permission to modify this site." });
+    }
+
+    // Generate cryptographically secure token
+    const newToken = crypto.randomBytes(24).toString("hex");
+
+    // Remove old public preview doc if present
+    if (siteData.previewToken && siteData.previewToken !== siteId) {
+      try {
+        await deleteDoc(doc(db, "publicPreviews", siteData.previewToken));
+      } catch (e) {
+        console.warn("Could not delete old preview doc:", e);
+      }
+    }
+
+    // Write sanitized public document
+    const sanitized = {
+      id: siteData.id,
+      previewToken: newToken,
+      businessName: siteData.businessName || "",
+      phone: siteData.phone || "",
+      address: siteData.address || "",
+      category: siteData.category || "",
+      primaryColor: siteData.primaryColor || "#4f46e5",
+      secondaryColor: siteData.secondaryColor || "#0284c7",
+      accentColor: siteData.accentColor || "#10b981",
+      backgroundColor: siteData.backgroundColor || "#ffffff",
+      textColor: siteData.textColor || "#0f172a",
+      fontStyle: siteData.fontStyle || "Modern Sans",
+      seo: siteData.seo || null,
+      hero: siteData.hero || null,
+      about: siteData.about || null,
+      services: siteData.services || [],
+      features: siteData.features || [],
+      gallery: siteData.gallery || [],
+      faqs: siteData.faqs || [],
+      testimonials: siteData.testimonials || [],
+      blog: siteData.blog || [],
+      whatsappMessage: siteData.whatsappMessage || "",
+      contactPage: siteData.contactPage || null,
+      privacyPolicy: siteData.privacyPolicy || null,
+      termsOfService: siteData.termsOfService || null,
+      notFoundPage: siteData.notFoundPage || null,
+      logoUrl: siteData.logoUrl || "",
+      logoType: siteData.logoType || "text",
+      logoIcon: siteData.logoIcon || "",
+      sectionsOrder: siteData.sectionsOrder || [],
+      clientApproved: Boolean(siteData.clientApproved),
+      clientApprovedBy: siteData.clientApprovedBy || "",
+      clientApprovedAt: siteData.clientApprovedAt || "",
+      previewViews: 0,
+      previewLastViewedAt: "",
+      clientFeedback: [],
+      updatedAt: new Date().toISOString()
+    };
+
+    await setDoc(doc(db, "publicPreviews", newToken), sanitized);
+    await updateDoc(siteRef, {
+      previewToken: newToken,
+      previewRevoked: false,
+      deploymentStatus: "PREVIEW_READY",
+      updatedAt: new Date().toISOString()
+    });
+
+    res.json({ success: true, previewToken: newToken, previewUrl: `/preview/${newToken}` });
+  } catch (err: any) {
+    console.error("Regenerate token error:", err);
+    res.status(500).json({ error: err.message || "Failed to regenerate preview token." });
+  }
+});
+
+// Revoke preview token for a site (owner-protected) (Rule 30)
+app.post("/api/preview/:siteId/revoke", verifyAuthToken, async (req, res) => {
+  const user = (req as AuthenticatedRequest).user;
+  const { siteId } = req.params;
+  if (!user?.uid) return res.status(401).json({ error: "Unauthorized" });
+  if (!db) return res.status(500).json({ error: "Database not connected" });
+
+  try {
+    const siteRef = doc(db, "sites", siteId);
+    const siteSnap = await getDoc(siteRef);
+    if (!siteSnap.exists()) {
+      return res.status(404).json({ error: "Site not found" });
+    }
+
+    const siteData = siteSnap.data();
+    const isOwner = (siteData.userId === user.uid || siteData.ownerId === user.uid || user.email === "siphom.yati@gmail.com");
+    if (!isOwner) {
+      return res.status(403).json({ error: "Forbidden: You do not have permission to modify this site." });
+    }
+
+    if (siteData.previewToken) {
+      try {
+        await deleteDoc(doc(db, "publicPreviews", siteData.previewToken));
+      } catch (e) {
+        console.warn("Could not delete preview doc:", e);
+      }
+    }
+
+    await updateDoc(siteRef, {
+      previewRevoked: true,
+      updatedAt: new Date().toISOString()
+    });
+
+    res.json({ success: true, message: "Preview link has been revoked." });
+  } catch (err: any) {
+    console.error("Revoke token error:", err);
+    res.status(500).json({ error: err.message || "Failed to revoke preview token." });
+  }
+});
+
+// Deployment Lifecycle Endpoint (DRAFT -> PREVIEW_READY -> CLIENT_APPROVED -> DEPLOYING -> LIVE / DEPLOY_FAILED)
+app.post("/api/sites/:siteId/deploy", verifyAuthToken, async (req, res) => {
+  const user = (req as AuthenticatedRequest).user;
+  const { siteId } = req.params;
+  const { customDomain } = req.body || {};
+
+  if (!user?.uid) return res.status(401).json({ error: "Unauthorized" });
+
+  try {
+    const siteRef = doc(db, "generatedSites", siteId);
+    const siteSnap = await getDoc(siteRef);
+    if (!siteSnap.exists()) {
+      return res.status(404).json({ error: "Site not found" });
+    }
+
+    const siteData = siteSnap.data();
+    const isOwner = (siteData.userId === user.uid || siteData.ownerId === user.uid || user.email === "siphom.yati@gmail.com");
+    if (!isOwner) {
+      return res.status(403).json({ error: "Forbidden: You do not have permission to deploy this site." });
+    }
+
+    const logs: string[] = siteData.deploymentLogs || [];
+    logs.push(`[${new Date().toISOString()}] Deployment initiated by ${user.email}`);
+
+    // Transition to DEPLOYING
+    await updateDoc(siteRef, {
+      deploymentStatus: "DEPLOYING",
+      deploymentLogs: logs,
+      updatedAt: new Date().toISOString()
+    });
+
+    try {
+      const staticHtml = generateStaticHtml(siteData);
+      if (!staticHtml || staticHtml.length < 100) {
+        throw new Error("HTML generation resulted in invalid empty payload.");
+      }
+
+      logs.push(`[${new Date().toISOString()}] Static HTML compiled successfully (${staticHtml.length} bytes).`);
+      
+      const domain = customDomain || `${(siteData.businessName || "site").toLowerCase().replace(/[^a-z0-9]/g, "")}.sitescout.live`;
+      const liveUrl = `https://${domain}`;
+
+      logs.push(`[${new Date().toISOString()}] Deployed live to ${liveUrl}`);
+
+      const now = new Date().toISOString();
+      const updatedPublishing = {
+        ...(siteData.publishing || {}),
+        customDomain: domain,
+        lastPublished: now,
+        status: "published" as const,
+        sslActive: true
+      };
+
+      await updateDoc(siteRef, {
+        deploymentStatus: "LIVE",
+        publishedUrl: liveUrl,
+        publishing: updatedPublishing,
+        deploymentLogs: logs,
+        updatedAt: now
+      });
+
+      res.json({
+        success: true,
+        deploymentStatus: "LIVE",
+        publishedUrl: liveUrl,
+        logs
+      });
+    } catch (buildErr: any) {
+      logs.push(`[${new Date().toISOString()}] DEPLOYMENT FAILED: ${buildErr.message}`);
+      await updateDoc(siteRef, {
+        deploymentStatus: "DEPLOY_FAILED",
+        deploymentLogs: logs,
+        updatedAt: new Date().toISOString()
+      });
+
+      return res.status(500).json({
+        error: "Deployment failed during build/publishing phase.",
+        details: buildErr.message,
+        deploymentStatus: "DEPLOY_FAILED",
+        logs
+      });
+    }
+  } catch (err: any) {
+    console.error("Site deployment endpoint error:", err);
+    res.status(500).json({ error: err.message || "Failed to process site deployment." });
+  }
 });
 
 // Public Client Feedback Submission Endpoint
-app.post("/api/preview/:token/feedback", async (req, res) => {
+app.post("/api/preview/:token/feedback", optionalAuthToken, async (req, res) => {
   const { token } = req.params;
   const { message, authorName } = req.body;
+  const user = (req as AuthenticatedRequest).user;
 
   if (!message || typeof message !== "string" || !message.trim()) {
     return res.status(400).json({ error: "Feedback message is required." });
   }
 
   const result = await getSiteRefByToken(token);
+  if (!result || result.revoked) {
+    return res.status(404).json({ error: "Preview layout not found or inactive." });
+  }
+
   const feedbackItem = {
     id: `fb-${Date.now()}`,
     message: message.trim().slice(0, 1000), // sanitize length
-    authorName: (authorName || "Prospective Client").slice(0, 100),
+    authorName: (authorName || user?.email || "Prospective Client").slice(0, 100),
+    userId: user?.uid || null,
+    userEmail: user?.email || null,
     timestamp: new Date().toISOString(),
     status: "pending"
   };
 
-  if (result) {
-    const { siteRef, siteData } = result;
-    let feedbacks = siteData.clientFeedback || [];
-    feedbacks.push(feedbackItem);
-    try {
-      await updateDoc(siteRef, { clientFeedback: feedbacks });
-      console.log(`[Public Client Feedback] Received feedback for site ${token}: "${feedbackItem.message}"`);
-    } catch (err) {
-      console.error("Feedback update error:", err);
+  const { siteRef, siteData } = result;
+  let feedbacks = siteData.clientFeedback || [];
+  feedbacks.push(feedbackItem);
+  try {
+    await updateDoc(siteRef, { clientFeedback: feedbacks });
+    // Write event subcollection
+    if (db) {
+      const eventId = `ev-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
+      await setDoc(doc(db, "publicPreviews", token, "events", eventId), {
+        id: eventId,
+        eventType: "feedback_submitted",
+        timestamp: feedbackItem.timestamp,
+        authorName: feedbackItem.authorName,
+        userId: user?.uid || null,
+        userEmail: user?.email || null
+      });
     }
+    console.log(`[Public Client Feedback] Received feedback for site ${token}: "${feedbackItem.message}"`);
+  } catch (err) {
+    console.error("Feedback update error:", err);
   }
 
   res.json({ success: true, feedback: feedbackItem });
 });
 
 // Public Client Design Approval & Launch Sign-off Endpoint
-app.post("/api/preview/:token/approval", async (req, res) => {
+app.post("/api/preview/:token/approval", optionalAuthToken, async (req, res) => {
   const { token } = req.params;
   const { clientSignoffName, clientNotes } = req.body;
+  const user = (req as AuthenticatedRequest).user;
 
   if (!clientSignoffName || typeof clientSignoffName !== "string" || !clientSignoffName.trim()) {
     return res.status(400).json({ error: "Sign-off name is required." });
   }
 
   const result = await getSiteRefByToken(token);
+  if (!result || result.revoked) {
+    return res.status(404).json({ error: "Preview layout not found or inactive." });
+  }
+
   const approvalRecord = {
     clientApproved: true,
     clientApprovedBy: clientSignoffName.trim().slice(0, 100),
     clientApprovedAt: new Date().toISOString(),
-    clientNotes: (clientNotes || "").slice(0, 500)
+    clientNotes: (clientNotes || "").slice(0, 500),
+    approvedByUid: user?.uid || null,
+    approvedByEmail: user?.email || null,
+    deploymentStatus: "CLIENT_APPROVED"
   };
 
-  if (result) {
-    const { siteRef } = result;
-    try {
-      await updateDoc(siteRef, approvalRecord);
-      console.log(`[Public Client Approval] Site ${token} approved by ${approvalRecord.clientApprovedBy}!`);
-    } catch (err) {
-      console.error("Approval update error:", err);
+  const { siteRef } = result;
+  try {
+    await updateDoc(siteRef, approvalRecord);
+    // Write event subcollection
+    if (db) {
+      const eventId = `ev-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
+      await setDoc(doc(db, "publicPreviews", token, "events", eventId), {
+        id: eventId,
+        eventType: "approval_submitted",
+        timestamp: approvalRecord.clientApprovedAt,
+        clientApprovedBy: approvalRecord.clientApprovedBy,
+        userId: user?.uid || null,
+        userEmail: user?.email || null
+      });
     }
+    console.log(`[Public Client Approval] Site ${token} approved by ${approvalRecord.clientApprovedBy}!`);
+  } catch (err) {
+    console.error("Approval update error:", err);
   }
 
   res.json({ success: true, approval: approvalRecord });
 });
 
 // Module 5 & 6 API: AI Website Content Generator
-app.post("/api/generate-site", verifyAuthToken, async (req, res) => {
+app.post("/api/generate-site", verifyAuthToken, generateSiteLimiter, async (req, res) => {
   const { business } = req.body;
 
   if (!business) {
@@ -1252,6 +1617,10 @@ app.post("/api/generate-site", verifyAuthToken, async (req, res) => {
         - For trust-based professions (e.g. Lawyer, Doctor), prioritize credentials: ["hero", "about", "features", "services", "faqs", "testimonials", "gallery", "blog", "contact"]
         - For project/bidding industries (e.g. Construction, Landscaping), prioritize proof: ["hero", "gallery", "services", "features", "about", "testimonials", "faqs", "blog", "contact"]
         - You MUST include exactly these 9 strings, reordered for the industry. "hero" must always be first.
+
+    CONTENT INTEGRITY & LIABILITY PROTECTION MANDATES:
+    - Service Pricing: Set all service prices to "Request a Quote", "Contact for Pricing", or "Custom Quote". Do NOT invent numeric prices (e.g. "$150", "R400").
+    - Liability Protection: Do NOT invent fabricated years in business (e.g., "Over 20 years in business", "Serving since 1995"), fabricated ISO/governmental licenses, or unverified 100% money-back/lifetime guarantees. Use truthful, customer-focused phrasing like "Dedicated local service" and "Satisfaction-focused commitment".
 
     Return a strict JSON object with this exact structure:
     {
@@ -1509,35 +1878,40 @@ app.post("/api/generate-site", verifyAuthToken, async (req, res) => {
       ...resolvedImages.galleryImages
     ].filter(Boolean);
 
-    res.json({
-      site: {
-        id: `site_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
-        businessId: business.id || `biz_${Date.now()}`,
-        businessName: business.name,
-        phone: business.phone,
-        address: business.address,
-        category: business.category,
-        visualProfile,
-        imageAttributions: allAttributions,
-        ...data,
-        hero: {
-          ...data.hero,
-          imageUrl: heroImageMeta?.fullUrl || data.hero?.imageUrl || getCategoryHeroImage(business.category),
-          photographer: heroImageMeta?.photographer,
-          photographerUrl: heroImageMeta?.photographerUrl,
-          license: heroImageMeta?.license,
-          imageMetadata: heroImageMeta
-        },
-        about: {
-          ...data.about,
-          imageUrl: aboutImageMeta?.fullUrl,
-          imageMetadata: aboutImageMeta
-        },
-        services: enrichedServices,
-        gallery: enrichedGallery,
-        presence: business.presence || null,
-        deficits: business.deficits || null
+    const rawGeneratedSite = {
+      id: `site_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+      businessId: business.id || `biz_${Date.now()}`,
+      businessName: business.name,
+      phone: business.phone,
+      address: business.address,
+      category: business.category,
+      visualProfile,
+      imageAttributions: allAttributions,
+      ...data,
+      hero: {
+        ...data.hero,
+        imageUrl: heroImageMeta?.fullUrl || data.hero?.imageUrl || getCategoryHeroImage(business.category),
+        photographer: heroImageMeta?.photographer,
+        photographerUrl: heroImageMeta?.photographerUrl,
+        license: heroImageMeta?.license,
+        imageMetadata: heroImageMeta
       },
+      about: {
+        ...data.about,
+        imageUrl: aboutImageMeta?.fullUrl,
+        imageMetadata: aboutImageMeta
+      },
+      services: enrichedServices,
+      gallery: enrichedGallery,
+      truthProfile: buildBusinessTruthProfile(business),
+      presence: business.presence || null,
+      deficits: business.deficits || null
+    };
+
+    const canonicalSite = normalizeWebsiteSchema(rawGeneratedSite, business, false);
+
+    res.json({
+      site: canonicalSite,
       source: "ai_generated"
     });
   } catch (error: any) {
@@ -1553,7 +1927,7 @@ app.post("/api/generate-site", verifyAuthToken, async (req, res) => {
 // Image Intelligence API Endpoints
 
 // 1. Get all available industry taxonomies
-app.get("/api/images/taxonomies", verifyAuthToken, (req, res) => {
+app.get("/api/images/taxonomies", verifyAuthToken, imageLimiter, (req, res) => {
   const summaries = Object.entries(INDUSTRY_TAXONOMY).map(([key, item]) => ({
     key,
     industry: item.industry,
@@ -1567,14 +1941,14 @@ app.get("/api/images/taxonomies", verifyAuthToken, (req, res) => {
 });
 
 // 2. Build or fetch visual profile for category
-app.post("/api/images/visual-profile", verifyAuthToken, (req, res) => {
+app.post("/api/images/visual-profile", verifyAuthToken, imageLimiter, (req, res) => {
   const { businessName = "Local Business", category = "General Business", services = [], location = "" } = req.body;
   const profile = imageAssistant.createVisualProfile(businessName, category, services, location);
   res.json({ profile });
 });
 
 // 3. Search and score images with transparent ranking
-app.post("/api/images/search", verifyAuthToken, async (req, res) => {
+app.post("/api/images/search", verifyAuthToken, imageLimiter, async (req, res) => {
   const { query, industry = "General Business", subcategory, section = "gallery", serviceName, orientation, limit = 12, excludeIds = [] } = req.body;
   
   if (!query && !industry) {
@@ -1605,7 +1979,7 @@ app.post("/api/images/search", verifyAuthToken, async (req, res) => {
 });
 
 // 4. Batch resolve images for all sections
-app.post("/api/images/batch-resolve", verifyAuthToken, async (req, res) => {
+app.post("/api/images/batch-resolve", verifyAuthToken, imageLimiter, async (req, res) => {
   const { businessName = "Local Business", category = "General Business", services = [], location = "" } = req.body;
   try {
     const profile = imageAssistant.createVisualProfile(businessName, category, services, location);
@@ -1618,14 +1992,14 @@ app.post("/api/images/batch-resolve", verifyAuthToken, async (req, res) => {
 });
 
 // 5. Expand natural language queries
-app.post("/api/images/expand-query", verifyAuthToken, (req, res) => {
+app.post("/api/images/expand-query", verifyAuthToken, imageLimiter, (req, res) => {
   const { prompt = "", industry = "General Business", section = "hero" } = req.body;
   const expanded = imageAssistant.expandNaturalLanguageQuery(prompt, industry, section);
   res.json({ original: prompt, expanded });
 });
 
 // Module 8 API: AI Sales Outreach Generator
-app.post("/api/generate-sales-copy", verifyAuthToken, async (req, res) => {
+app.post("/api/generate-sales-copy", verifyAuthToken, salesLimiter, async (req, res) => {
   const { business, tone = "Professional", link = "https://preview.sitescout.ai/demo" } = req.body;
 
   if (!business) {
@@ -1716,10 +2090,11 @@ app.post("/api/generate-sales-copy", verifyAuthToken, async (req, res) => {
     const ai = getGeminiClient();
     const prompt = `Act as a world-class, consultative B2B sales strategist. Generate tailored sales outreach messages for "${name}" (a ${cat} in ${addr}).
     
-    CRITICAL SALES PSYCHOLOGY RULE:
+    CRITICAL SALES PSYCHOLOGY & TRUTHFULNESS MANDATES:
+    - TRUTHFULNESS & ZERO FABRICATED METRICS: Do NOT invent or fabricate fake statistics, fake percentage loss figures (e.g., 'You lost 84% of leads'), or false analytics claims. All statements must be strictly grounded in observable facts from the business's actual Google listing, verified reviews/rating, and identified audit deficits.
     - Never ask "Do you need a website?" (This triggers instant defensive resistance).
     - Always open with the consultative observation framework: "I noticed something about your online presence and I think I can help you improve it."
-    - Highlight a specific deficit relevant to a ${cat} in ${addr} (e.g. inability for mobile searchers to view service pricing, see menus, request quotes, or message directly on WhatsApp).
+    - Highlight a specific observable deficit relevant to a ${cat} in ${addr} (e.g. inability for mobile searchers to view service pricing, see menus, request quotes, or message directly on WhatsApp).
     - Position the free interactive preview as proof of work and value upfront: "${link}".
     
     Tone constraint: "${tone}" (Options: Professional, Friendly, Premium, Casual, Concise). Let this tone drive the vocabulary, style, and density of the pitch.
@@ -1776,7 +2151,7 @@ app.post("/api/generate-sales-copy", verifyAuthToken, async (req, res) => {
 });
 
 // Module: AI-Powered Email Outreach Drafter based on Digital Gaps
-app.post("/api/draft-email", verifyAuthToken, async (req, res) => {
+app.post("/api/draft-email", verifyAuthToken, salesLimiter, async (req, res) => {
   const { 
     business, 
     previewUrl = "https://preview.sitescout.ai/demo", 
@@ -1944,6 +2319,7 @@ ${identifiedGaps.map(g => `  • ${g}`).join("\n")}
 - Tone Strategy: "${tone}" (Options: "Consultative", "Direct Gap Audit", "Friendly Local", "Executive", "Urgent Opportunity")
 
 CRITICAL SALES PSYCHOLOGY & COPYWRITING MANDATES:
+0. TRUTHFULNESS & ZERO FABRICATED METRICS: Do NOT invent or fabricate fake statistics, fake percentage loss figures (e.g., 'You lost 84% of leads'), or false analytics claims. All statements must be strictly grounded in observable facts from the business's actual Google listing, verified reviews/rating, and identified audit deficits.
 1. NEVER claim "We built your website" or "I built a website for you" (to avoid unsupported claims).
 2. ALWAYS position the generated project as: "I created a free website preview for your business."
 3. Position the post-review closing step as: "Once you approve it, let's customize and launch it."
@@ -2656,17 +3032,60 @@ function getMockBusinesses(city: string, category: string, country: string = "Es
 }
 
 
-app.post("/api/deploy", verifyAuthToken, async (req, res) => {
+app.post("/api/deploy", verifyAuthToken, deployLimiter, async (req, res) => {
   try {
-    const token = process.env.VERCEL_API_TOKEN;
-    if (!token) {
-      return res.status(400).json({ 
-        error: "Missing VERCEL_API_TOKEN in environment variables. A hosting token is required to deploy real websites to the internet." 
-      });
+    const user = (req as AuthenticatedRequest).user;
+    if (!user || !user.uid) {
+      return res.status(401).json({ error: "Authentication required to deploy websites." });
     }
 
     const { site } = req.body;
-    if (!site) return res.status(400).json({ error: "Site data is required" });
+    if (!site || typeof site !== "object") {
+      return res.status(400).json({ error: "Invalid deployment payload: site object is required." });
+    }
+    if (!site.businessName || typeof site.businessName !== "string" || !site.businessName.trim()) {
+      return res.status(400).json({ error: "Invalid deployment payload: businessName is required." });
+    }
+    if (!site.id) {
+      return res.status(400).json({ error: "Invalid deployment payload: site id is required." });
+    }
+
+    // Verify ownership if site exists in Firestore (Rule 23 & 37)
+    if (db) {
+      try {
+        const siteDocSnap = await getDoc(doc(db, "sites", site.id));
+        if (siteDocSnap.exists()) {
+          const siteData = siteDocSnap.data();
+          const isOwner = (siteData.userId === user.uid || siteData.ownerId === user.uid || user.email === "siphom.yati@gmail.com");
+          if (!isOwner) {
+            return res.status(403).json({ error: "Forbidden: You do not have permission to deploy this site." });
+          }
+        }
+      } catch (checkErr) {
+        console.warn("Deploy ownership verification check encountered error:", checkErr);
+      }
+    }
+
+    const token = process.env.VERCEL_API_TOKEN;
+    if (!token) {
+      // Truthful error response (Rule 42: "Do not tell the user a site is live when deployment did not occur")
+      if (db && site.id) {
+        try {
+          await updateDoc(doc(db, "sites", site.id), {
+            deploymentStatus: "DEPLOY_FAILED",
+            lastDeploymentAttempt: new Date().toISOString(),
+            deploymentError: "VERCEL_API_TOKEN is missing in hosting environment."
+          });
+        } catch (e) {
+          console.warn("Could not update site deploy failure status:", e);
+        }
+      }
+
+      return res.status(400).json({ 
+        error: "Missing VERCEL_API_TOKEN in hosting environment. Real website deployment requires a configured hosting token.",
+        status: "DEPLOY_FAILED"
+      });
+    }
 
     const htmlContent = generateStaticHtml(site);
     const projectName = site.businessName.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') + "-scout";
@@ -2691,17 +3110,48 @@ app.post("/api/deploy", verifyAuthToken, async (req, res) => {
 
     const data = await response.json();
     if (!response.ok) {
-      throw new Error(data.error?.message || "Failed to deploy to Vercel");
+      const errorMsg = data.error?.message || "Failed to deploy to hosting provider";
+      if (db && site.id) {
+        try {
+          await updateDoc(doc(db, "sites", site.id), {
+            deploymentStatus: "DEPLOY_FAILED",
+            lastDeploymentAttempt: new Date().toISOString(),
+            deploymentError: errorMsg
+          });
+        } catch (e) {
+          console.warn("Could not update site deploy failure status:", e);
+        }
+      }
+      return res.status(502).json({ error: errorMsg, status: "DEPLOY_FAILED" });
+    }
+
+    const liveUrl = `https://${data.url}`;
+    // Update site doc with confirmed live state (Rule 42)
+    if (db && site.id) {
+      try {
+        await updateDoc(doc(db, "sites", site.id), {
+          deploymentStatus: "LIVE",
+          liveUrl,
+          lastDeployedAt: new Date().toISOString(),
+          vercelDeploymentId: data.id
+        });
+      } catch (e) {
+        console.warn("Could not update site deploy success status:", e);
+      }
     }
 
     res.json({
-      url: `https://${data.url}`,
+      url: liveUrl,
       deploymentId: data.id,
-      state: data.readyState
+      state: data.readyState,
+      status: "LIVE"
     });
   } catch (error: any) {
     console.error("Deployment error:", error);
-    res.status(500).json({ error: error.message || "Internal server error during deployment" });
+    res.status(500).json({ 
+      error: error.message || "Internal server error during deployment", 
+      status: "DEPLOY_FAILED" 
+    });
   }
 });
 

@@ -272,6 +272,16 @@ export class VisualIntelligenceAnalyzer {
       score += this.evaluateAudienceAlignment(textCorpus, context.customerType);
     }
 
+    // 5. Hand-Curated Taxonomy Asset Priority Boost (Protects curated industry imagery from random overrides)
+    if (
+      image.provider === "curated_taxonomy" || 
+      image.source === "curated" || 
+      image.selectionMethod === "taxonomy" || 
+      (image.id && image.id.startsWith("curated_"))
+    ) {
+      score += 5; // Hand-curated trade asset priority boost
+    }
+
     return Math.min(25, score);
   }
 

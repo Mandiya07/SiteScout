@@ -1,13 +1,21 @@
 import { useState } from "react";
-import { Business, ProspectStatus, GeneratedSite } from "../types";
-import { normalizePhoneNumber } from "../lib/formatters";
+import { Business, ProspectStatus, GeneratedSite, CanonicalSalesStage } from "../types";
+import { generateWhatsappLink } from "../lib/formatters";
 import { 
   Building2, Phone, MapPin, Globe, ArrowRight, MessageSquare, 
   Calendar, CheckCircle2, Clock, Flame, Filter, Plus, FileText, 
   Sparkles, ExternalLink, RefreshCw, XCircle, AlertCircle, Eye,
-  Check, ChevronRight, Mail, ShieldCheck
+  Check, ChevronRight, Mail, ShieldCheck, Zap, Layers, History
 } from "lucide-react";
 import DraftEmailModal from "./DraftEmailModal";
+import OpportunityScoreModal from "./OpportunityScoreModal";
+import ProspectActivityDrawer from "./ProspectActivityDrawer";
+import { 
+  CANONICAL_STAGES, 
+  toCanonicalStage, 
+  getStageMeta,
+  calculateExplainableOpportunityScore 
+} from "../lib/prospectCrm";
 
 interface ProspectPipelineProps {
   prospects: Business[];
@@ -17,18 +25,9 @@ interface ProspectPipelineProps {
   onOpenProposal: (business: Business) => void;
   onViewAudit?: (business: Business) => void;
   userSites: GeneratedSite[];
+  userId?: string;
+  userName?: string;
 }
-
-const STAGES: { id: ProspectStatus; label: string; color: string; bg: string; border: string }[] = [
-  { id: "New", label: "New", color: "text-slate-700 dark:text-slate-300", bg: "bg-slate-100 dark:bg-slate-800", border: "border-slate-300 dark:border-slate-700" },
-  { id: "Analyzed", label: "Analyzed", color: "text-blue-700 dark:text-blue-300", bg: "bg-blue-50 dark:bg-blue-950/40", border: "border-blue-200 dark:border-blue-900" },
-  { id: "Preview Ready", label: "Preview Ready", color: "text-purple-700 dark:text-purple-300", bg: "bg-purple-50 dark:bg-purple-950/40", border: "border-purple-200 dark:border-purple-900" },
-  { id: "Preview Sent", label: "Preview Sent", color: "text-amber-700 dark:text-amber-300", bg: "bg-amber-50 dark:bg-amber-950/40", border: "border-amber-200 dark:border-amber-900" },
-  { id: "Interested", label: "Interested", color: "text-teal-700 dark:text-teal-300", bg: "bg-teal-50 dark:bg-teal-950/40", border: "border-teal-200 dark:border-teal-900" },
-  { id: "Proposal", label: "Proposal", color: "text-indigo-700 dark:text-indigo-300", bg: "bg-indigo-50 dark:bg-indigo-950/40", border: "border-indigo-200 dark:border-indigo-900" },
-  { id: "Won", label: "Won", color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-50 dark:bg-emerald-950/40", border: "border-emerald-200 dark:border-emerald-900" },
-  { id: "Lost", label: "Lost", color: "text-rose-700 dark:text-rose-300", bg: "bg-rose-50 dark:bg-rose-950/40", border: "border-rose-200 dark:border-rose-900" }
-];
 
 export default function ProspectPipeline({
   prospects,
@@ -37,7 +36,9 @@ export default function ProspectPipeline({
   onOpenSalesAssistant,
   onOpenProposal,
   onViewAudit,
-  userSites
+  userSites,
+  userId,
+  userName
 }: ProspectPipelineProps) {
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [dataTypeFilter, setDataTypeFilter] = useState<'all' | 'real' | 'demo'>('all');
@@ -47,6 +48,10 @@ export default function ProspectPipeline({
   const [schedulingBizId, setSchedulingBizId] = useState<string | null>(null);
   const [draftEmailBiz, setDraftEmailBiz] = useState<Business | null>(null);
   const [demoSafetyModalBiz, setDemoSafetyModalBiz] = useState<Business | null>(null);
+  
+  // Phase 5 Modals & Drawers
+  const [scoreModalBiz, setScoreModalBiz] = useState<Business | null>(null);
+  const [activityDrawerBiz, setActivityDrawerBiz] = useState<Business | null>(null);
 
   const isDemoBiz = (biz: Business) => {
     return biz.isDemo === true || biz.dataType === "demo" || biz.evidence?.verificationStatus === "sample_demo";
@@ -60,7 +65,8 @@ export default function ProspectPipeline({
     if (dataTypeFilter === 'real' && isDemo) return false;
     if (dataTypeFilter === 'demo' && !isDemo) return false;
 
-    const matchesStatus = selectedStatus === "all" || (p.prospectStatus || "New") === selectedStatus;
+    const canonicalStage = toCanonicalStage(p.salesStage || p.prospectStatus);
+    const matchesStatus = selectedStatus === "all" || canonicalStage === selectedStatus;
     const matchesSearch = !searchTerm || 
       p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -68,26 +74,28 @@ export default function ProspectPipeline({
     return matchesStatus && matchesSearch;
   });
 
-  const handleStatusChange = (business: Business, newStatus: ProspectStatus) => {
+  const handleStageChange = (business: Business, newStage: CanonicalSalesStage) => {
     const updated: Business = {
       ...business,
-      prospectStatus: newStatus,
-      lastContactedAt: ["Preview Sent", "Proposal"].includes(newStatus)
+      salesStage: newStage,
+      prospectStatus: newStage === "WON" ? "Won" : (newStage === "LOST" ? "Lost" : (newStage === "PROPOSAL_SENT" ? "Proposal" : "Interested")),
+      lastContactedAt: ["PREVIEW_SENT", "PROPOSAL_SENT", "FOLLOW_UP_1", "FOLLOW_UP_2"].includes(newStage)
         ? new Date().toISOString()
-        : business.lastContactedAt
+        : business.lastContactedAt,
+      updatedAt: new Date().toISOString()
     };
     onUpdateProspect(updated);
   };
 
   const handleMarkContactedToday = (business: Business) => {
     const now = new Date().toISOString();
-    // Default next follow-up 2 days later
     const nextDate = new Date();
     nextDate.setDate(nextDate.getDate() + 2);
     const updated: Business = {
       ...business,
       lastContactedAt: now,
-      nextFollowUpDate: nextDate.toISOString().split("T")[0]
+      nextFollowUpDate: nextDate.toISOString().split("T")[0],
+      updatedAt: now
     };
     onUpdateProspect(updated);
   };
@@ -97,7 +105,8 @@ export default function ProspectPipeline({
     nextDate.setDate(nextDate.getDate() + days);
     const updated: Business = {
       ...business,
-      nextFollowUpDate: nextDate.toISOString().split("T")[0]
+      nextFollowUpDate: nextDate.toISOString().split("T")[0],
+      updatedAt: new Date().toISOString()
     };
     onUpdateProspect(updated);
     setSchedulingBizId(null);
@@ -106,7 +115,8 @@ export default function ProspectPipeline({
   const handleSaveNotes = (business: Business) => {
     const updated: Business = {
       ...business,
-      prospectNotes: tempNotes
+      prospectNotes: tempNotes,
+      updatedAt: new Date().toISOString()
     };
     onUpdateProspect(updated);
     setEditingNotesId(null);
@@ -121,7 +131,7 @@ export default function ProspectPipeline({
       ? (site.previewToken ? `${window.location.origin}/preview/${site.previewToken}` : `${window.location.origin}/preview/${site.id}`)
       : window.location.origin;
     const msg = `Hi! I noticed something specific about ${biz.name}'s online presence in ${biz.address} and thought I could help you improve it. I put together a live interactive preview customized for your business: ${previewUrl}`;
-    return `https://wa.me/${normalizePhoneNumber(biz.phone)}?text=${encodeURIComponent(msg)}`;
+    return generateWhatsappLink(biz.phone, msg, biz.address);
   };
 
   return (
@@ -131,10 +141,10 @@ export default function ProspectPipeline({
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2.5">
             <Building2 className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            Prospect Pipeline &amp; Sales Queue
+            Central Prospect Entity &amp; Canonical Pipeline
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Manage your discovered businesses from initial audit to closed client deals.
+            Standardized 10-stage sales progression with Firestore subcollection CRM tracking and explainable deficit scoring.
           </p>
         </div>
 
@@ -153,11 +163,14 @@ export default function ProspectPipeline({
             className="px-3.5 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
           >
             <option value="all">All Stages ({prospects.length})</option>
-            {STAGES.map(s => (
-              <option key={s.id} value={s.id}>
-                {s.label} ({prospects.filter(p => (p.prospectStatus || "New") === s.id).length})
-              </option>
-            ))}
+            {CANONICAL_STAGES.map(s => {
+              const count = prospects.filter(p => toCanonicalStage(p.salesStage || p.prospectStatus) === s.id).length;
+              return (
+                <option key={s.id} value={s.id}>
+                  {s.label} ({count})
+                </option>
+              );
+            })}
           </select>
         </div>
       </div>
@@ -236,25 +249,25 @@ export default function ProspectPipeline({
         </div>
       )}
 
-      {/* Stage KPI Pills */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
-        {STAGES.map((stage) => {
-          const count = prospects.filter(p => (p.prospectStatus || "New") === stage.id).length;
+      {/* Canonical Stage KPI Pills (10 Stages) */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-10 gap-2">
+        {CANONICAL_STAGES.map((stage) => {
+          const count = prospects.filter(p => toCanonicalStage(p.salesStage || p.prospectStatus) === stage.id).length;
           const isSelected = selectedStatus === stage.id;
           return (
             <button
               key={stage.id}
               onClick={() => setSelectedStatus(isSelected ? "all" : stage.id)}
-              className={`p-3 rounded-xl border text-left transition-all ${
+              className={`p-2.5 rounded-xl border text-left transition-all ${
                 isSelected 
                   ? `${stage.bg} ${stage.border} ring-2 ring-blue-500/30` 
                   : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
               }`}
             >
-              <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">
-                {stage.label}
+              <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 truncate">
+                {stage.shortLabel}
               </div>
-              <div className={`text-xl font-bold mt-1 ${stage.color}`}>
+              <div className={`text-lg font-bold mt-0.5 ${stage.color}`}>
                 {count}
               </div>
             </button>
@@ -277,9 +290,17 @@ export default function ProspectPipeline({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredProspects.map((biz) => {
             const site = getSiteForBusiness(biz);
-            const status = biz.prospectStatus || "New";
-            const stageMeta = STAGES.find(s => s.id === status) || STAGES[0];
-            const oppScore = biz.opportunityScore || 90;
+            const canonicalStage = toCanonicalStage(biz.salesStage || biz.prospectStatus);
+            const stageMeta = getStageMeta(canonicalStage);
+            
+            // Calculate explainable score
+            const scoreExplanation = calculateExplainableOpportunityScore(
+              biz.presence, 
+              biz.rating, 
+              biz.reviewsCount, 
+              biz.name
+            );
+            const oppScore = scoreExplanation.totalScore;
 
             return (
               <div 
@@ -305,44 +326,42 @@ export default function ProspectPipeline({
                         <span className="text-[9px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/40 flex items-center gap-1">
                           <CheckCircle2 className="w-2.5 h-2.5 text-blue-600" /> Verified Lead
                         </span>
-                      ) : biz.verificationState === "CANDIDATE" ? (
+                      ) : (
                         <span className="text-[9px] font-bold px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/40 flex items-center gap-1">
                           🔍 Candidate
-                        </span>
-                      ) : (
-                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">
-                          Unverified
                         </span>
                       )}
                     </div>
 
                     <select
-                      value={status}
-                      onChange={(e) => handleStatusChange(biz, e.target.value as ProspectStatus)}
-                      className={`text-xs font-semibold px-2.5 py-1 rounded-lg border focus:outline-none ${stageMeta.bg} ${stageMeta.color} ${stageMeta.border}`}
+                      value={canonicalStage}
+                      onChange={(e) => handleStageChange(biz, e.target.value as CanonicalSalesStage)}
+                      className={`text-xs font-semibold px-2.5 py-1 rounded-lg border focus:outline-none cursor-pointer ${stageMeta.bg} ${stageMeta.color} ${stageMeta.border}`}
                     >
-                      {STAGES.map(s => (
+                      {CANONICAL_STAGES.map(s => (
                         <option key={s.id} value={s.id}>{s.label}</option>
                       ))}
                     </select>
                   </div>
 
-                  {/* Business Name & Opportunity Score */}
+                  {/* Business Name & Explainable Opportunity Score Trigger */}
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="text-base font-bold text-slate-900 dark:text-white line-clamp-1">
                       {biz.name}
                     </h3>
-                    <span 
-                      className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1 ${
-                        oppScore >= 85 
+                    <button
+                      onClick={() => setScoreModalBiz(biz)}
+                      className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1 cursor-pointer transition-transform hover:scale-105 ${
+                        oppScore >= 80 
                           ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
                           : "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300"
                       }`}
-                      title={isDemoBiz(biz) ? "Opportunity Score based on Synthetic Model Baseline (55% Deficit + 45% Quality)" : "Opportunity Score based on Directory Data (55% Deficit + 45% Quality)"}
+                      title="Click to view explainable formula breakdown (55% Deficit + 45% Quality)"
                     >
+                      <Zap className="w-3 h-3 fill-current" />
                       <span>{oppScore}% Opp</span>
-                      <span className="text-[9px] font-normal opacity-75">({isDemoBiz(biz) ? "Synthetic" : "Estimated"})</span>
-                    </span>
+                      <span className="text-[9px] font-normal underline opacity-80 ml-0.5">Explain</span>
+                    </button>
                   </div>
 
                   {/* Location & Contact */}
@@ -350,12 +369,10 @@ export default function ProspectPipeline({
                     <div className="flex items-center gap-1.5">
                       <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       <span className="truncate">{biz.address}</span>
-                      {isDemoBiz(biz) && <span className="text-amber-600 text-[10px] font-semibold">(Synthetic)</span>}
                     </div>
                     <div className="flex items-center gap-1.5">
                       <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       <span>{biz.phone}</span>
-                      {isDemoBiz(biz) && <span className="text-amber-600 text-[10px] font-semibold">(Demo Phone)</span>}
                     </div>
                     <div className="flex items-center gap-1.5">
                       <Globe className="w-3.5 h-3.5 text-rose-500 shrink-0" />
@@ -365,23 +382,29 @@ export default function ProspectPipeline({
                     </div>
                   </div>
 
-                  {/* Tripartite Opportunity & Business Quality Breakdown (Point 43, 44, 45) */}
+                  {/* Tripartite Opportunity & Business Quality Breakdown */}
                   <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
-                    <div className="p-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex flex-col">
-                      <span className="text-slate-400 dark:text-slate-500 text-[10px] uppercase font-bold">Business Quality</span>
+                    <div 
+                      onClick={() => setScoreModalBiz(biz)}
+                      className="p-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex flex-col cursor-pointer hover:border-slate-300 transition-colors"
+                    >
+                      <span className="text-slate-400 dark:text-slate-500 text-[10px] uppercase font-bold">Commercial Quality</span>
                       <span className="font-bold text-slate-800 dark:text-slate-200 mt-0.5">
-                        ⭐ {biz.rating || 4.5} ({biz.reviewsCount || 12} reviews)
+                        ⭐ {biz.rating || 4.2} ({biz.reviewsCount || 8} reviews)
                       </span>
                     </div>
-                    <div className="p-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex flex-col">
-                      <span className="text-slate-400 dark:text-slate-500 text-[10px] uppercase font-bold">Digital Deficit</span>
+                    <div 
+                      onClick={() => setScoreModalBiz(biz)}
+                      className="p-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex flex-col cursor-pointer hover:border-slate-300 transition-colors"
+                    >
+                      <span className="text-slate-400 dark:text-slate-500 text-[10px] uppercase font-bold">Deficit Severity</span>
                       <span className="font-bold text-rose-600 dark:text-rose-400 mt-0.5">
-                        {biz.deficitCount || (biz.digitalDeficitScore ? Math.round(biz.digitalDeficitScore / 10) : 8)} Deficits Found
+                        {scoreExplanation.deficitItems.filter(i => i.detected).length} Deficits Detected
                       </span>
                     </div>
                   </div>
 
-                  {/* Live Preview View Telemetry Badge (Point 42) */}
+                  {/* Live Preview View Telemetry Badge */}
                   {site && (site.previewViews || 0) > 0 && (
                     <div className="mt-3 p-2 rounded-xl bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/50 text-[11px] flex items-center justify-between">
                       <div className="flex items-center gap-1.5 text-blue-800 dark:text-blue-200 font-bold">
@@ -396,15 +419,7 @@ export default function ProspectPipeline({
                     </div>
                   )}
 
-                  {/* Verified Audit Evidence Note */}
-                  {biz.evidence && (
-                    <div className="mt-2.5 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 flex items-start gap-1.5">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                      <span>{biz.evidence.notes}</span>
-                    </div>
-                  )}
-
-                  {/* Follow-up & Contact Log (Point 41) */}
+                  {/* Follow-up & Contact Log */}
                   <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2 text-[11px]">
                     <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
                       <span className="flex items-center gap-1">
@@ -415,7 +430,7 @@ export default function ProspectPipeline({
                       </span>
                       <button
                         onClick={() => handleMarkContactedToday(biz)}
-                        className="px-2 py-0.5 text-[10px] font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/50 dark:text-blue-300 rounded transition-colors"
+                        className="px-2 py-0.5 text-[10px] font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/50 dark:text-blue-300 rounded transition-colors cursor-pointer"
                         title="Mark as contacted today"
                       >
                         + Mark Today
@@ -436,21 +451,21 @@ export default function ProspectPipeline({
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => handleSetFollowUpDays(biz, 2)}
-                          className="px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 rounded"
+                          className="px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 rounded cursor-pointer"
                           title="Schedule follow up in 2 days"
                         >
                           +2d
                         </button>
                         <button
                           onClick={() => handleSetFollowUpDays(biz, 7)}
-                          className="px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 rounded"
+                          className="px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 rounded cursor-pointer"
                           title="Schedule follow up in 1 week"
                         >
                           +1w
                         </button>
                         <button
                           onClick={() => setSchedulingBizId(schedulingBizId === biz.id ? null : biz.id)}
-                          className="px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 rounded"
+                          className="px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 rounded cursor-pointer"
                           title="Pick custom date"
                         >
                           📅
@@ -471,7 +486,7 @@ export default function ProspectPipeline({
                         />
                         <button
                           onClick={() => setSchedulingBizId(null)}
-                          className="px-2 py-1 text-[10px] font-bold bg-amber-600 text-white rounded hover:bg-amber-700"
+                          className="px-2 py-1 text-[10px] font-bold bg-amber-600 text-white rounded hover:bg-amber-700 cursor-pointer"
                         >
                           Done
                         </button>
@@ -479,44 +494,18 @@ export default function ProspectPipeline({
                     )}
                   </div>
 
-                  {/* Notes Field */}
-                  <div className="mt-2.5">
-                    {editingNotesId === biz.id ? (
-                      <div className="space-y-1.5">
-                        <textarea
-                          value={tempNotes}
-                          onChange={(e) => setTempNotes(e.target.value)}
-                          placeholder="Add quick notes on client discussion..."
-                          rows={2}
-                          className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        />
-                        <div className="flex justify-end gap-1.5">
-                          <button
-                            onClick={() => setEditingNotesId(null)}
-                            className="px-2 py-1 text-[11px] rounded text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            onClick={() => handleSaveNotes(biz)}
-                            className="px-2.5 py-1 text-[11px] font-semibold bg-blue-600 text-white rounded hover:bg-blue-700"
-                          >
-                            Save Note
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div 
-                        onClick={() => { setEditingNotesId(biz.id); setTempNotes(biz.prospectNotes || ""); }}
-                        className="text-[11px] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800 p-2 rounded-lg cursor-pointer transition-colors"
-                      >
-                        {biz.prospectNotes ? (
-                          <span className="italic">"{biz.prospectNotes}"</span>
-                        ) : (
-                          <span className="text-slate-400 dark:text-slate-500">+ Click to add notes / follow-up log</span>
-                        )}
-                      </div>
-                    )}
+                  {/* Subcollection CRM Activity & Notes Trigger Button */}
+                  <div className="mt-3">
+                    <button
+                      onClick={() => setActivityDrawerBiz(biz)}
+                      className="w-full flex items-center justify-between p-2 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/60 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/60 text-xs font-semibold text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <History className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                        CRM Activities, Notes &amp; Follow-ups
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-slate-400" />
+                    </button>
                   </div>
                 </div>
 
@@ -526,7 +515,7 @@ export default function ProspectPipeline({
                     {onViewAudit && (
                       <button
                         onClick={() => onViewAudit(biz)}
-                        className="py-1.5 px-2.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 transition-colors"
+                        className="py-1.5 px-2.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
                         title="Inspect 13-point diagnostic deficit audit"
                       >
                         Audit
@@ -537,7 +526,7 @@ export default function ProspectPipeline({
                       <>
                         <button
                           onClick={() => onOpenSalesAssistant(biz)}
-                          className="flex-1 flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-lg text-xs font-semibold bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 dark:text-blue-300 transition-colors"
+                          className="flex-1 flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-lg text-xs font-semibold bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 dark:text-blue-300 transition-colors cursor-pointer"
                           title="Open AI Sales outreach playbooks (WhatsApp / Email / Script)"
                         >
                           <MessageSquare className="w-3.5 h-3.5" />
@@ -546,7 +535,7 @@ export default function ProspectPipeline({
 
                         <button
                           onClick={() => onOpenProposal(biz)}
-                          className="py-1.5 px-2.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 transition-colors"
+                          className="py-1.5 px-2.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
                           title="Generate client proposal & quote"
                         >
                           <FileText className="w-3.5 h-3.5" />
@@ -554,7 +543,7 @@ export default function ProspectPipeline({
 
                         <button
                           onClick={() => onSelectBusinessForWebsite(biz)}
-                          className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300"
+                          className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 cursor-pointer"
                           title="Edit website layout"
                         >
                           <ExternalLink className="w-3.5 h-3.5" />
@@ -563,7 +552,7 @@ export default function ProspectPipeline({
                     ) : (
                       <button
                         onClick={() => onSelectBusinessForWebsite(biz)}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-xs shadow-blue-500/20"
+                        className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-xs shadow-blue-500/20 cursor-pointer"
                       >
                         <Sparkles className="w-3.5 h-3.5" />
                         Build Preview
@@ -618,7 +607,7 @@ export default function ProspectPipeline({
                       href={getWhatsappHref(biz, site)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white transition-colors shadow-xs shadow-emerald-500/10"
+                      className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white transition-colors shadow-xs shadow-emerald-500/10 cursor-pointer"
                       title="Open WhatsApp with customized outreach pitch & preview link"
                     >
                       <MessageSquare className="w-3.5 h-3.5 fill-white" />
@@ -630,6 +619,31 @@ export default function ProspectPipeline({
             );
           })}
         </div>
+      )}
+
+      {/* Opportunity Score Explanation Modal */}
+      {scoreModalBiz && (
+        <OpportunityScoreModal
+          business={scoreModalBiz}
+          onClose={() => setScoreModalBiz(null)}
+          onAdvanceStage={(biz) => {
+            onSelectBusinessForWebsite(biz);
+          }}
+        />
+      )}
+
+      {/* Prospect Activity & Notes Drawer */}
+      {activityDrawerBiz && (
+        <ProspectActivityDrawer
+          business={activityDrawerBiz}
+          onClose={() => setActivityDrawerBiz(null)}
+          onUpdateBusiness={(updated) => {
+            onUpdateProspect(updated);
+            setActivityDrawerBiz(updated);
+          }}
+          userId={userId}
+          userName={userName}
+        />
       )}
 
       {/* Safety Guardrail Modal for Demo Businesses */}

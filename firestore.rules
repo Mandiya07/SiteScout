@@ -25,7 +25,12 @@ service cloud.firestore {
       );
     }
 
-    // User profiles & user-scoped subcollections (e.g. /users/{userId}/businesses/{businessId})
+    // Helper function to ensure immutable ownership fields are not modified during updates
+    function maintainsOwnership(newData, oldData) {
+      return !newData.diff(oldData).affectedKeys().hasAny(['userId', 'ownerId', 'createdBy']);
+    }
+
+    // User profiles & user-scoped subcollections
     // PREVENTS PRIVILEGE ESCALATION: Ordinary users cannot grant themselves 'admin' role
     match /users/{userId} {
       allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
@@ -53,7 +58,7 @@ service cloud.firestore {
     }
     
     // PRIVATE Sites collection: Strictly private! NO public get access.
-    // Restricted strictly to document owner or admin.
+    // Restricted strictly to document owner or admin, with ownership immutability.
     match /sites/{siteId} {
       allow get, list: if isSignedIn() && (isOwner(resource.data) || isAdmin());
       allow create: if isSignedIn() && (
@@ -61,7 +66,11 @@ service cloud.firestore {
         ( 'ownerId' in request.resource.data && request.resource.data.ownerId == request.auth.uid ) ||
         isAdmin()
       );
-      allow update, delete: if isSignedIn() && (isOwner(resource.data) || isAdmin());
+      allow update: if isSignedIn() && (
+        isAdmin() || 
+        (isOwner(resource.data) && maintainsOwnership(request.resource.data, resource.data))
+      );
+      allow delete: if isSignedIn() && (isOwner(resource.data) || isAdmin());
     }
 
     // PUBLIC Previews collection: Public single-doc read access ONLY for clients viewing website presentation prototypes.
@@ -69,18 +78,27 @@ service cloud.firestore {
     match /publicPreviews/{previewToken} {
       allow get: if true;
       allow list: if isSignedIn() && (isOwner(resource.data) || isAdmin());
-      allow create, update: if isSignedIn() && (
+      allow create: if isSignedIn() && (
         ( 'userId' in request.resource.data && request.resource.data.userId == request.auth.uid ) ||
         ( 'ownerId' in request.resource.data && request.resource.data.ownerId == request.auth.uid ) ||
         !('userId' in request.resource.data) ||
         isAdmin()
+      );
+      allow update: if isSignedIn() && (
+        isAdmin() || 
+        (isOwner(resource.data) && maintainsOwnership(request.resource.data, resource.data)) ||
+        !('userId' in resource.data)
       );
       allow delete: if isSignedIn() && (isOwner(resource.data) || isAdmin());
 
       // Telemetry events subcollection (e.g. /publicPreviews/{previewToken}/events/{eventId})
       match /events/{eventId} {
         allow create: if true;
-        allow read: if isSignedIn();
+        allow read: if isSignedIn() && (
+          (exists(/databases/$(database)/documents/publicPreviews/$(previewToken)) && 
+           isOwner(get(/databases/$(database)/documents/publicPreviews/$(previewToken)).data)) || 
+          isAdmin()
+        );
       }
     }
 
@@ -92,18 +110,46 @@ service cloud.firestore {
         ( 'ownerId' in request.resource.data && request.resource.data.ownerId == request.auth.uid ) ||
         isAdmin()
       );
-      allow update, delete: if isSignedIn() && (isOwner(resource.data) || isAdmin());
+      allow update: if isSignedIn() && (
+        isAdmin() || 
+        (isOwner(resource.data) && maintainsOwnership(request.resource.data, resource.data))
+      );
+      allow delete: if isSignedIn() && (isOwner(resource.data) || isAdmin());
 
-      // Prospect activity timeline (e.g. /businesses/{businessId}/activities/{activityId})
+      // Prospect subcollections: activities, notes, followups, etc. (respects parent business ownership)
       match /activities/{activityId} {
-        allow read, write: if isSignedIn();
+        allow read, write: if isSignedIn() && (
+          isOwner(get(/databases/$(database)/documents/businesses/$(businessId)).data) || 
+          isAdmin()
+        );
+      }
+
+      match /notes/{noteId} {
+        allow read, write: if isSignedIn() && (
+          isOwner(get(/databases/$(database)/documents/businesses/$(businessId)).data) || 
+          isAdmin()
+        );
+      }
+
+      match /followups/{followUpId} {
+        allow read, write: if isSignedIn() && (
+          isOwner(get(/databases/$(database)/documents/businesses/$(businessId)).data) || 
+          isAdmin()
+        );
+      }
+
+      match /{allSubcollections=**} {
+        allow read, write: if isSignedIn() && (
+          isOwner(get(/databases/$(database)/documents/businesses/$(businessId)).data) || 
+          isAdmin()
+        );
       }
     }
 
-    // Proposals collection: strict user ownership isolation (User A <-> User A, User B <-> User B, Admin <-> All)
+    // Proposals collection: strict user ownership isolation & secure access
     match /proposals/{proposalId} {
-      // Public single-doc view access for clients opening proposal share links
-      allow get: if true;
+      // Accessible only if explicitly flagged public with token, or owned by caller
+      allow get: if (resource.data.get('isPublic', false) == true) || (isSignedIn() && (isOwner(resource.data) || isAdmin()));
       // Listing/querying restricted strictly to document owner or admin
       allow list: if isSignedIn() && (isOwner(resource.data) || isAdmin());
       // Creating proposals requires setting userId/ownerId to caller's UID
@@ -112,8 +158,12 @@ service cloud.firestore {
         ( 'ownerId' in request.resource.data && request.resource.data.ownerId == request.auth.uid ) ||
         isAdmin()
       );
-      // Updating or deleting proposal requires ownership or admin
-      allow update, delete: if isSignedIn() && (isOwner(resource.data) || isAdmin());
+      // Updating or deleting proposal requires ownership or admin, plus immutable ownership fields
+      allow update: if isSignedIn() && (
+        isAdmin() || 
+        (isOwner(resource.data) && maintainsOwnership(request.resource.data, resource.data))
+      );
+      allow delete: if isSignedIn() && (isOwner(resource.data) || isAdmin());
     }
   }
 }

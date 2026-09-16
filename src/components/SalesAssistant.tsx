@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { GeneratedSite, SalesOutreach } from "../types";
-import { normalizePhoneNumber } from "../lib/formatters";
+import { generateWhatsappLink } from "../lib/formatters";
 import { authedFetch } from "../lib/firebase";
 import { 
   Copy, Check, MessageSquare, Mail, Phone, Send, Sparkles, Loader2, Info, ArrowLeft, RefreshCw,
@@ -98,7 +98,7 @@ export default function SalesAssistant({ site, onBack }: SalesAssistantProps) {
   };
 
   const getWhatsappHref = (msg: string) => {
-    return `https://wa.me/${normalizePhoneNumber(site.phone)}?text=${encodeURIComponent(msg)}`;
+    return generateWhatsappLink(site.phone, msg, site.address);
   };
 
   // Helper to parse subject and body from the email template

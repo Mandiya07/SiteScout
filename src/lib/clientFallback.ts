@@ -2,6 +2,7 @@ import { Business, GeneratedSite, DigitalDeficitAudit } from "../types";
 import { detectCountryFromLocation } from "./countryCurrency";
 import { getCategoryHeroImage } from "./heroImages";
 import { buildBusinessTruthProfile } from "./businessTruth";
+import { normalizeWebsiteSchema } from "./websiteSchema";
 
 // Helper to compute deficit counts and scores on client fallback
 export function computeDefaultDeficits(presence: any): DigitalDeficitAudit {
@@ -533,7 +534,7 @@ export function generateClientMockSite(biz: Business): GeneratedSite {
   const addressCity = biz.address.split(",")[1]?.trim() || biz.address.split(",")[0]?.trim() || "Local Area";
   const industryConfig = getIndustryDetails(biz.category, addressCity);
 
-  return {
+  const rawSite: GeneratedSite = {
     id: `site_client_${Date.now()}`,
     businessId: biz.id,
     businessName: cleanBizName,
@@ -595,4 +596,6 @@ export function generateClientMockSite(biz: Business): GeneratedSite {
     presence: biz.presence || null,
     deficits: biz.presence?.deficits || null
   };
+
+  return normalizeWebsiteSchema(rawSite, biz, false);
 }

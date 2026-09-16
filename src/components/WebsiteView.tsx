@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { GeneratedSite } from "../types";
 import { getCategoryHeroImage, resolveHeroImageUrl, CATEGORY_HERO_IMAGES } from "../lib/heroImages";
-import { normalizePhoneNumber } from "../lib/formatters";
+import { normalizePhoneNumber, generateWhatsappLink } from "../lib/formatters";
 import { 
   Phone, MapPin, MessageSquare, ChevronDown, Check, Sparkles, Wrench, Utensils, HeartPulse, Scale, Briefcase, Home, Camera, Scissors, ShieldCheck,
   GraduationCap, Church, Building2, Zap, TreePine, Trophy, Flag, HeartHandshake, Dumbbell, ShoppingBag, Users
@@ -45,6 +45,20 @@ export default function WebsiteView({ site }: WebsiteViewProps) {
       }
     }
   }, [site?.id, site?.previewToken]);
+
+  const logPreviewEvent = (eventType: string, metadata?: Record<string, any>) => {
+    if (!site) return;
+    const isPublicPreviewRoute = window.location.pathname.includes("/preview/");
+    if (!isPublicPreviewRoute) return;
+    const token = site.previewToken || site.id;
+    if (!token) return;
+
+    fetch(`/api/preview/${token}/event`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ eventType, metadata: metadata || {} })
+    }).catch(() => {});
+  };
 
   const getFontFamilyClass = (style: string) => {
     switch (style) {
@@ -326,11 +340,11 @@ export default function WebsiteView({ site }: WebsiteViewProps) {
                   <p className="text-sm text-slate-600 dark:text-slate-400">Reach out directly via email or phone to discuss your needs.</p>
                   
                   <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-                    <a href={`mailto:${site.contactPage.email}`} className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold text-white shadow-md cursor-pointer transition-transform hover:scale-105" style={{ backgroundColor: site.accentColor }}>
+                    <a href={`mailto:${site.contactPage.email}`} onClick={() => logPreviewEvent("email_clicked")} className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold text-white shadow-md cursor-pointer transition-transform hover:scale-105" style={{ backgroundColor: site.accentColor }}>
                       <MessageSquare className="h-4 w-4" />
                       Email Us
                     </a>
-                    <a href={`tel:${site.phone}`} className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold shadow-sm border border-slate-200 bg-white text-slate-800 cursor-pointer transition-transform hover:scale-105 dark:bg-slate-900 dark:border-slate-700 dark:text-white">
+                    <a href={`tel:${site.phone}`} onClick={() => logPreviewEvent("phone_clicked")} className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold shadow-sm border border-slate-200 bg-white text-slate-800 cursor-pointer transition-transform hover:scale-105 dark:bg-slate-900 dark:border-slate-700 dark:text-white">
                       <Phone className="h-4 w-4" />
                       Call {site.phone}
                     </a>
@@ -371,11 +385,12 @@ export default function WebsiteView({ site }: WebsiteViewProps) {
           {sectionsOrder.includes("contact") && <button onClick={() => setActivePage('contact')} className={`hover:text-slate-900 ${activePage === 'contact' ? 'text-slate-900 font-extrabold' : ''} cursor-pointer`}>Contact</button>}
         </nav>
         <div className="flex items-center space-x-2.5 shrink-0">
-          <a href={`tel:${site.phone}`} className="flex h-7 w-7 items-center justify-center rounded-lg text-white shadow-xs transition-transform hover:scale-105" style={{ backgroundColor: site.accentColor }}>
+          <a href={`tel:${site.phone}`} onClick={() => logPreviewEvent("phone_clicked")} className="flex h-7 w-7 items-center justify-center rounded-lg text-white shadow-xs transition-transform hover:scale-105" style={{ backgroundColor: site.accentColor }}>
             <Phone className="h-3.5 w-3.5" />
           </a>
           <a 
-            href={`https://wa.me/${normalizePhoneNumber(site.phone)}${site.whatsappMessage ? `?text=${encodeURIComponent(site.whatsappMessage)}` : ""}`} 
+            href={generateWhatsappLink(site.phone, site.whatsappMessage, site.address)} 
+            onClick={() => logPreviewEvent("whatsapp_clicked")}
             target="_blank" 
             rel="noopener noreferrer"
             className="flex h-7 w-7 items-center justify-center rounded-lg text-white bg-emerald-500 shadow-xs transition-transform hover:scale-105"

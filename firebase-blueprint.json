@@ -132,13 +132,129 @@
         "businessName": {
           "type": "string",
           "description": "Business name"
-        },
-        "userId": {
-          "type": "string",
-          "description": "Owner user UID"
         }
       },
       "required": ["id", "businessName"]
+    },
+    "Activity": {
+      "title": "Activity",
+      "description": "Prospect timeline activity log event",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique activity ID"
+        },
+        "businessId": {
+          "type": "string",
+          "description": "Parent business ID"
+        },
+        "type": {
+          "type": "string",
+          "description": "Activity action type"
+        },
+        "title": {
+          "type": "string",
+          "description": "Activity summary title"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Event timestamp"
+        }
+      },
+      "required": ["id", "type", "title"]
+    },
+    "PreviewEvent": {
+      "title": "PreviewEvent",
+      "description": "Telemetry event logged when prospect interacts with shareable preview",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique event ID"
+        },
+        "eventType": {
+          "type": "string",
+          "description": "Event type: preview_opened, whatsapp_clicked, phone_clicked, etc."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Event timestamp"
+        }
+      },
+      "required": ["id", "eventType"]
+    },
+    "Note": {
+      "title": "Note",
+      "description": "Timestamped CRM prospect notes and observations",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique note ID"
+        },
+        "businessId": {
+          "type": "string",
+          "description": "Parent prospect business ID"
+        },
+        "content": {
+          "type": "string",
+          "description": "Text body of the prospect note"
+        },
+        "category": {
+          "type": "string",
+          "description": "Category classification: general, call_summary, objection, pricing, meeting"
+        },
+        "isPinned": {
+          "type": "boolean",
+          "description": "Whether note is pinned at top of CRM card"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when note was created"
+        }
+      },
+      "required": ["id", "businessId", "content", "createdAt"]
+    },
+    "FollowUp": {
+      "title": "FollowUp",
+      "description": "Scheduled prospect follow-up tasks and outreach reminders",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique follow-up ID"
+        },
+        "businessId": {
+          "type": "string",
+          "description": "Parent prospect business ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Task reminder title"
+        },
+        "dueDate": {
+          "type": "string",
+          "description": "Due date in YYYY-MM-DD"
+        },
+        "channel": {
+          "type": "string",
+          "description": "Outreach channel: whatsapp, phone, email, in_person, other"
+        },
+        "status": {
+          "type": "string",
+          "description": "Task status: pending, completed, cancelled"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        }
+      },
+      "required": ["id", "businessId", "title", "dueDate", "channel", "status"]
     }
   },
   "firestore": {
@@ -160,11 +276,35 @@
       },
       "description": "Public presentation preview payloads for prospect client review"
     },
+    "/publicPreviews/{previewToken}/events/{eventId}": {
+      "schema": {
+        "$ref": "#/entities/PreviewEvent"
+      },
+      "description": "Telemetry events logged for shareable preview sessions"
+    },
     "/businesses/{businessId}": {
       "schema": {
         "$ref": "#/entities/Business"
       },
       "description": "Prospect business records collected during discovery"
+    },
+    "/businesses/{businessId}/activities/{activityId}": {
+      "schema": {
+        "$ref": "#/entities/Activity"
+      },
+      "description": "Timeline activities for prospect relationship tracking"
+    },
+    "/businesses/{businessId}/notes/{noteId}": {
+      "schema": {
+        "$ref": "#/entities/Note"
+      },
+      "description": "Prospect notes and internal observations"
+    },
+    "/businesses/{businessId}/followups/{followUpId}": {
+      "schema": {
+        "$ref": "#/entities/FollowUp"
+      },
+      "description": "Scheduled outreach follow-ups and action reminders"
     },
     "/proposals/{proposalId}": {
       "schema": {

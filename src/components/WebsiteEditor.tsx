@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { GeneratedSite, ServiceItem, FAQItem, ImageMetadata } from "../types";
 import { getCategoryHeroImage, resolveHeroImageUrl } from "../lib/heroImages";
+import { normalizeWebsiteSchema } from "../lib/websiteSchema";
 import WebsiteView from "./WebsiteView";
 import PublishingModal from "./PublishingModal";
 import ImagePickerModal from "./ImagePickerModal";
@@ -268,6 +269,21 @@ export default function WebsiteEditor({
     onSave(site);
     setSaveStatus("Changes saved successfully to local draft!");
     setTimeout(() => setSaveStatus(""), 3000);
+  };
+
+  // Run Content Integrity & Compliance Audit
+  const handleRunIntegrityCheck = () => {
+    const normalized = normalizeWebsiteSchema(site, null, false);
+    setSite(normalized);
+    commitHistory(normalized);
+    onSave(normalized);
+    const report = normalized.contentIntegrity;
+    if (report && (report.unverifiedPricesSanitizedCount > 0 || report.liabilityClaimsSanitizedCount > 0)) {
+      setSaveStatus(`Sanitized ${report.unverifiedPricesSanitizedCount} unverified price(s) & ${report.liabilityClaimsSanitizedCount} liability claim(s)!`);
+    } else {
+      setSaveStatus("Content Integrity & Compliance 100% Verified!");
+    }
+    setTimeout(() => setSaveStatus(""), 4000);
   };
 
   // Trigger publish preview
@@ -606,6 +622,14 @@ export default function WebsiteEditor({
               <CheckCircle className="h-3.5 w-3.5" /> {saveStatus}
             </span>
           )}
+          <button
+            onClick={handleRunIntegrityCheck}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50/80 px-3 py-2 text-xs font-bold text-blue-800 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300 transition-all cursor-pointer shadow-2xs"
+            title="Run Content Integrity & Compliance Audit"
+          >
+            <Sparkles className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+            <span className="hidden sm:inline">Audit Integrity</span>
+          </button>
           <button
             onClick={() => setShowTruthModal(true)}
             className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/80 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 transition-all cursor-pointer shadow-2xs"

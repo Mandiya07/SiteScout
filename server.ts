@@ -217,7 +217,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage = "
 // Implemented via /server/services/geminiService.ts and /server/services/auditService.ts.
 
 // Module 3 & 4 API: Real Live Business Directory Search & Discovery
-app.post("/api/search", verifyAuthToken, searchLimiter, async (req, res) => {
+app.post("/api/search", optionalAuthToken, searchLimiter, async (req, res) => {
   const { 
     country = "Eswatini", 
     city = "Mbabane", 

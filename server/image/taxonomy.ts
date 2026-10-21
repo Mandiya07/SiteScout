@@ -1322,6 +1322,22 @@ export function getCuratedImagesForIndustry(industry: string): ImageMetadata[] {
     ];
   }
 
+  if (norm.includes("hotel") || norm.includes("inn") || norm.includes("lodge") || norm.includes("resort") || norm.includes("hospitality")) {
+    return [
+      make("1566073771259-6a8506099945", "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&q=80&w=1200", "Luxury hotel resort lobby entrance with grand interior architecture", "Manuel Moreno", "manuelmoreno", "hero")
+    ];
+  }
+  if (norm.includes("football") || norm.includes("soccer") || norm.includes("sport") || norm.includes("club") || norm.includes("athletic")) {
+    return [
+      make("1508098682722-e99c43a406b2", "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&q=80&w=1200", "Professional football stadium pitch under lights athletic match", "Abigail Keenan", "akeenan", "hero")
+    ];
+  }
+  if (norm.includes("retail") || norm.includes("shop") || norm.includes("store") || norm.includes("boutique") || norm.includes("clothing")) {
+    return [
+      make("1441986300917-64674bd600d8", "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&q=80&w=1200", "Modern stylish clothing retail boutique shop display interior", "Clark Street Merc", "clark_street_merc", "hero")
+    ];
+  }
+
   // General Business fallback curated images
   return [
     make("1581092921461-eab62e97a780", "https://images.unsplash.com/photo-1581092921461-eab62e97a780?auto=format&fit=crop&q=80&w=1200", "Expert professional specialist providing dedicated local services", "Science in HD", "scienceinhd", "hero"),
@@ -1392,6 +1408,12 @@ export function matchIndustryTaxonomy(rawCategory: string = ""): IndustryVisualR
       matchedRule = INDUSTRY_TAXONOMY.agriculture;
     } else if (norm.includes("transport") || norm.includes("logistics") || norm.includes("freight") || norm.includes("shipping") || norm.includes("warehouse")) {
       matchedRule = INDUSTRY_TAXONOMY.transport;
+    } else if (norm.includes("hotel") || norm.includes("inn") || norm.includes("lodge") || norm.includes("resort") || norm.includes("hospitality")) {
+      matchedRule = DynamicTaxonomyFactory.create(rawCategory);
+    } else if (norm.includes("football") || norm.includes("soccer") || norm.includes("sport") || norm.includes("club") || norm.includes("athletic")) {
+      matchedRule = DynamicTaxonomyFactory.create(rawCategory);
+    } else if (norm.includes("retail") || norm.includes("shop") || norm.includes("store") || norm.includes("boutique")) {
+      matchedRule = DynamicTaxonomyFactory.create(rawCategory);
     }
   }
 

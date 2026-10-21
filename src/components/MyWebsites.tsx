@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { GeneratedSite, SalesStatus } from "../types";
+import { toCanonicalStage, canonicalToSalesStatus } from "../lib/prospectCrm";
 import { 
   Globe, ExternalLink, Edit3, MessageSquare, FileText, 
   Trash2, Copy, Check, Sparkles, Eye, ShieldCheck, Tag,
@@ -89,8 +90,8 @@ const PRESET_CUSTOM_TAGS = [
 ];
 
 export function getSiteSalesStatus(site: GeneratedSite): SalesStatus {
+  if (site.salesStage) return canonicalToSalesStatus(toCanonicalStage(site.salesStage));
   if (site.salesStatus) return site.salesStatus;
-  if (site.clientApproved || site.crmSynced) return "Closed";
   if (site.proposal?.status === "sent") return "Proposal Sent";
   return "Lead";
 }

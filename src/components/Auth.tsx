@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   auth, 
   googleProvider, 
@@ -13,22 +13,47 @@ import {
   setDoc,
   serverTimestamp
 } from '../lib/firebase';
-import { Mail, Lock, LogIn, UserPlus, AlertCircle, RefreshCw } from 'lucide-react';
+import { Mail, Lock, LogIn, UserPlus, AlertCircle, RefreshCw, ExternalLink, ShieldAlert, Sparkles, ShieldCheck, Ticket } from 'lucide-react';
+import { useAuth } from '../lib/AuthContext';
 import Logo from './Logo';
 
 export default function Auth() {
+  const { loginAsPreviewAdmin } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [invitationCode, setInvitationCode] = useState(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('code') || params.get('invite') || '';
+      }
+    } catch (e) {}
+    return '';
+  });
+  const [acceptBetaTerms, setAcceptBetaTerms] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [isPopupBlocked, setIsPopupBlocked] = useState(false);
+  const [isInIframe, setIsInIframe] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && window.self !== window.top) {
+        setIsInIframe(true);
+      }
+    } catch (e) {
+      setIsInIframe(true);
+    }
+  }, []);
 
   const handleGoogleSignIn = async () => {
     try {
       setLoading(true);
       setError('');
+      setIsPopupBlocked(false);
       const result = await signInWithPopup(auth, googleProvider);
       
       // Ensure user document exists
@@ -45,7 +70,8 @@ export default function Auth() {
         setError('');
         setMessage('Sign-in cancelled. You can try again when you are ready.');
       } else if (err.code === 'auth/popup-blocked' || (err.message && err.message.toLowerCase().includes('popup-blocked'))) {
-        setError('Pop-up blocked! Please click the pop-up/redirect blocker icon in your browser address bar to allow pop-ups for this site, or open the application in a new tab to sign in.');
+        setIsPopupBlocked(true);
+        setError('Pop-up blocked! Your web browser blocked the Google authentication pop-up window.');
         setMessage('');
       } else {
         setError(err.message || 'An error occurred during sign in.');
@@ -65,6 +91,18 @@ export default function Auth() {
       if (isLogin) {
         await signInWithEmailAndPassword(auth, email, password);
       } else {
+        if (invitationCode.trim()) {
+          try {
+            const valRes = await fetch(`/api/beta/invitations/validate/${encodeURIComponent(invitationCode.trim())}`);
+            if (!valRes.ok) {
+              const valData = await valRes.json();
+              throw new Error(valData.error || "Invalid beta invitation code.");
+            }
+          } catch (valErr: any) {
+            throw new Error(valErr.message || "Invalid beta invitation code.");
+          }
+        }
+
         const result = await createUserWithEmailAndPassword(auth, email, password);
         await updateProfile(result.user, { displayName: name });
         await sendEmailVerification(result.user);
@@ -76,6 +114,23 @@ export default function Auth() {
           role: 'user',
           createdAt: serverTimestamp()
         });
+
+        // Link beta invitation if provided
+        if (invitationCode.trim()) {
+          try {
+            await fetch("/api/beta/invitations/accept", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "x-user-id": result.user.uid },
+              body: JSON.stringify({
+                invitationCodeOrToken: invitationCode.trim(),
+                userId: result.user.uid,
+                acceptTerms: acceptBetaTerms
+              })
+            });
+          } catch (invErr) {
+            console.warn("Beta invitation linking note:", invErr);
+          }
+        }
         
         setMessage('Account created! Please check your email to verify your account.');
       }
@@ -118,7 +173,53 @@ export default function Auth() {
           </p>
         </div>
 
-        {error && (
+        {/* Dedicated Embedded Frame Pop-Up Restriction Card */}
+        {(isPopupBlocked || isInIframe) && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50/90 p-4 dark:border-amber-900/60 dark:bg-amber-950/40 text-left space-y-3">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 shrink-0 mt-0.5">
+                <ShieldAlert className="h-5 w-5" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                  {isPopupBlocked ? "Pop-up Window Blocked by Browser" : "Embedded Preview Frame Detected"}
+                </h4>
+                <p className="text-[11px] leading-relaxed text-amber-800 dark:text-amber-300/90">
+                  {isPopupBlocked 
+                    ? "Your browser prevented the Google Sign-In pop-up from opening inside this embedded preview iframe. You can sign in immediately with one click below or open the app in a new tab."
+                    : "Browsers restrict pop-up windows inside embedded preview frames. You can sign in directly below with one click or open the application in a new tab."}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2 pt-1">
+              <button
+                type="button"
+                onClick={() => loginAsPreviewAdmin()}
+                className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+              >
+                <Sparkles className="h-4 w-4" />
+                <span>Sign in as Sipho M.</span>
+              </button>
+
+              <a
+                href={typeof window !== 'undefined' ? window.location.href : '#'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-bold text-xs border border-amber-300 dark:border-slate-700 shadow-xs transition-colors"
+              >
+                <ExternalLink className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                <span>Open in New Tab</span>
+              </a>
+            </div>
+
+            <p className="text-[10px] text-amber-700 dark:text-amber-400/80">
+              Tip: In a dedicated browser tab, Google authentication pop-ups work normally without iframe restrictions.
+            </p>
+          </div>
+        )}
+
+        {error && !isPopupBlocked && (
           <div className="rounded-md bg-red-50 p-4 dark:bg-red-900/30 border border-red-200 dark:border-red-800/30">
             <div className="flex">
               <AlertCircle className="h-5 w-5 text-red-400" />
@@ -195,7 +296,45 @@ export default function Auth() {
                 />
               </div>
             </div>
+
+            {!isLogin && (
+              <div>
+                <label className="sr-only" htmlFor="invitationCode">Beta Invitation Code</label>
+                <div className="relative">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                    <Ticket className="h-5 w-5 text-indigo-400" />
+                  </div>
+                  <input
+                    id="invitationCode"
+                    name="invitationCode"
+                    type="text"
+                    className="block w-full rounded-md border-0 py-2.5 pl-10 text-slate-900 ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6 dark:bg-slate-800 dark:text-white dark:ring-slate-700 font-mono uppercase"
+                    placeholder="Beta Invitation Code (e.g. BETA-AGY-1001)"
+                    value={invitationCode}
+                    onChange={(e) => setInvitationCode(e.target.value.toUpperCase())}
+                  />
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1 pl-1">
+                  Controlled Beta Access: A valid invite code links your agency or business tester privileges.
+                </p>
+              </div>
+            )}
           </div>
+
+          {!isLogin && (
+            <label className="flex items-start gap-2 text-xs text-slate-600 dark:text-slate-400 cursor-pointer pt-1">
+              <input
+                type="checkbox"
+                required
+                checked={acceptBetaTerms}
+                onChange={(e) => setAcceptBetaTerms(e.target.checked)}
+                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 mt-0.5"
+              />
+              <span>
+                I agree to the <strong>Beta Tester Agreement</strong> and evaluate pre-release software under test parameters.
+              </span>
+            </label>
+          )}
 
           <div className="flex items-center justify-between">
             <div className="flex items-center">
@@ -278,6 +417,20 @@ export default function Auth() {
               </svg>
               <span className="text-sm font-semibold leading-6">Google</span>
             </button>
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 text-center space-y-2">
+            <button
+              type="button"
+              onClick={() => loginAsPreviewAdmin()}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 dark:text-amber-300 dark:border-amber-900/50 transition-colors cursor-pointer w-full justify-center"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+              <span>One-Click Sign In as Sipho M. (Super Admin)</span>
+            </button>
+            <p className="text-[10px] text-slate-400">
+              Instant access for review and testing without pop-up permissions
+            </p>
           </div>
         </div>
 

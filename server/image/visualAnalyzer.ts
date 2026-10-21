@@ -101,6 +101,24 @@ const TRADE_SIGNATURES: Record<string, TradeVisualSignature> = {
     mismatchedStockTriggers: ["hair shears", "medical scalpel", "wood plane"],
     idealFocalZone: "right_weighted",
     idealNegativeSpace: "left"
+  },
+  construction: {
+    authenticVisualCues: ["building site", "construction worker", "hard hat", "scaffolding", "architect plan", "excavator", "crane", "concrete", "contractor"],
+    mismatchedStockTriggers: ["chef apron", "medical stethoscope", "hair salon shears", "dining plate"],
+    idealFocalZone: "right_weighted",
+    idealNegativeSpace: "left"
+  },
+  education: {
+    authenticVisualCues: ["classroom", "teacher", "students", "learning materials", "toys", "preschool", "books", "blackboard", "playground", "daycare"],
+    mismatchedStockTriggers: ["hard hat skyscraper", "heavy crane", "construction vest", "dental chair", "auto lift"],
+    idealFocalZone: "center",
+    idealNegativeSpace: "left"
+  },
+  preschool: {
+    authenticVisualCues: ["classroom", "teacher", "children", "learning toys", "preschool", "daycare", "books", "play area", "kindergarten"],
+    mismatchedStockTriggers: ["hard hat skyscraper", "heavy crane", "construction vest", "dental chair", "auto lift", "generic corporate suit"],
+    idealFocalZone: "center",
+    idealNegativeSpace: "left"
   }
 };
 
@@ -592,7 +610,7 @@ Response must be a strict JSON object matching this schema:
 }`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.8-flash",
         contents: [
           {
             inlineData: {

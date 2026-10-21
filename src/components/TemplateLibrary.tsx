@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { GeneratedSite } from "../types";
+import { normalizeWebsiteSchema } from "../lib/websiteSchema";
 import { 
   Layers, Globe, Sparkles, CheckCircle2, ArrowRight, 
   Smartphone, Monitor, Search, Building2, Utensils, HeartPulse, Scale, 
@@ -105,7 +106,7 @@ export const ALL_INDUSTRY_TEMPLATES: IndustryTemplateMeta[] = [
     heroSubtitle: "From architectural planning to turnkey construction, we deliver residential and commercial structures on time and within budget.",
     ctaText: "Request Free Site Estimate",
     ctaSecondaryText: "View Completed Projects",
-    conversionHighlights: ["Free Site Estimate Request Form", "Project Before/After Portfolio", "Safety & License Certifications", "Direct WhatsApp Job Inquiry"],
+    conversionHighlights: ["Free Site Estimate Request Form", "Project Before/After Portfolio", "Safety & Compliance Documentation", "Direct WhatsApp Job Inquiry"],
     accessibilityScore: 98,
     seoScore: 97,
     conversionScore: 96,
@@ -146,7 +147,7 @@ export const ALL_INDUSTRY_TEMPLATES: IndustryTemplateMeta[] = [
     seoDesc: "Fast 30-minute emergency response for burst pipes, blocked drains, geyser replacements, and commercial plumbing.",
     seoKeywords: "emergency plumber, burst pipes, blocked drains, geyser repair, leak detection",
     heroTitle: "Fast 24/7 Emergency Plumbing & Drain Solutions",
-    heroSubtitle: "Burst pipes, clogged drains, or water heater failures? Our certified master plumbers arrive within 30 minutes with upfront flat rates.",
+    heroSubtitle: "Burst pipes, clogged drains, or water heater failures? Our licensed master plumbers arrive within 30 minutes with upfront flat rates.",
     ctaText: "Call Emergency Dispatch (24/7)",
     ctaSecondaryText: "Book Inspection Online",
     conversionHighlights: ["1-Tap Emergency Call Dispatch", "Fixed Upfront Pricing Guide", "30-Min Local Response Guarantee", "WhatsApp Photo Diagnostic"],
@@ -206,7 +207,7 @@ export const ALL_INDUSTRY_TEMPLATES: IndustryTemplateMeta[] = [
       { title: "Bridal Party Beauty Package", description: "Complete hair, makeup, and champagne spa treatment for the bridal party.", price: "From $350" }
     ],
     featuresList: [
-      { title: "Certified Master Stylists", icon: "Check", description: "Internationally trained artists using ammonia-free organic formulas." },
+      { title: "Experienced Master Stylists", icon: "Check", description: "Internationally trained artists using ammonia-free organic formulas." },
       { title: "Sanitized VIP Suites", icon: "ShieldCheck", description: "Private treatment rooms designed for peaceful relaxation." }
     ],
     faqsList: [
@@ -230,10 +231,10 @@ export const ALL_INDUSTRY_TEMPLATES: IndustryTemplateMeta[] = [
     accentColor: "#3b82f6",
     fontStyle: "serif",
     seoTitle: "Sterling Advisory | Corporate Law, Tax Strategy & Business Consulting",
-    seoDesc: "Strategic corporate counsel and certified financial advisory helping businesses navigate regulatory compliance, mergers, and tax optimization.",
+    seoDesc: "Strategic corporate counsel and qualified financial advisory helping businesses navigate regulatory compliance, mergers, and tax optimization.",
     seoKeywords: "corporate law, business consulting, tax advisor, legal counsel, commercial attorney",
     heroTitle: "Strategic Legal & Financial Counsel You Can Trust",
-    heroSubtitle: "Protecting your commercial interests and accelerating business growth with experienced corporate attorneys and certified advisors.",
+    heroSubtitle: "Protecting your commercial interests and accelerating business growth with experienced corporate attorneys and advisory specialists.",
     ctaText: "Schedule Confidential Consultation",
     ctaSecondaryText: "Explore Practice Areas",
     conversionHighlights: ["Confidential Consultation Booking", "Detailed Practice Area Breakdowns", "Case Results & Credibility Stats", "Direct Lawyer Intake Form"],
@@ -273,10 +274,10 @@ export const ALL_INDUSTRY_TEMPLATES: IndustryTemplateMeta[] = [
     accentColor: "#10b981",
     fontStyle: "sans",
     seoTitle: "Beacon Family Health | General Practice & Preventive Care Clinic",
-    seoDesc: "Compassionate patient-centered medical care with board-certified physicians, on-site diagnostics, and same-day family appointments.",
+    seoDesc: "Compassionate patient-centered medical care with licensed physicians, on-site diagnostics, and same-day family appointments.",
     seoKeywords: "medical clinic, family doctor, healthcare centre, pediatric care, general practitioner",
     heroTitle: "Compassionate, World-Class Care for Your Entire Family",
-    heroSubtitle: "Board-certified doctors, modern diagnostic facilities, and same-day appointments dedicated to your family's health and wellness.",
+    heroSubtitle: "Licensed doctors, modern diagnostic facilities, and same-day appointments dedicated to your family's health and wellness.",
     ctaText: "Book Doctor Appointment",
     ctaSecondaryText: "View Medical Services",
     conversionHighlights: ["Same-Day Appointment Booking", "Accepted Medical Aid / Insurance Guide", "Doctor Profiles & Credentials", "Emergency Hotline & Map"],
@@ -292,7 +293,7 @@ export const ALL_INDUSTRY_TEMPLATES: IndustryTemplateMeta[] = [
       { title: "On-Site Laboratory Diagnostics", description: "Fast turnaround bloodwork, rapid tests, and pathology results.", price: "Covered by Insurance" }
     ],
     featuresList: [
-      { title: "Board-Certified Medical Staff", icon: "ShieldCheck", description: "Experienced general practitioners and specialist pediatricians." },
+      { title: "Licensed Medical Staff", icon: "ShieldCheck", description: "Experienced general practitioners and specialist pediatricians." },
       { title: "Same-Day Emergency Appointments", icon: "Check", description: "Dedicated acute care slots reserved for walk-in patients." }
     ],
     faqsList: [
@@ -422,7 +423,7 @@ export const ALL_INDUSTRY_TEMPLATES: IndustryTemplateMeta[] = [
       { title: "Commercial Property Leasing", description: "High-footprint retail and office space tenant placement.", price: "Custom Terms" }
     ],
     featuresList: [
-      { title: "Certified Master Brokers", icon: "ShieldCheck", description: "Deep local knowledge with over $120M in closed transactions." },
+      { title: "Licensed Master Brokers", icon: "ShieldCheck", description: "Deep local knowledge with over $120M in closed transactions." },
       { title: "3D Virtual Tours & Drone Video", icon: "Sparkles", description: "Ultra-high definition marketing showcasing every home." }
     ],
     faqsList: [
@@ -488,10 +489,10 @@ export const ALL_INDUSTRY_TEMPLATES: IndustryTemplateMeta[] = [
     secondaryColor: "#b91c1c",
     accentColor: "#ef4444",
     fontStyle: "sans",
-    seoTitle: "Precision Auto Care | Certified Mechanics, Brake & Engine Diagnostics",
-    seoDesc: "ASE-certified mechanics providing transparent vehicle servicing, computerized engine diagnostics, brakes, tires, and maintenance.",
+    seoTitle: "Precision Auto Care | Qualified Mechanics, Brake & Engine Diagnostics",
+    seoDesc: "Qualified mechanics providing transparent vehicle servicing, computerized engine diagnostics, brakes, tires, and maintenance.",
     seoKeywords: "auto repair, car mechanic, engine diagnostic, brake replacement, vehicle service",
-    heroTitle: "Expert Auto Repairs & Certified Engine Diagnostics",
+    heroTitle: "Expert Auto Repairs & Advanced Engine Diagnostics",
     heroSubtitle: "Honest advice, dealership-grade computerized equipment, and guaranteed parts warranty to keep your vehicle running smoothly.",
     ctaText: "Book Service Appointment",
     ctaSecondaryText: "View Pricing Guide",
@@ -509,7 +510,7 @@ export const ALL_INDUSTRY_TEMPLATES: IndustryTemplateMeta[] = [
       { title: "Brake Pad & Rotor Replacement", description: "Premium ceramic brake pads and rotor resurfacing with warranty.", price: "From $160" }
     ],
     featuresList: [
-      { title: "ASE Certified Technicians", icon: "ShieldCheck", description: "Trained across all major domestic and imported vehicle makes." },
+      { title: "Qualified Technicians", icon: "ShieldCheck", description: "Trained across all major domestic and imported vehicle makes." },
       { title: "12-Month / 20,000km Warranty", icon: "Check", description: "Full parts and labor guarantee on every service performed." }
     ],
     faqsList: [
@@ -628,7 +629,7 @@ export default function TemplateLibrary({ onSelectTemplate, onBack }: TemplateLi
         id: `prop-${Date.now()}`,
         businessId: `site-${Date.now()}`,
         clientName: "Owner / Principal Manager",
-        clientEmail: `contact@${tpl.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.com`,
+        clientEmail: "",
         businessName: tpl.name,
         dateCreated: new Date().toLocaleDateString(),
         expiryDate: new Date(Date.now() + 14 * 86400000).toLocaleDateString(),
@@ -684,13 +685,13 @@ export default function TemplateLibrary({ onSelectTemplate, onBack }: TemplateLi
       })),
       blog: [
         { title: `Top Best Practices in ${tpl.category} for 2026`, summary: "Discover expert strategies and proven methodologies to maximize quality and long-term success.", category: "Industry Insights" },
-        { title: `Why Professional Standards Matter More Than Ever`, summary: "An in-depth look at how reliability and certified excellence protect client investment and peace of mind.", category: "Expertise" }
+        { title: `Why Professional Standards Matter More Than Ever`, summary: "An in-depth look at how reliability and professional excellence protect client investment and peace of mind.", category: "Expertise" }
       ],
       whatsappMessage: tpl.whatsappPitch,
       contactPage: {
         title: `Get in Touch with ${tpl.name}`,
         description: "Reach out to our dedicated team today for inquiries, estimates, or bookings. We respond promptly.",
-        email: `contact@${tpl.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.com`
+        email: ""
       },
       privacyPolicy: "We protect your privacy with strict data security standards and never share your personal information with third parties.",
       termsOfService: "Standard service agreements and quality guarantees apply to all client engagements.",
@@ -699,7 +700,8 @@ export default function TemplateLibrary({ onSelectTemplate, onBack }: TemplateLi
         message: "The page you requested does not exist or has been relocated."
       }
     };
-    onSelectTemplate(newSite);
+    const normalizedSite = normalizeWebsiteSchema(newSite, null, false);
+    onSelectTemplate(normalizedSite);
   };
 
   return (

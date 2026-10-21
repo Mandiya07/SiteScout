@@ -102,7 +102,7 @@ export default function ProposalGenerator({
 
 2. Intellectual Property Rights: Upon final payment clearance, all proprietary visual layouts, copyright copywriting, digital assets, and customized code templates are fully transferred to the sole ownership of the Client.
 
-3. SLA Maintenance Support: The monthly recurring support SLA covers secure high-speed CDN website hosting, automated SSL renewal certifications, weekly complete database backups, and up to 2 hours of monthly text or layout updates.
+3. SLA Maintenance Support: The monthly recurring support SLA covers secure high-speed CDN website hosting, automated SSL certificate renewals, weekly complete database backups, and up to 2 hours of monthly text or layout updates.
 
 4. Client Commitments: Client agrees to supply high-resolution logos, professional license credentials, staff images, and custom copy preferences. Delays in supplying assets will extend delivery timelines proportionally.`
   );
@@ -165,7 +165,7 @@ export default function ProposalGenerator({
 
 2. Intellectual Property Rights: Upon final payment clearance, all proprietary visual layouts, copyright copywriting, digital assets, and customized code templates are fully transferred to the sole ownership of the Client.
 
-3. SLA Maintenance Support: The monthly recurring support SLA covers secure high-speed CDN website hosting, automated SSL renewal certifications, weekly complete database backups, and up to 2 hours of monthly text or layout updates.
+3. SLA Maintenance Support: The monthly recurring support SLA covers secure high-speed CDN website hosting, automated SSL certificate renewals, weekly complete database backups, and up to 2 hours of monthly text or layout updates.
 
 4. Client Commitments: Client agrees to supply high-resolution logos, professional license credentials, staff images, and custom copy preferences. Delays in supplying assets will extend delivery timelines proportionally.`
     );
@@ -256,7 +256,10 @@ export default function ProposalGenerator({
       pricing: pricing,
       status: targetStatus,
       timeline: timeline,
-      terms: combinedTermsString
+      terms: combinedTermsString,
+      contractStatus: targetStatus === "approved" ? "SIGNED" : (targetStatus === "sent" ? "SENT" : "NOT_SENT"),
+      paymentStatus: site.paymentStatus || "UNPAID",
+      dealOutcome: site.dealOutcome || "OPEN"
     };
 
     const updatedSite: GeneratedSite = {
@@ -264,6 +267,11 @@ export default function ProposalGenerator({
       clientApproved: targetStatus === "approved" ? true : isApproved,
       clientApprovedBy: targetStatus === "approved" ? signedName : site.clientApprovedBy,
       clientApprovedAt: targetStatus === "approved" ? new Date().toISOString() : site.clientApprovedAt,
+      contractStatus: targetStatus === "approved" ? "SIGNED" : (targetStatus === "sent" ? "SENT" : (site.contractStatus || "NOT_SENT")),
+      contractSignedAt: targetStatus === "approved" ? new Date().toISOString() : site.contractSignedAt,
+      contractSignedBy: targetStatus === "approved" ? signedName : site.contractSignedBy,
+      paymentStatus: site.paymentStatus || "UNPAID",
+      dealOutcome: site.dealOutcome || "OPEN",
       proposal: proposalObj
     };
 
@@ -306,7 +314,12 @@ export default function ProposalGenerator({
       pricing: pricing,
       status: "approved",
       timeline: timeline,
-      terms: combinedTermsString
+      terms: combinedTermsString,
+      contractStatus: "SIGNED",
+      contractSignedAt: new Date().toISOString(),
+      contractSignedBy: signedName,
+      paymentStatus: site.paymentStatus || "UNPAID",
+      dealOutcome: site.dealOutcome || "OPEN"
     };
 
     const updatedSite: GeneratedSite = {
@@ -314,6 +327,11 @@ export default function ProposalGenerator({
       clientApproved: true,
       clientApprovedBy: signedName,
       clientApprovedAt: new Date().toISOString(),
+      contractStatus: "SIGNED",
+      contractSignedAt: new Date().toISOString(),
+      contractSignedBy: signedName,
+      paymentStatus: site.paymentStatus || "UNPAID",
+      dealOutcome: site.dealOutcome || "OPEN",
       proposal: proposalObj
     };
 

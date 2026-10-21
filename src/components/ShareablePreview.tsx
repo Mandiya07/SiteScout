@@ -40,13 +40,13 @@ export default function ShareablePreview({
 
   const getPitchMessage = () => {
     if (pitchChannel === "whatsapp") {
-      return `Hi ${site.businessName} Team,\n\nI noticed you don't currently have a dedicated website linked when customers search for ${site.category || "services"} on Google.\n\nI created a free website preview for your business:\n👉 ${customLink}\n\nTake a quick look on your phone or computer. Once you approve it, let's customize and launch it!`;
+      return `Hi ${site.businessName} Team,\n\nI noticed you don't currently have an active website linked when customers search for ${site.category || "services"} on Google.\n\nI created a free website preview for your business:\n👉 ${customLink}\n\nTake a quick look on your phone or computer. Once you approve it, let's customize and launch it!`;
     }
     if (pitchChannel === "sms") {
-      return `Hi ${site.businessName}! I noticed your business doesn't have a website listed. I created a free website preview for your business here: ${customLink} - once you check it out, let's customize and launch it!`;
+      return `Hi ${site.businessName}! I noticed your public listing doesn't currently link to an active website. I created a free website preview for your business here: ${customLink} - once you check it out, let's customize and launch it!`;
     }
     if (pitchChannel === "email") {
-      return `Subject: Free Website Preview for ${site.businessName}\n\nHi ${site.businessName} Team,\n\nWhile researching top-rated ${site.category || "service"} providers in our area, I noticed that ${site.businessName} doesn't currently have an active website linked on Google.\n\nI created a free website preview for your business:\n👉 ${customLink}\n\nKey features included:\n- Instant 1-Click WhatsApp & Phone Callback buttons\n- Verified Business Truth facts & service catalog\n- Mobile-optimized contact & quote capture form\n\nOnce you review it, let's customize and launch it for you!\n\nBest regards,\nLocal Digital Development`;
+      return `Subject: Free Website Preview for ${site.businessName}\n\nHi ${site.businessName} Team,\n\nWhile researching top-rated ${site.category || "service"} providers in our area, I noticed that ${site.businessName} doesn't currently have an active website linked on public search.\n\nI created a free website preview for your business:\n👉 ${customLink}\n\nKey features included:\n- Instant 1-Click WhatsApp & Phone Callback buttons\n- Verified Business Truth facts & service catalog\n- Mobile-optimized contact & quote capture form\n\nOnce you review it, let's customize and launch it for you!\n\nBest regards,\nLocal Digital Development`;
     }
     return `COLD CALL OPENER (30-Sec):\n\n"Hi, is this the owner of ${site.businessName}?\n\nMy name is [Your Name], I'm a local web developer. I noticed your Google listing has great reviews, but there's no website linked when customers search for ${site.category || "your services"}.\n\nI created a free website preview for your business with your verified phone number, service list, and WhatsApp buttons.\n\nCan I send you a 10-second link on WhatsApp or SMS right now so you can take a look? Once you approve it, let's customize and launch it for you."`;
   };
@@ -251,7 +251,7 @@ export default function ShareablePreview({
                 key: "noOnlineCatalogue",
                 label: "Service Transparency",
                 gap: "No structured service catalog or clear menu online",
-                solution: "Fully styled service grid with verified business data",
+                solution: "Fully styled service grid with source-backed business data",
                 active: !!deficits.noOnlineCatalogue
               },
               {

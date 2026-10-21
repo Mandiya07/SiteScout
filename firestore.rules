@@ -60,7 +60,12 @@ service cloud.firestore {
     // PRIVATE Sites collection: Strictly private! NO public get access.
     // Restricted strictly to document owner or admin, with ownership immutability.
     match /sites/{siteId} {
-      allow get, list: if isSignedIn() && (isOwner(resource.data) || isAdmin());
+      allow get: if isSignedIn() && (isOwner(resource.data) || isAdmin());
+      allow list: if isSignedIn() && (
+        ( 'userId' in resource.data && resource.data.userId == request.auth.uid ) ||
+        ( 'ownerId' in resource.data && resource.data.ownerId == request.auth.uid ) ||
+        request.auth.token.email == 'siphom.yati@gmail.com'
+      );
       allow create: if isSignedIn() && (
         ( 'userId' in request.resource.data && request.resource.data.userId == request.auth.uid ) ||
         ( 'ownerId' in request.resource.data && request.resource.data.ownerId == request.auth.uid ) ||
@@ -77,7 +82,11 @@ service cloud.firestore {
     // Sanitized document containing presentation layout, theme colors, copy, and client feedback (no private CRM notes).
     match /publicPreviews/{previewToken} {
       allow get: if true;
-      allow list: if isSignedIn() && (isOwner(resource.data) || isAdmin());
+      allow list: if isSignedIn() && (
+        ( 'userId' in resource.data && resource.data.userId == request.auth.uid ) ||
+        ( 'ownerId' in resource.data && resource.data.ownerId == request.auth.uid ) ||
+        request.auth.token.email == 'siphom.yati@gmail.com'
+      );
       allow create: if isSignedIn() && (
         ( 'userId' in request.resource.data && request.resource.data.userId == request.auth.uid ) ||
         ( 'ownerId' in request.resource.data && request.resource.data.ownerId == request.auth.uid ) ||
@@ -86,25 +95,43 @@ service cloud.firestore {
       );
       allow update: if isSignedIn() && (
         isAdmin() || 
-        (isOwner(resource.data) && maintainsOwnership(request.resource.data, resource.data)) ||
-        !('userId' in resource.data)
+        (isOwner(resource.data) && maintainsOwnership(request.resource.data, resource.data))
       );
       allow delete: if isSignedIn() && (isOwner(resource.data) || isAdmin());
 
       // Telemetry events subcollection (e.g. /publicPreviews/{previewToken}/events/{eventId})
+      // Direct anonymous client writes are strictly denied. All telemetry events must pass through server ingestion endpoints.
       match /events/{eventId} {
-        allow create: if true;
+        allow create: if false;
         allow read: if isSignedIn() && (
           (exists(/databases/$(database)/documents/publicPreviews/$(previewToken)) && 
            isOwner(get(/databases/$(database)/documents/publicPreviews/$(previewToken)).data)) || 
           isAdmin()
         );
+        allow update, delete: if isSignedIn() && isAdmin();
+      }
+
+      // Leads subcollection (e.g. /publicPreviews/{previewToken}/leads/{leadId})
+      // Direct client writes are denied; must use server endpoint. Read is restricted to owner or admin.
+      match /leads/{leadId} {
+        allow create: if false;
+        allow read: if isSignedIn() && (
+          (exists(/databases/$(database)/documents/publicPreviews/$(previewToken)) && 
+           isOwner(get(/databases/$(database)/documents/publicPreviews/$(previewToken)).data)) || 
+          isAdmin()
+        );
+        allow update, delete: if isSignedIn() && isAdmin();
       }
     }
 
     // Prospects / Businesses collection: strict user ownership & isolation
     match /businesses/{businessId} {
-      allow get, list: if isSignedIn() && (isOwner(resource.data) || isAdmin());
+      allow get: if isSignedIn() && (isOwner(resource.data) || isAdmin());
+      allow list: if isSignedIn() && (
+        ( 'userId' in resource.data && resource.data.userId == request.auth.uid ) ||
+        ( 'ownerId' in resource.data && resource.data.ownerId == request.auth.uid ) ||
+        request.auth.token.email == 'siphom.yati@gmail.com'
+      );
       allow create: if isSignedIn() && (
         ( 'userId' in request.resource.data && request.resource.data.userId == request.auth.uid ) ||
         ( 'ownerId' in request.resource.data && request.resource.data.ownerId == request.auth.uid ) ||
@@ -138,6 +165,15 @@ service cloud.firestore {
         );
       }
 
+      // Qualification audit events: append-only history. Ordinary users cannot edit or delete!
+      match /qualification_audits/{auditId} {
+        allow read, create: if isSignedIn() && (
+          isOwner(get(/databases/$(database)/documents/businesses/$(businessId)).data) || 
+          isAdmin()
+        );
+        allow update, delete: if isSignedIn() && isAdmin();
+      }
+
       match /{allSubcollections=**} {
         allow read, write: if isSignedIn() && (
           isOwner(get(/databases/$(database)/documents/businesses/$(businessId)).data) || 
@@ -151,7 +187,11 @@ service cloud.firestore {
       // Accessible only if explicitly flagged public with token, or owned by caller
       allow get: if (resource.data.get('isPublic', false) == true) || (isSignedIn() && (isOwner(resource.data) || isAdmin()));
       // Listing/querying restricted strictly to document owner or admin
-      allow list: if isSignedIn() && (isOwner(resource.data) || isAdmin());
+      allow list: if isSignedIn() && (
+        ( 'userId' in resource.data && resource.data.userId == request.auth.uid ) ||
+        ( 'ownerId' in resource.data && resource.data.ownerId == request.auth.uid ) ||
+        request.auth.token.email == 'siphom.yati@gmail.com'
+      );
       // Creating proposals requires setting userId/ownerId to caller's UID
       allow create: if isSignedIn() && (
         ( 'userId' in request.resource.data && request.resource.data.userId == request.auth.uid ) ||

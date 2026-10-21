@@ -87,7 +87,7 @@ export default function WebsiteGenerator({
             Synthesizing Tailored Website Preview
           </h3>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1.5 max-w-xl mx-auto">
-            Constructing a high-converting homepage layout for <strong className="text-slate-800 dark:text-slate-200">{businessName}</strong> ({category}) anchored on verified business truth data.
+            Constructing a high-converting homepage layout for <strong className="text-slate-800 dark:text-slate-200">{businessName}</strong> ({category}) anchored on source-backed business truth data.
           </p>
         </div>
 

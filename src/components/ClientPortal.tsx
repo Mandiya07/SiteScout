@@ -1,16 +1,33 @@
-import { useState, FormEvent } from "react";
-import { GeneratedSite } from "../types";
+import { useState, FormEvent, useMemo } from "react";
+import { Business, CustomerInvoice, CustomerSupportTicket, GeneratedSite, SupportTicketCategory, SupportTicketPriority } from "../types";
 import { 
   FolderUp, MessageSquare, Check, Sparkles, Send, Trash2, 
   Layers, Clock, ShieldCheck, Heart, ArrowRight, UserCheck, CloudUpload, FileCheck,
-  Download, FileText
+  Download, FileText, CreditCard, CheckCircle2, AlertCircle, RefreshCw, Receipt,
+  Headphones, LifeBuoy, PlusCircle, Lock, ShieldAlert, KeyRound, LogOut
 } from "lucide-react";
+import { useAuth } from "../lib/AuthContext";
+import { 
+  createCustomerSession, 
+  authorizeCustomerAccess, 
+  sanitizeCustomerPortalData 
+} from "../lib/customerPortalAccess";
 import ProposalGenerator from "./ProposalGenerator";
+import { getLocalBusinessCache } from "../lib/businessPersistence";
+import { getCustomerBillingSummary } from "../lib/customerBilling";
+import { formatCurrency } from "../lib/prospectFinancials";
+import { 
+  getCustomerTickets, 
+  createCustomerSupportTicket, 
+  addTicketMessage, 
+  sanitizeTicketForCustomer 
+} from "../lib/customerSupport";
 
 interface ClientPortalProps {
   site: GeneratedSite;
   onBackToApp: () => void;
   onSave?: (updatedSite: GeneratedSite) => Promise<void>;
+  business?: Business;
 }
 
 interface FeedbackItem {
@@ -21,7 +38,7 @@ interface FeedbackItem {
   date: string;
 }
 
-export default function ClientPortal({ site, onBackToApp, onSave }: ClientPortalProps) {
+export default function ClientPortal({ site, onBackToApp, onSave, business }: ClientPortalProps) {
   const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>(() => {
     if (site.clientFeedback && site.clientFeedback.length > 0) {
       return site.clientFeedback.map((fb, idx) => ({
@@ -81,11 +98,42 @@ export default function ClientPortal({ site, onBackToApp, onSave }: ClientPortal
     }, 1000);
   };
 
-  const [activeTab, setActiveTab] = useState<"onboarding" | "proposal" | "assets" | "revisions" | "messages" | "invoices">("onboarding");
+  const { user: authUser } = useAuth();
+  const session = useMemo(() => {
+    if (!authUser) {
+      return createCustomerSession({
+        uid: site.clientEmail || `cust_${site.id}`,
+        email: site.clientEmail || site.email || "client@workspace.sz",
+        role: "customer",
+        customerId: site.clientEmail || `cust_${site.id}`,
+        businessId: site.businessId || site.id
+      });
+    }
+    return createCustomerSession({
+      uid: authUser.uid,
+      email: authUser.email,
+      role: authUser.role === "Admin" ? "admin" : "customer",
+      customerId: authUser.email,
+      businessId: site.businessId || site.id
+    });
+  }, [authUser, site]);
+
+  const [activeTab, setActiveTab] = useState<"onboarding" | "proposal" | "assets" | "revisions" | "messages" | "invoices" | "support" | "account">("onboarding");
   const [newComment, setNewComment] = useState("");
   const [newSection, setNewSection] = useState("Hero Section");
   const [logoUploaded, setLogoUploaded] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(false);
+
+  // Micro-Phase 16A: Customer Support & Requests Portal State
+  const [supportSubject, setSupportSubject] = useState("");
+  const [supportDescription, setSupportDescription] = useState("");
+  const [supportCategory, setSupportCategory] = useState<SupportTicketCategory>("BUG_FIX");
+  const [supportPriority, setSupportPriority] = useState<SupportTicketPriority>("NORMAL");
+  const [isSubmittingSupport, setIsSubmittingSupport] = useState(false);
+  const [supportFeedback, setSupportFeedback] = useState<string | null>(null);
+  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+  const [ticketReplyText, setTicketReplyText] = useState("");
+  const [isReplying, setIsReplying] = useState(false);
 
   const handleAddFeedback = (e: FormEvent) => {
     e.preventDefault();
@@ -147,7 +195,9 @@ export default function ClientPortal({ site, onBackToApp, onSave }: ClientPortal
             { id: "assets", label: "Brand Assets" },
             { id: "revisions", label: "Revision Logs" },
             { id: "messages", label: "Messages" },
-            { id: "invoices", label: "Invoices" }
+            { id: "invoices", label: "Invoices" },
+            { id: "support", label: "Support & SLA" },
+            { id: "account", label: "Account & Security" }
           ].map((tab) => (
             <button
               key={tab.id}
@@ -396,45 +446,694 @@ export default function ClientPortal({ site, onBackToApp, onSave }: ClientPortal
               </div>
             )}
 
-            {activeTab === "invoices" && (
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-6">
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                    <FileText className="h-5 w-5 text-emerald-500" /> Billing & Invoices
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Download your past and upcoming project invoices.</p>
-                </div>
-                
-                <div className="space-y-3">
-                  {[
-                    { id: "INV-2026-001", date: "Jul 1, 2026", amount: "$349.50", status: "Paid", description: "50% Upfront Retainer Deposit" },
-                    { id: "INV-2026-002", date: "Jul 15, 2026", amount: "$349.50", status: "Pending", description: "50% Final Project Delivery" },
-                  ].map((invoice) => (
-                    <div key={invoice.id} className="flex items-center justify-between p-4 rounded-xl border border-slate-100 bg-slate-50/50 dark:border-slate-800/80 dark:bg-slate-950/20">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-sm text-slate-800 dark:text-slate-200">{invoice.id}</span>
-                          <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
-                            invoice.status === "Paid" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400" : "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
-                          }`}>
-                            {invoice.status}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-500">{invoice.description}</p>
-                        <p className="text-[10px] text-slate-400">Issued: {invoice.date}</p>
+            {activeTab === "invoices" && (() => {
+              const allBiz = getLocalBusinessCache();
+              const resolvedBiz: Business = business || allBiz.find(b => b.id === site.businessId || b.name.toLowerCase() === site.businessName.toLowerCase()) || {
+                id: site.businessId || `biz_${site.id}`,
+                name: site.businessName,
+                category: site.category,
+                phone: site.phone,
+                email: site.email || site.clientEmail || "",
+                address: site.address,
+                rating: 5.0,
+                reviewsCount: 0,
+                description: site.about?.mission || site.businessName,
+                presence: {
+                  hasWebsite: true,
+                  hasEmail: true,
+                  facebookStatus: "active",
+                  instagramStatus: "active",
+                  googleProfileQuality: "good",
+                  reviewCountStatus: "average",
+                  photosStatus: "sufficient",
+                  descriptionQuality: "good",
+                  openingHoursStatus: "complete",
+                  contactCompleteness: "complete"
+                },
+                invoices: [],
+                payments: [],
+                currency: "USD"
+              };
+
+              const summary = getCustomerBillingSummary(resolvedBiz);
+              const sanitizedData = session 
+                ? sanitizeCustomerPortalData(resolvedBiz, session)
+                : { invoices: resolvedBiz.invoices || [], payments: resolvedBiz.payments || [] };
+              const invoices = sanitizedData.invoices;
+              const payments = sanitizedData.payments;
+
+              const handleDownloadInvoice = (inv: CustomerInvoice) => {
+                const invoiceDoc = `================================================
+INVOICE: ${inv.invoiceNumber}
+SiteScout AI Official Customer Billing Record
+================================================
+Customer ID: ${inv.customerId}
+Business Name: ${site.businessName}
+Issue Date: ${new Date(inv.issueDate).toLocaleDateString()}
+Due Date: ${new Date(inv.dueDate).toLocaleDateString()}
+Status: ${inv.status}
+Currency: ${inv.currency}
+------------------------------------------------
+LINE ITEMS:
+${inv.lineItems.map(item => `• ${item.description} (Qty: ${item.quantity}) - ${formatCurrency(item.total, inv.currency)}`).join("\n")}
+------------------------------------------------
+Subtotal: ${formatCurrency(inv.subtotal, inv.currency)}
+Tax: ${formatCurrency(inv.taxAmount, inv.currency)}
+TOTAL: ${formatCurrency(inv.total, inv.currency)}
+Amount Paid: ${formatCurrency(inv.amountPaid, inv.currency)}
+BALANCE DUE: ${formatCurrency(inv.amountDue, inv.currency)}
+================================================
+Thank you for your business!`;
+
+                const blob = new Blob([invoiceDoc], { type: "text/plain;charset=utf-8" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `${inv.invoiceNumber}.txt`;
+                a.click();
+                URL.revokeObjectURL(url);
+              };
+
+              return (
+                <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-6">
+                  {/* Header & Plan Status */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+                    <div>
+                      <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <FileText className="h-5 w-5 text-emerald-500" /> Customer Billing &amp; Invoices
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Authoritative billing records, verified invoices, payments, and account balance.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-slate-500 font-semibold">Active Plan:</span>
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+                        {summary.currentPlanName} ({summary.billingInterval})
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                        summary.subscriptionStatus === "ACTIVE" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300" :
+                        summary.subscriptionStatus === "TRIAL" ? "bg-cyan-100 text-cyan-800 dark:bg-cyan-950/40 dark:text-cyan-300" :
+                        summary.subscriptionStatus === "PAST_DUE" ? "bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300" :
+                        "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                      }`}>
+                        {summary.subscriptionStatus}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* High-Level Metric Tiles */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="p-3.5 rounded-xl border border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-950/40">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Total Invoiced</span>
+                      <span className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
+                        {formatCurrency(summary.totalInvoiced, summary.currency)}
+                      </span>
+                    </div>
+                    <div className="p-3.5 rounded-xl border border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-950/40">
+                      <span className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400 block mb-1">Verified Paid</span>
+                      <span className="text-sm sm:text-base font-extrabold text-emerald-600 dark:text-emerald-400">
+                        {formatCurrency(summary.totalPaid, summary.currency)}
+                      </span>
+                    </div>
+                    <div className="p-3.5 rounded-xl border border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-950/40">
+                      <span className="text-[10px] uppercase font-bold text-amber-600 dark:text-amber-400 block mb-1">Outstanding Due</span>
+                      <span className="text-sm sm:text-base font-extrabold text-amber-600 dark:text-amber-400">
+                        {formatCurrency(summary.outstandingBalance, summary.currency)}
+                      </span>
+                    </div>
+                    <div className="p-3.5 rounded-xl border border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-950/40">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Verified Net Revenue</span>
+                      <span className="text-sm sm:text-base font-extrabold text-blue-600 dark:text-blue-400">
+                        {formatCurrency(summary.netRevenue, summary.currency)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Section: Invoices List */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                        <FileCheck className="h-4 w-4 text-blue-500" />
+                        Invoices ({invoices.length})
+                      </h4>
+                      {summary.outstandingBalance > 0 && (
+                        <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-2 py-0.5 rounded-full">
+                          Balance Due: {formatCurrency(summary.outstandingBalance, summary.currency)}
+                        </span>
+                      )}
+                    </div>
+
+                    {invoices.length === 0 ? (
+                      <div className="p-6 text-center text-xs text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
+                        No formal customer invoices issued yet.
                       </div>
-                      <div className="flex flex-col items-end gap-2">
-                        <span className="font-bold text-slate-900 dark:text-white">{invoice.amount}</span>
-                        <button className="flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded transition-colors dark:text-blue-400 dark:bg-blue-950/30 dark:hover:bg-blue-900/50">
-                          <Download className="h-3 w-3" />
-                          Download PDF
-                        </button>
+                    ) : (
+                      <div className="space-y-2.5">
+                        {invoices.map((inv) => (
+                          <div
+                            key={inv.id}
+                            className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-950/20 gap-3"
+                          >
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-sm font-mono text-slate-800 dark:text-slate-200">{inv.invoiceNumber}</span>
+                                <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
+                                  inv.status === "PAID" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400" :
+                                  inv.status === "PARTIALLY_PAID" ? "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400" :
+                                  inv.status === "OVERDUE" ? "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400" :
+                                  inv.status === "VOID" ? "bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400 line-through" :
+                                  "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
+                                }`}>
+                                  {inv.status}
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-600 dark:text-slate-400">
+                                {inv.lineItems.map(li => li.description).join(", ")}
+                              </p>
+                              <p className="text-[10px] text-slate-400">
+                                Issued: {new Date(inv.issueDate).toLocaleDateString()} • Due: {new Date(inv.dueDate).toLocaleDateString()}
+                              </p>
+                            </div>
+
+                            <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200 dark:border-slate-800">
+                              <div className="text-left sm:text-right">
+                                <div className="text-sm font-extrabold text-slate-900 dark:text-white">
+                                  {formatCurrency(inv.total, inv.currency)}
+                                </div>
+                                {inv.amountDue > 0 && inv.status !== "VOID" && (
+                                  <div className="text-[10px] text-amber-600 font-bold">
+                                    Due: {formatCurrency(inv.amountDue, inv.currency)}
+                                  </div>
+                                )}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadInvoice(inv)}
+                                className="flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-colors dark:text-blue-400 dark:bg-blue-950/30 dark:hover:bg-blue-900/50 cursor-pointer"
+                              >
+                                <Download className="h-3 w-3" />
+                                Download Statement
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Section: Verified Payment Receipts */}
+                  <div className="space-y-3 pt-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                      <Receipt className="h-4 w-4 text-emerald-500" />
+                      Verified Payment Receipts ({payments.length})
+                    </h4>
+
+                    {payments.length === 0 ? (
+                      <div className="p-4 text-center text-xs text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
+                        No verified payment transactions recorded yet.
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {payments.map((pmt) => (
+                          <div
+                            key={pmt.id}
+                            className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-2"
+                          >
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold font-mono text-slate-800 dark:text-slate-200">{pmt.paymentNumber}</span>
+                                <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
+                                  pmt.status === "COMPLETED" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400" :
+                                  pmt.status === "PARTIALLY_REFUNDED" ? "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400" :
+                                  pmt.status === "REFUNDED" ? "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400" :
+                                  "bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                                }`}>
+                                  {pmt.status}
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-slate-400 mt-0.5">
+                                Ref: <span className="font-mono text-slate-600 dark:text-slate-300">{pmt.paymentProviderRef?.referenceId || "N/A"}</span> • Method: <span className="uppercase">{pmt.paymentMethod.replace(/_/g, " ")}</span> • {new Date(pmt.paidAt).toLocaleString()}
+                              </div>
+                            </div>
+
+                            <div className="text-left sm:text-right">
+                              <span className="font-extrabold font-mono text-emerald-600 dark:text-emerald-400">
+                                {formatCurrency(pmt.amount, pmt.currency)}
+                              </span>
+                              {pmt.refundedAmount > 0 && (
+                                <div className="text-[10px] text-rose-500 font-bold">
+                                  Refunded: -{formatCurrency(pmt.refundedAmount, pmt.currency)}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {activeTab === "support" && (() => {
+              const allBiz = getLocalBusinessCache();
+              const resolvedBiz: Business = business || allBiz.find(b => b.id === site.businessId || b.name.toLowerCase() === site.businessName.toLowerCase()) || {
+                id: site.businessId || `biz_${site.id}`,
+                name: site.businessName,
+                category: site.category,
+                phone: site.phone,
+                email: site.email || site.clientEmail || "",
+                address: site.address,
+                rating: 5.0,
+                reviewsCount: 0,
+                description: site.about?.mission || site.businessName,
+                presence: {
+                  hasWebsite: true,
+                  hasEmail: true,
+                  facebookStatus: "active",
+                  instagramStatus: "active",
+                  googleProfileQuality: "good",
+                  reviewCountStatus: "average",
+                  photosStatus: "sufficient",
+                  descriptionQuality: "good",
+                  openingHoursStatus: "complete",
+                  contactCompleteness: "complete"
+                },
+                invoices: [],
+                payments: [],
+                supportTickets: [],
+                currency: "USD"
+              };
+
+              const requesterId = site.clientEmail || site.email || `cust_${site.id}`;
+              const requesterName = site.businessName || "Client Owner";
+              const clientTickets = getCustomerTickets(resolvedBiz, requesterId);
+              const activeSelectedTicket = clientTickets.find(t => t.id === selectedTicketId) || clientTickets[0];
+
+              const handleCreateTicket = async (e: FormEvent) => {
+                e.preventDefault();
+                if (!supportSubject || !supportDescription) return;
+
+                setIsSubmittingSupport(true);
+                setSupportFeedback(null);
+
+                const actor = {
+                  uid: requesterId,
+                  displayName: requesterName,
+                  role: "Client"
+                };
+
+                const res = await createCustomerSupportTicket(
+                  resolvedBiz,
+                  {
+                    requesterId,
+                    requesterName,
+                    requesterEmail: site.clientEmail || site.email,
+                    subject: supportSubject,
+                    description: supportDescription,
+                    category: supportCategory,
+                    priority: supportPriority,
+                    siteId: site.id
+                  },
+                  actor
+                );
+
+                setIsSubmittingSupport(false);
+                if (res.success && res.ticket) {
+                  setSupportFeedback(`✓ Support ticket ${res.ticket.ticketNumber} opened successfully!`);
+                  setSupportSubject("");
+                  setSupportDescription("");
+                  setSelectedTicketId(res.ticket.id);
+                } else {
+                  setSupportFeedback(`✕ ${res.error || "Failed to create support ticket."}`);
+                }
+              };
+
+              const handleSendReply = async (e: FormEvent) => {
+                e.preventDefault();
+                if (!ticketReplyText.trim() || !activeSelectedTicket) return;
+
+                setIsReplying(true);
+                const actor = {
+                  uid: requesterId,
+                  displayName: requesterName,
+                  role: "Client"
+                };
+
+                const res = await addTicketMessage(
+                  resolvedBiz,
+                  activeSelectedTicket.id,
+                  {
+                    senderId: requesterId,
+                    senderName: requesterName,
+                    senderRole: "customer",
+                    message: ticketReplyText.trim(),
+                    isInternal: false
+                  },
+                  actor
+                );
+
+                setIsReplying(false);
+                if (res.success) {
+                  setTicketReplyText("");
+                }
+              };
+
+              return (
+                <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-6">
+                  {/* Header */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+                    <div>
+                      <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <Headphones className="h-5 w-5 text-indigo-500" /> Customer Support &amp; Service Requests
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Report bugs, request layout changes, or submit service inquiries directly to your account engineering team.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300">
+                        {clientTickets.length} Tickets
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 2-Column Responsive Layout */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    {/* Left: Create Ticket Form */}
+                    <div className="lg:col-span-5 space-y-4">
+                      <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20 space-y-3">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                          <PlusCircle className="w-4 h-4 text-blue-500" />
+                          New Service Request
+                        </h4>
+
+                        {supportFeedback && (
+                          <div className={`p-2.5 rounded-lg text-xs font-semibold ${
+                            supportFeedback.startsWith("✓")
+                              ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                              : "bg-rose-50 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-800"
+                          }`}>
+                            {supportFeedback}
+                          </div>
+                        )}
+
+                        <form onSubmit={handleCreateTicket} className="space-y-3 text-xs">
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Subject</label>
+                            <input
+                              type="text"
+                              required
+                              value={supportSubject}
+                              onChange={(e) => setSupportSubject(e.target.value)}
+                              placeholder="e.g. Update holiday business hours in footer"
+                              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Category</label>
+                              <select
+                                value={supportCategory}
+                                onChange={(e) => setSupportCategory(e.target.value as SupportTicketCategory)}
+                                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-[11px]"
+                              >
+                                <option value="BUG_FIX">Bug Fix</option>
+                                <option value="CONTENT_UPDATE">Content Update</option>
+                                <option value="DOMAIN_DNS">Domain &amp; DNS</option>
+                                <option value="EMAIL_SETUP">Email &amp; Hosting</option>
+                                <option value="FEATURE_REQUEST">Feature Request</option>
+                                <option value="BILLING_INQUIRY">Billing Inquiry</option>
+                                <option value="TRAINING_ONBOARDING">Training / Help</option>
+                                <option value="GENERAL_INQUIRY">General Inquiry</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Priority</label>
+                              <select
+                                value={supportPriority}
+                                onChange={(e) => setSupportPriority(e.target.value as SupportTicketPriority)}
+                                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-[11px]"
+                              >
+                                <option value="LOW">Low</option>
+                                <option value="NORMAL">Normal</option>
+                                <option value="HIGH">High</option>
+                                <option value="URGENT">Urgent (SLA)</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Description &amp; Details</label>
+                            <textarea
+                              required
+                              rows={3}
+                              value={supportDescription}
+                              onChange={(e) => setSupportDescription(e.target.value)}
+                              placeholder="Please describe the issue or requested change in detail..."
+                              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                            />
+                          </div>
+
+                          <button
+                            type="submit"
+                            disabled={isSubmittingSupport}
+                            className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold text-xs transition-colors cursor-pointer"
+                          >
+                            {isSubmittingSupport ? "Submitting..." : "Submit Ticket"}
+                          </button>
+                        </form>
                       </div>
                     </div>
-                  ))}
+
+                    {/* Right: Ticket Thread & History */}
+                    <div className="lg:col-span-7 space-y-4">
+                      {clientTickets.length === 0 ? (
+                        <div className="p-8 text-center text-xs text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl space-y-2">
+                          <LifeBuoy className="w-8 h-8 text-slate-300 dark:text-slate-700 mx-auto" />
+                          <p>You have not submitted any service requests yet.</p>
+                          <p className="text-[10px]">Use the form on the left to submit questions or updates.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {/* Ticket Selector Tabs */}
+                          <div className="flex gap-2 overflow-x-auto pb-1">
+                            {clientTickets.map((t) => (
+                              <button
+                                key={t.id}
+                                type="button"
+                                onClick={() => setSelectedTicketId(t.id)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors cursor-pointer border ${
+                                  (activeSelectedTicket?.id === t.id)
+                                    ? "bg-indigo-50 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-800 text-indigo-900 dark:text-indigo-200"
+                                    : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50"
+                                }`}
+                              >
+                                <span className="font-mono text-[10px] block text-slate-400">{t.ticketNumber}</span>
+                                <span className="truncate max-w-[120px] block">{t.subject}</span>
+                              </button>
+                            ))}
+                          </div>
+
+                          {activeSelectedTicket && (
+                            <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-4">
+                              {/* Selected Ticket Meta */}
+                              <div className="flex items-start justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-mono font-bold text-xs text-slate-400">{activeSelectedTicket.ticketNumber}</span>
+                                    <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
+                                      activeSelectedTicket.status === "RESOLVED" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300" :
+                                      activeSelectedTicket.status === "IN_PROGRESS" ? "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300" :
+                                      activeSelectedTicket.status === "WAITING_FOR_CUSTOMER" ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300" :
+                                      "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300"
+                                    }`}>
+                                      {activeSelectedTicket.status}
+                                    </span>
+                                  </div>
+                                  <h4 className="font-bold text-sm text-slate-900 dark:text-white mt-1">
+                                    {activeSelectedTicket.subject}
+                                  </h4>
+                                  <p className="text-[10px] text-slate-400 mt-0.5">
+                                    Category: {activeSelectedTicket.category} • Priority: {activeSelectedTicket.priority} • Opened: {new Date(activeSelectedTicket.createdTimestamp).toLocaleDateString()}
+                                  </p>
+                                </div>
+
+                                {activeSelectedTicket.isCoveredUnderSla && (
+                                  <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30 px-2 py-0.5 rounded-full">
+                                    SLA Protected
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Message History Thread */}
+                              <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1 text-xs">
+                                {(activeSelectedTicket.messages || []).map((msg) => (
+                                  <div
+                                    key={msg.id}
+                                    className={`p-3 rounded-xl border ${
+                                      msg.senderRole === "customer"
+                                        ? "bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/60 ml-4"
+                                        : "bg-indigo-50/40 dark:bg-indigo-950/20 border-indigo-200 dark:border-indigo-900/40 mr-4"
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between mb-1">
+                                      <span className="font-bold text-[11px] text-slate-800 dark:text-slate-200">
+                                        {msg.senderName} ({msg.senderRole === "customer" ? "You" : "Support Team"})
+                                      </span>
+                                      <span className="text-[9px] text-slate-400">
+                                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                      </span>
+                                    </div>
+                                    <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
+                                      {msg.message}
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* Resolution summary if resolved */}
+                              {activeSelectedTicket.status === "RESOLVED" && activeSelectedTicket.resolutionSummary && (
+                                <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-900 dark:text-emerald-300">
+                                  <span className="font-bold block mb-0.5">Resolution Notes:</span>
+                                  {activeSelectedTicket.resolutionSummary}
+                                </div>
+                              )}
+
+                              {/* Reply Form */}
+                              {activeSelectedTicket.status !== "CLOSED" && activeSelectedTicket.status !== "CANCELLED" && (
+                                <form onSubmit={handleSendReply} className="flex gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                                  <input
+                                    type="text"
+                                    value={ticketReplyText}
+                                    onChange={(e) => setTicketReplyText(e.target.value)}
+                                    placeholder="Write a reply or provide extra details..."
+                                    className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs text-slate-900 dark:text-white"
+                                  />
+                                  <button
+                                    type="submit"
+                                    disabled={isReplying || !ticketReplyText.trim()}
+                                    className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors"
+                                  >
+                                    <Send className="w-3.5 h-3.5" />
+                                    Send
+                                  </button>
+                                </form>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
+
+            {/* Micro-Phase 16C: Account Security & Access Control Panel */}
+            {activeTab === "account" && (() => {
+              const allBiz = getLocalBusinessCache();
+              const resolvedBiz: Business = business || allBiz.find(b => b.id === site.businessId || b.name.toLowerCase() === site.businessName.toLowerCase()) || {
+                id: site.businessId || "temp_biz",
+                name: site.businessName
+              } as Business;
+
+              const account = resolvedBiz.customerAccount;
+              const sub = resolvedBiz.activeSubscription;
+
+              return (
+                <div className="space-y-6">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-6">
+                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+                      <div>
+                        <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                          <ShieldCheck className="h-5 w-5 text-emerald-500" />
+                          Account Security &amp; Access Controls
+                        </h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                          Role-based session isolation, entitlement guards, and resource ownership boundaries.
+                        </p>
+                      </div>
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                        <KeyRound className="h-3.5 w-3.5" />
+                        Boundary Guard Active
+                      </span>
+                    </div>
+
+                    {/* Session Diagnostics */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/30 space-y-3">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Authenticated Session</h4>
+                        <div className="space-y-2 text-xs">
+                          <div className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-800">
+                            <span className="text-slate-400">User Email</span>
+                            <span className="font-semibold text-slate-800 dark:text-slate-200">{session?.email || authUser?.email || "Guest Client Session"}</span>
+                          </div>
+                          <div className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-800">
+                            <span className="text-slate-400">User UID</span>
+                            <span className="font-mono text-[11px] text-slate-600 dark:text-slate-400">{session?.uid || authUser?.uid || "local_guest_uid"}</span>
+                          </div>
+                          <div className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-800">
+                            <span className="text-slate-400">Portal Role</span>
+                            <span className="font-bold uppercase px-2 py-0.5 rounded text-[10px] bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+                              {session?.role || (authUser?.role === "Admin" ? "admin" : "customer")}
+                            </span>
+                          </div>
+                          <div className="flex justify-between py-1">
+                            <span className="text-slate-400">Session Status</span>
+                            <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                              <CheckCircle2 className="h-3.5 w-3.5" /> Valid &amp; Protected
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/30 space-y-3">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Customer Account Association</h4>
+                        <div className="space-y-2 text-xs">
+                          <div className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-800">
+                            <span className="text-slate-400">Customer ID</span>
+                            <span className="font-mono text-[11px] font-bold text-slate-800 dark:text-slate-200">
+                              {account?.customerId || `cust_${resolvedBiz.id.substring(0, 8)}`}
+                            </span>
+                          </div>
+                          <div className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-800">
+                            <span className="text-slate-400">Business / Project</span>
+                            <span className="font-semibold text-slate-800 dark:text-slate-200">{resolvedBiz.name}</span>
+                          </div>
+                          <div className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-800">
+                            <span className="text-slate-400">Subscription Tier</span>
+                            <span className="font-bold text-slate-800 dark:text-slate-200">{sub?.planName || "Starter Plan"}</span>
+                          </div>
+                          <div className="flex justify-between py-1">
+                            <span className="text-slate-400">Account Status</span>
+                            <span className="font-bold uppercase px-2 py-0.5 rounded text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
+                              {account?.accountStatus || sub?.status || "ACTIVE"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Access Rules & Invariants Summary */}
+                    <div className="p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/40 bg-indigo-50/40 dark:bg-indigo-950/20 space-y-3 text-xs">
+                      <h4 className="font-bold text-indigo-900 dark:text-indigo-300 flex items-center gap-1.5">
+                        <Lock className="h-4 w-4" />
+                        Micro-Phase 16C Security Policy Invariants
+                      </h4>
+                      <ul className="space-y-1.5 text-slate-600 dark:text-slate-400 list-disc list-inside">
+                        <li><strong>Server-Side Boundary Enforcement:</strong> Resource access requires cryptographically validated customer tokens.</li>
+                        <li><strong>Anti-Enumeration Guard:</strong> ID substitution in API queries or URLs strictly rejects unauthorized resource access.</li>
+                        <li><strong>Internal Note Redaction:</strong> Internal engineering notes and staff audit logs are never exposed to customers.</li>
+                        <li><strong>Historical Access Preservation:</strong> Expired or cancelled accounts maintain read-only access to historic invoices and tickets without active generation rights.</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
           </div>
 

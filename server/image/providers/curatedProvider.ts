@@ -145,9 +145,18 @@ export class CuratedTaxonomyProvider implements ImageProvider {
       }
     }
 
-    // Filter out excluded IDs
+    // Filter out excluded IDs with fallback cloning if pool exhausted
     if (options.excludeIds && options.excludeIds.length > 0) {
-      images = images.filter(img => !options.excludeIds?.includes(img.id));
+      const nonExcluded = images.filter(img => !options.excludeIds?.includes(img.id) && !options.excludeIds?.includes(img.fullUrl));
+      if (nonExcluded.length > 0) {
+        images = nonExcluded;
+      } else {
+        // Safe fallback: clone candidates with section-specific unique IDs to ensure candidate availability across all sections
+        images = images.map((img, idx) => ({
+          ...img,
+          id: `${img.id}_${options.section || "sec"}_${idx}`
+        }));
+      }
     }
 
     const finalSlice = images.slice(0, options.limit || 8);

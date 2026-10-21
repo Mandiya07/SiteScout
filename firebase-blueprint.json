@@ -255,6 +255,67 @@
         }
       },
       "required": ["id", "businessId", "title", "dueDate", "channel", "status"]
+    },
+    "QualificationAudit": {
+      "title": "QualificationAudit",
+      "description": "Immutable qualification decision and audit record",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique audit event identifier"
+        },
+        "businessId": {
+          "type": "string",
+          "description": "Target prospect business ID"
+        },
+        "decisionType": {
+          "type": "string",
+          "description": "Qualification decision type"
+        },
+        "actor": {
+          "type": "object",
+          "description": "Actor details and automated flag"
+        },
+        "previousStatus": {
+          "type": "string",
+          "description": "Previous qualification status"
+        },
+        "newStatus": {
+          "type": "string",
+          "description": "Resulting qualification status"
+        },
+        "previousScore": {
+          "type": "number",
+          "description": "Previous qualification score"
+        },
+        "newScore": {
+          "type": "number",
+          "description": "Resulting qualification score"
+        },
+        "previousPrioritizationRank": {
+          "type": "number",
+          "description": "Previous prioritization rank"
+        },
+        "newPrioritizationRank": {
+          "type": "number",
+          "description": "Resulting prioritization rank"
+        },
+        "reason": {
+          "type": "string",
+          "description": "Documented audit rationale"
+        },
+        "isAutomated": {
+          "type": "boolean",
+          "description": "True if decision made by automated algorithm"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Decision timestamp"
+        }
+      },
+      "required": ["id", "businessId", "decisionType", "previousStatus", "newStatus", "reason", "timestamp"]
     }
   },
   "firestore": {
@@ -305,6 +366,12 @@
         "$ref": "#/entities/FollowUp"
       },
       "description": "Scheduled outreach follow-ups and action reminders"
+    },
+    "/businesses/{businessId}/qualification_audits/{auditId}": {
+      "schema": {
+        "$ref": "#/entities/QualificationAudit"
+      },
+      "description": "Immutable prospect qualification decisions and audit history"
     },
     "/proposals/{proposalId}": {
       "schema": {

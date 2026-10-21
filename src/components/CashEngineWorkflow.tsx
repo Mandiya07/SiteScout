@@ -6,6 +6,7 @@ import {
   ChevronDown, ChevronUp, DollarSign
 } from "lucide-react";
 import { Business, GeneratedSite } from "../types";
+import { toCanonicalStage } from "../lib/prospectCrm";
 
 interface CashEngineWorkflowProps {
   businesses?: Business[];
@@ -28,11 +29,11 @@ export default function CashEngineWorkflow({
   ).length;
 
   const sentCount = userSites.filter(
-    s => s.proposal?.status === 'sent' || s.salesStatus === 'Contacted' || s.salesStatus === 'Proposal Sent'
+    s => s.proposal?.status === 'sent' || toCanonicalStage(s.salesStage || s.salesStatus) === 'PREVIEW_SENT' || toCanonicalStage(s.salesStage || s.salesStatus) === 'PROPOSAL_SENT'
   ).length;
 
-  const wonCount = businesses.filter(b => b.prospectStatus === 'Won').length + 
-    userSites.filter(s => s.clientApproved || s.salesStatus === 'Closed').length;
+  const wonCount = businesses.filter(b => toCanonicalStage(b.salesStage || b.prospectStatus) === 'WON').length + 
+    userSites.filter(s => toCanonicalStage(s.salesStage || s.salesStatus) === 'WON').length;
 
   return (
     <div className="rounded-3xl border border-indigo-100 bg-white dark:border-slate-800 dark:bg-slate-900 shadow-md p-5 sm:p-7 text-left transition-all">

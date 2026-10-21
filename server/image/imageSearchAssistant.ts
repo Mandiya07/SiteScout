@@ -145,7 +145,7 @@ export class ImageSearchAssistant {
    * Searches across configured providers, caches results, and ranks images against criteria.
    */
   async searchImages(query: string, options: ImageSearchOptions): Promise<ImageMetadata[]> {
-    const cached = imageCache.get(query, options.section, options.orientation);
+    const cached = imageCache.get(query, options.section, options.orientation, options.industry);
     if (cached && cached.length > 0) {
       return cached;
     }
@@ -199,7 +199,7 @@ export class ImageSearchAssistant {
     const ranked = sortAndRankCandidates(candidatePool, scoreContext);
     const finalResults = ranked.slice(0, options.limit || 12);
 
-    imageCache.set(query, options.section, options.orientation, finalResults);
+    imageCache.set(query, options.section, options.orientation, finalResults, options.industry);
     return finalResults;
   }
 

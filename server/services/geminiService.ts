@@ -5,14 +5,25 @@ dotenv.config();
 
 let aiInstance: GoogleGenAI | null = null;
 
+export function isApiKeyConfigured(): boolean {
+  const key = process.env.GEMINI_API_KEY?.trim();
+  return !!(key && key !== "MY_GEMINI_API_KEY" && key !== "MOCK_KEY" && key !== "");
+}
+
 export function getGeminiClient(): GoogleGenAI {
   if (!aiInstance) {
-    const key = process.env.GEMINI_API_KEY;
-    if (!key) {
-      console.log("WARNING: GEMINI_API_KEY environment variable is not set. Using mock fallbacks.");
+    const key = process.env.GEMINI_API_KEY?.trim();
+    const isProduction = process.env.NODE_ENV === "production";
+
+    if (!isApiKeyConfigured()) {
+      if (isProduction) {
+        throw new Error("GEMINI_API_KEY is not configured in production environment. Live AI provider is required.");
+      }
+      console.log("[Gemini Config Notice] GEMINI_API_KEY is not configured. Local fallback responses active for development.");
     }
+
     aiInstance = new GoogleGenAI({
-      apiKey: key || "MOCK_KEY",
+      apiKey: key && key !== "MY_GEMINI_API_KEY" ? key : "DEV_FALLBACK_KEY",
       httpOptions: {
         headers: {
           'User-Agent': 'aistudio-build',
@@ -23,17 +34,13 @@ export function getGeminiClient(): GoogleGenAI {
   return aiInstance;
 }
 
-export function isApiKeyConfigured(): boolean {
-  return !!(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY" && process.env.GEMINI_API_KEY !== "");
-}
-
 // Robust wrapper with exponential backoff retries and automatic backup model fallback
 export async function generateContentWithRetry(params: any, maxRetries = 2, initialDelayMs = 500): Promise<any> {
   const ai = getGeminiClient();
   let delay = initialDelayMs;
   let lastError: any = null;
-  const originalModel = params.model || "gemini-2.5-flash";
-  const candidateModels = [originalModel, "gemini-2.5-flash", "gemini-3.8-flash", "gemini-3.1-flash-lite"];
+  const originalModel = params.model || "gemini-3.8-flash";
+  const candidateModels = [originalModel, "gemini-3.8-flash", "gemini-3.1-flash-lite", "gemini-flash-latest"];
   const modelsToTry = Array.from(new Set(candidateModels));
 
   for (const modelName of modelsToTry) {
@@ -59,15 +66,37 @@ export async function generateContentWithRetry(params: any, maxRetries = 2, init
         const isQuotaExceeded = error?.status === 429 || error?.code === 429 || errorStr.includes('Quota exceeded') || errorStr.includes('RESOURCE_EXHAUSTED') || errorStr.includes('resource_exhausted');
         const isHighDemand = error?.status === 503 || error?.code === 503 || error?.error?.code === 503 || error?.error?.status === "UNAVAILABLE" || errorStr.includes('503') || errorStr.includes('high demand') || errorStr.includes('UNAVAILABLE') || errorStr.includes('overloaded');
         
+        // If Google Search tool quota was exhausted, try direct generation without search tool
+        if (isQuotaExceeded && params.config?.tools?.some((t: any) => t.googleSearch)) {
+          console.log(`[Gemini API Service] Search grounding tool quota limit reached on ${modelName}. Attempting tool-less generation fallback...`);
+          try {
+            const noToolParams = {
+              ...params,
+              model: modelName,
+              config: {
+                ...params.config,
+                tools: undefined
+              }
+            };
+            const directRes = await ai.models.generateContent(noToolParams);
+            return directRes;
+          } catch (toolFallbackErr) {
+            // Direct generation on this model also hit quota/error - switch to backup model
+            console.log(`[Gemini API Service] Tool-less fallback on ${modelName} transitioned to next backup model candidate.`);
+          }
+        }
+
         if (isQuotaExceeded || isHighDemand) {
-          console.log(`[Gemini API Service Early Exit] High demand (503) or Quota Exceeded detected for ${modelName}. Switching to backup model immediately.`);
+          console.log(`[Gemini API Service Early Exit] High demand or quota limit detected for ${modelName}. Switching to next backup model candidate.`);
           break; // Switch to next model immediately
         }
 
         if (attempt < maxRetries) {
-          console.log(`[Gemini API Service] Transient issue on ${modelName}. Retrying in ${delay}ms...`);
-          await new Promise((resolve) => setTimeout(resolve, delay));
-          delay *= 1.5;
+          const jitter = Math.floor(Math.random() * 150);
+          const actualDelay = delay + jitter;
+          console.log(`[Gemini API Service] Transient issue on ${modelName}. Retrying in ${actualDelay}ms (delay ${delay}ms + jitter ${jitter}ms)...`);
+          await new Promise((resolve) => setTimeout(resolve, actualDelay));
+          delay = Math.floor(delay * 1.5);
         } else if (modelsToTry.indexOf(modelName) < modelsToTry.length - 1) {
           console.log(`[Gemini API Service] Max retries reached for ${modelName}. Switching to next model fallback in 500ms...`);
           await new Promise((resolve) => setTimeout(resolve, 500));

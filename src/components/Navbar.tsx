@@ -85,6 +85,7 @@ export default function Navbar({
     { id: "dashboard", label: "Dashboard" },
     { id: "finder", label: "Find Businesses" },
     { id: "prospects", label: "Prospects" },
+    { id: "review_queue", label: "Review Queue" },
     { id: "websites", label: "Websites" },
     { id: "proposals", label: "Proposals" },
     { id: "crm", label: "CRM Sync" }

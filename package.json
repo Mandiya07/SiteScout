@@ -8,7 +8,22 @@
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "tsx src/test/qualityGate.ts --quick",
+    "test:unit": "tsx src/test/unit.test.ts",
+    "test:integration": "tsx src/test/integration.test.ts",
+    "test:e2e": "tsx src/test/e2e.test.ts",
+    "test:regressions": "tsx src/test/regressions.test.ts",
+    "test:security": "tsx firestore.rules.test.ts",
+    "test:scenarios": "tsx src/test/e2e.test.ts",
+    "test:qa": "tsx src/lib/qaSuite.test.ts",
+    "test:performance": "tsx src/test/performanceLoad.test.ts",
+    "test:recovery": "tsx src/test/deploymentRecovery.test.ts",
+    "test:discovery": "tsx src/test/realBusinessDiscovery.test.ts",
+    "test:sales": "tsx src/test/outreachCrmSales.test.ts",
+    "test:onboarding": "tsx src/test/customerOnboardingWebsiteDelivery.test.ts",
+    "test:billing": "tsx src/test/subscriptionBillingSandbox.test.ts",
+    "gate:check": "tsx src/test/qualityGate.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

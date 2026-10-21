@@ -1,33 +1,71 @@
 import { GeneratedSite } from "../types";
 
 /**
- * Generates a cryptographically secure, unpredictable, 48-hex-character token
- * for public previews and share links.
+ * Generates a cryptographically secure, unpredictable, 64-hex-character token
+ * (256 bits of cryptographic entropy) for public previews and share links.
+ * Strictly avoids Math.random() and fails safely if secure randomness is unavailable.
  */
-export function generateSecurePreviewToken(): string {
-  if (typeof window !== "undefined" && window.crypto && window.crypto.getRandomValues) {
-    const buffer = new Uint8Array(24);
-    window.crypto.getRandomValues(buffer);
+export function generateSecurePreviewToken(bytes: number = 32): string {
+  // 1. Browser or Modern Node globalThis.crypto
+  if (typeof globalThis !== "undefined" && globalThis.crypto?.getRandomValues) {
+    const buffer = new Uint8Array(bytes);
+    globalThis.crypto.getRandomValues(buffer);
     return Array.from(buffer)
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
   }
-  // Safe Node.js or fallback execution
-  const chars = "abcdef0123456789";
-  let token = "";
-  for (let i = 0; i < 48; i++) {
-    token += chars.charAt(Math.floor(Math.random() * chars.length));
+
+  // 2. Safe Node.js crypto module fallback
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const nodeCrypto = require("crypto");
+    if (nodeCrypto && typeof nodeCrypto.randomBytes === "function") {
+      return nodeCrypto.randomBytes(bytes).toString("hex");
+    }
+  } catch {
+    // Not running in Node.js or require disallowed
   }
-  return token;
+
+  // Strictly fail safely rather than falling back to weak pseudo-random generation
+  throw new Error("Cryptographically secure random number generator is unavailable. Token generation aborted.");
 }
 
 /**
  * Validates whether a given string is a securely formed preview token or UUID.
+ * Strictly prevents path traversal, injection characters, or malformed queries.
  */
 export function isValidPreviewToken(token?: string): boolean {
   if (!token || typeof token !== "string") return false;
-  // Alphanumeric, hyphens, underscores between 16 and 64 characters
+  // Strictly alphanumeric, hyphens, and underscores between 16 and 64 characters
   return /^[a-zA-Z0-9_-]{16,64}$/.test(token);
+}
+
+/**
+ * Validates that a token meets cryptographic hex standards (48-64 hex chars).
+ */
+export function isCryptographicToken(token?: string): boolean {
+  if (!token || typeof token !== "string") return false;
+  return /^[a-f0-9]{48,64}$/i.test(token);
+}
+
+/**
+ * Checks whether a preview record has an expiration timestamp and is past expiry.
+ */
+export function isTokenExpired(previewData?: { expiresAt?: string | null; [key: string]: any }): boolean {
+  if (!previewData?.expiresAt) return false;
+  const expiryTime = new Date(previewData.expiresAt).getTime();
+  if (isNaN(expiryTime)) return false;
+  return Date.now() > expiryTime;
+}
+
+/**
+ * Redacts a preview token for safe logging without exposing sensitive secret entropy.
+ * Example: 'a1b2c3d4...9z8y' -> 'a1b2c3...9z8y'
+ */
+export function maskToken(token?: string): string {
+  if (!token || typeof token !== "string") return "[invalid-token]";
+  if (token.length <= 8) return "[redacted]";
+  return `${token.slice(0, 6)}...${token.slice(-4)}`;
 }
 
 /**
@@ -96,7 +134,7 @@ export function sanitizePublicPreview(site: GeneratedSite): Record<string, any> 
     testimonials: Array.isArray(site.testimonials) ? site.testimonials.map((t) => ({
       name: t.name || "",
       review: t.review || "",
-      rating: typeof t.rating === "number" ? t.rating : 5,
+      rating: typeof t.rating === "number" ? Math.max(0, Math.min(5, t.rating)) : 0,
       isVerified: t.isVerified === true
     })) : [],
     blog: Array.isArray(site.blog) ? site.blog.map((b) => ({
@@ -116,13 +154,123 @@ export function sanitizePublicPreview(site: GeneratedSite): Record<string, any> 
     logoUrl: site.logoUrl || "",
     logoType: site.logoType || "text",
     logoIcon: site.logoIcon || "",
-    sectionsOrder: site.sectionsOrder || [],
-    clientApproved: Boolean(site.clientApproved),
-    clientApprovedBy: site.clientApprovedBy || "",
-    clientApprovedAt: site.clientApprovedAt || "",
-    clientFeedback: Array.isArray(site.clientFeedback) ? site.clientFeedback : [],
-    previewViews: site.previewViews || 0,
-    previewLastViewedAt: site.previewLastViewedAt || ""
-    // Notice: userId, ownerId, internal notes, opportunityScore, deficits, salesStatus are NOT included.
+    sectionsOrder: site.sectionsOrder || []
+    // CRITICAL SECURITY BOUNDARY:
+    // userId, ownerId, clientApproved, clientApprovedBy, clientApprovedAt, clientFeedback,
+    // previewViews, previewLastViewedAt, previewHistory, truthProfile, presence, deficits,
+    // opportunityScore, prospectStatus, salesStage, evidence, and internal notes MUST NEVER BE EXPOSED.
   };
 }
+
+/**
+ * Explicit allowlist of permissible public telemetry event types.
+ */
+export const ALLOWED_TELEMETRY_EVENTS = [
+  "PREVIEW_VIEWED",
+  "PREVIEW_OPENED",
+  "CTA_CLICKED",
+  "CONTACT_LINK_CLICKED",
+  "SECTION_VIEWED",
+  "WHATSAPP_CLICKED",
+  "PHONE_CLICKED",
+  "EMAIL_CLICKED",
+  "FORM_SUBMITTED"
+] as const;
+
+export type AllowedTelemetryEvent = typeof ALLOWED_TELEMETRY_EVENTS[number];
+
+/**
+ * Validates whether an event type is included in the explicitly allowed public telemetry allowlist.
+ * Case-insensitive match against canonical allowed events.
+ */
+export function isAllowedTelemetryEvent(eventType?: string): boolean {
+  if (!eventType || typeof eventType !== "string") return false;
+  const normalized = eventType.trim().toUpperCase();
+  return (ALLOWED_TELEMETRY_EVENTS as readonly string[]).includes(normalized);
+}
+
+/**
+ * Normalizes an event type string to uppercase canonical format if allowed.
+ */
+export function normalizeTelemetryEventType(eventType: string): string {
+  if (!isAllowedTelemetryEvent(eventType)) {
+    throw new Error(`Invalid telemetry event type: ${eventType}`);
+  }
+  return eventType.trim().toUpperCase();
+}
+
+/**
+ * Sanitizes and normalizes incoming telemetry event metadata.
+ * Strips client-supplied owner IDs, user IDs, timestamps, and view counts.
+ * Restricts key count (max 10) and field lengths (max 200 chars).
+ */
+export function sanitizeTelemetryMetadata(metadata: any): Record<string, string | number | boolean> {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return {};
+  }
+
+  const forbiddenKeys = [
+    "ownerid",
+    "userid",
+    "timestamp",
+    "createdat",
+    "id",
+    "previewviews",
+    "views",
+    "viewscount"
+  ];
+  const sanitized: Record<string, string | number | boolean> = {};
+  const entries = Object.entries(metadata).slice(0, 10);
+
+  for (const [key, value] of entries) {
+    const cleanKey = key.trim().toLowerCase().slice(0, 50);
+    if (!cleanKey || forbiddenKeys.includes(cleanKey)) continue;
+
+    if (typeof value === "string") {
+      sanitized[cleanKey] = value.trim().slice(0, 200);
+    } else if (typeof value === "number") {
+      if (isFinite(value)) sanitized[cleanKey] = value;
+    } else if (typeof value === "boolean") {
+      sanitized[cleanKey] = value;
+    }
+  }
+
+  return sanitized;
+}
+
+interface RateLimitBucket {
+  count: number;
+  resetAt: number;
+}
+
+const rateLimitMap = new Map<string, RateLimitBucket>();
+
+/**
+ * Server-side memory rate limiter for preview telemetry ingestion.
+ * Tracks request count per key (e.g. `${ip}:${token}`) over a sliding window.
+ * Returns true if under limit, false if limit exceeded.
+ */
+export function checkTelemetryRateLimit(key: string, limit: number = 30, windowMs: number = 60000): boolean {
+  const now = Date.now();
+  const bucket = rateLimitMap.get(key);
+
+  if (!bucket || now > bucket.resetAt) {
+    rateLimitMap.set(key, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+
+  if (bucket.count >= limit) {
+    return false;
+  }
+
+  bucket.count += 1;
+  return true;
+}
+
+/**
+ * Clears the telemetry rate limit map (used for test isolation).
+ */
+export function clearRateLimitMap(): void {
+  rateLimitMap.clear();
+}
+

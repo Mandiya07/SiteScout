@@ -54,6 +54,13 @@ export default function BusinessTruthProfileCard({
             BUSINESS-SUPPLIED
           </span>
         );
+      case "UNKNOWN":
+        return (
+          <span className="inline-flex items-center gap-1 text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-300/60 dark:border-slate-700">
+            <HelpCircle className="h-3 w-3 text-slate-500 shrink-0" />
+            UNKNOWN
+          </span>
+        );
       case "AI_DRAFT":
       default:
         return (
@@ -109,7 +116,8 @@ export default function BusinessTruthProfileCard({
       <div className="p-5 sm:p-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {items.map((item) => {
-            const level = item.level || (item.status === "confirmed" ? "VERIFIED" : "AI_DRAFT");
+            const level = item.level || (item.status === "CONFIRMED" || item.status === "confirmed" ? "VERIFIED" : "AI_DRAFT");
+            const displayVal = item.value !== null && item.value !== undefined ? String(item.value) : "Not available";
             return (
               <div
                 key={item.key}
@@ -118,6 +126,8 @@ export default function BusinessTruthProfileCard({
                     ? "bg-slate-50/70 dark:bg-slate-800/40 border-slate-200/80 dark:border-slate-800"
                     : level === "BUSINESS_SUPPLIED"
                     ? "bg-blue-50/40 dark:bg-blue-950/20 border-blue-200/80 dark:border-blue-900/40"
+                    : level === "UNKNOWN"
+                    ? "bg-slate-100/40 dark:bg-slate-900/40 border-slate-200/60 dark:border-slate-800/60"
                     : "bg-purple-50/40 dark:bg-purple-950/20 border-purple-200/80 dark:border-purple-900/40"
                 }`}
               >
@@ -128,8 +138,8 @@ export default function BusinessTruthProfileCard({
                   {getLevelBadge(level)}
                 </div>
 
-                <div className="mt-2 font-semibold text-xs text-slate-900 dark:text-slate-100 truncate">
-                  {item.value}
+                <div className={`mt-2 font-semibold text-xs truncate ${item.value === null ? "text-slate-400 italic font-normal" : "text-slate-900 dark:text-slate-100"}`}>
+                  {displayVal}
                 </div>
 
                 {item.notes && (
@@ -138,9 +148,11 @@ export default function BusinessTruthProfileCard({
                   </p>
                 )}
 
-                {item.source && (
-                  <div className="mt-1.5 text-[9px] font-mono text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                    <span>Source: {item.source}</span>
+                {(item.source || item.verificationMethod) && (
+                  <div className="mt-1.5 text-[9px] font-mono text-slate-400 dark:text-slate-500 flex flex-wrap items-center gap-1.5">
+                    {item.source && <span>Src: {item.source}</span>}
+                    {item.verificationMethod && <span>• Method: {item.verificationMethod}</span>}
+                    {typeof item.confidence === "number" && <span>({Math.round(item.confidence * 100)}%)</span>}
                   </div>
                 )}
               </div>

@@ -1,9 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Search, MapPin, ArrowRight, Filter, AlertCircle, Building2, 
   Download, Copy, Check, Sparkles, Layers, Phone, Globe, MessageSquare, 
   ShoppingBag, Calendar, Mail, Smartphone, ShieldAlert, Zap, SlidersHorizontal,
-  ChevronDown, Database, ExternalLink, CheckCircle2, XCircle
+  ChevronDown, Database, ExternalLink, CheckCircle2, XCircle, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { Business, SearchFilters, DigitalDeficitAudit } from '../types';
 
@@ -64,19 +64,19 @@ const LOCATION_PRESETS = [
 ];
 
 const DEFICIT_DEFINITIONS: { key: keyof DigitalDeficitAudit; label: string; icon: any; tip: string }[] = [
-  { key: "noWebsite", label: "No Website", icon: Globe, tip: "Zero web address or domain exists" },
-  { key: "outdatedWebsite", label: "Terrible/Outdated Web", icon: ShieldAlert, tip: "2000s era non-responsive design" },
-  { key: "noGooglePresence", label: "No Google Presence", icon: MapPin, tip: "Unclaimed or poor Google Maps profile" },
-  { key: "noSocialMedia", label: "No Social Media", icon: Layers, tip: "No active Facebook or Instagram pages" },
-  { key: "poorBranding", label: "Poor Branding", icon: Sparkles, tip: "No clean logo or low-res graphics" },
-  { key: "noWhatsappCta", label: "No WhatsApp CTA", icon: MessageSquare, tip: "Missing instant 1-click WhatsApp button" },
-  { key: "noOnlineCatalogue", label: "No Online Catalogue", icon: ShoppingBag, tip: "No visual product/service catalogue" },
-  { key: "noBookingSystem", label: "No Booking System", icon: Calendar, tip: "Lacks automated scheduling/reservations" },
-  { key: "noEnquiryForm", label: "No Enquiry Form", icon: Mail, tip: "No structured quote/lead generation form" },
-  { key: "noSeo", label: "No Local SEO", icon: Search, tip: "Missing search meta tags & keyword ranking" },
-  { key: "brokenLinks", label: "Broken Links/SSL", icon: XCircle, tip: "Insecure HTTP or broken internal links" },
-  { key: "poorMobileExperience", label: "Poor Mobile Exp", icon: Smartphone, tip: "Fails on smartphones & small screens" },
-  { key: "missingContact", label: "Missing Contact Info", icon: Phone, tip: "Missing direct email or verified phone" }
+  { key: "noWebsite", label: "No Website Discovered", icon: Globe, tip: "No registered website or active domain discovered in available sources" },
+  { key: "outdatedWebsite", label: "Outdated Web", icon: ShieldAlert, tip: "Legacy HTML markup on inspected page" },
+  { key: "noGooglePresence", label: "Unverified Search", icon: MapPin, tip: "Missing OpenGraph / search metadata" },
+  { key: "noSocialMedia", label: "No Social Links", icon: Layers, tip: "No social links detected on inspected page" },
+  { key: "poorBranding", label: "Unverified Brand", icon: Sparkles, tip: "Missing high-res brand assets" },
+  { key: "noWhatsappCta", label: "No WhatsApp CTA", icon: MessageSquare, tip: "No WhatsApp link detected on inspected page" },
+  { key: "noOnlineCatalogue", label: "No Catalogue", icon: ShoppingBag, tip: "No service keywords detected on inspected page" },
+  { key: "noBookingSystem", label: "No Booking Link", icon: Calendar, tip: "No booking mechanism detected on inspected page" },
+  { key: "noEnquiryForm", label: "No Enquiry Form", icon: Mail, tip: "No quote form detected on inspected page" },
+  { key: "noSeo", label: "Incomplete SEO", icon: Search, tip: "Incomplete SEO title/meta description tags" },
+  { key: "brokenLinks", label: "Broken Host / Links", icon: XCircle, tip: "Tested link returned HTTP error" },
+  { key: "poorMobileExperience", label: "Mobile Rendering", icon: Smartphone, tip: "Mobile quality UNKNOWN (untested)" },
+  { key: "missingContact", label: "No Contact Links", icon: Phone, tip: "No tel: or mailto: links detected on page" }
 ];
 
 export default function BusinessFinder({ businesses, loading, onSearch, onAnalyze }: BusinessFinderProps) {
@@ -100,6 +100,8 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
   const [sortOrder, setSortOrder] = useState<'deficits_desc' | 'rating_desc' | 'rating_asc' | 'score_asc'>('deficits_desc');
   const [copiedExport, setCopiedExport] = useState(false);
   const [showFiltersPanel, setShowFiltersPanel] = useState(true);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(20);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,27 +152,37 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
   const branchACount = useMemo(() => businesses.filter(b => b.presence?.hasWebsite || b.pipelineBranch === "BRANCH_A_WEBSITE_AUDITED").length, [businesses]);
   const branchBCount = useMemo(() => businesses.filter(b => (!b.presence?.hasWebsite) || b.pipelineBranch === "BRANCH_B_CANDIDATE_VERIFIED").length, [businesses]);
 
-  // Helper to extract or fallback deficits
+  // Memoized deficit cache using WeakMap for optimal garbage collection and rendering performance
+  const deficitCache = useMemo(() => new WeakMap<Business, DigitalDeficitAudit>(), []);
+
+  // Helper to extract or fallback deficits with single-pass caching
   const getBusinessDeficits = (biz: Business): DigitalDeficitAudit => {
+    const cached = deficitCache.get(biz);
+    if (cached) return cached;
+
+    let defs: DigitalDeficitAudit;
     if (biz.presence?.deficits) {
-      return biz.presence.deficits;
+      defs = biz.presence.deficits;
+    } else {
+      // Fallback based on presence flags
+      defs = {
+        noWebsite: !biz.presence?.hasWebsite,
+        outdatedWebsite: false,
+        noGooglePresence: biz.presence?.googleProfileQuality === 'poor',
+        noSocialMedia: biz.presence?.facebookStatus === 'none' && biz.presence?.instagramStatus === 'none',
+        poorBranding: biz.presence?.photosStatus === 'missing' || biz.presence?.photosStatus === 'outdated',
+        noWhatsappCta: true,
+        noOnlineCatalogue: !biz.presence?.hasWebsite,
+        noBookingSystem: true,
+        noEnquiryForm: !biz.presence?.hasEmail,
+        noSeo: !biz.presence?.hasWebsite,
+        brokenLinks: false,
+        poorMobileExperience: false,
+        missingContact: !biz.presence?.hasEmail || biz.presence?.contactCompleteness === 'missing'
+      };
     }
-    // Fallback based on presence flags
-    return {
-      noWebsite: !biz.presence?.hasWebsite,
-      outdatedWebsite: false,
-      noGooglePresence: biz.presence?.googleProfileQuality === 'poor',
-      noSocialMedia: biz.presence?.facebookStatus === 'none' && biz.presence?.instagramStatus === 'none',
-      poorBranding: biz.presence?.photosStatus === 'missing' || biz.presence?.photosStatus === 'outdated',
-      noWhatsappCta: true,
-      noOnlineCatalogue: !biz.presence?.hasWebsite,
-      noBookingSystem: true,
-      noEnquiryForm: !biz.presence?.hasEmail,
-      noSeo: !biz.presence?.hasWebsite,
-      brokenLinks: !biz.presence?.hasWebsite,
-      poorMobileExperience: !biz.presence?.hasWebsite,
-      missingContact: !biz.presence?.hasEmail || biz.presence?.contactCompleteness === 'missing'
-    };
+    deficitCache.set(biz, defs);
+    return defs;
   };
 
   const filteredAndSortedBusinesses = useMemo(() => {
@@ -213,14 +225,26 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
     });
 
     return result;
-  }, [businesses, dataTypeFilter, branchFilter, noWebsiteOnly, activeDeficitFilters, sortOrder]);
+  }, [businesses, dataTypeFilter, branchFilter, noWebsiteOnly, activeDeficitFilters, sortOrder, deficitCache]);
+
+  // Reset page when filter criteria change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [dataTypeFilter, branchFilter, noWebsiteOnly, activeDeficitFilters, sortOrder, pageSize]);
+
+  // High-performance client-side pagination slicing
+  const totalPages = Math.max(1, Math.ceil(filteredAndSortedBusinesses.length / pageSize));
+  const paginatedBusinesses = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredAndSortedBusinesses.slice(start, start + pageSize);
+  }, [filteredAndSortedBusinesses, currentPage, pageSize]);
 
   const totalDeficitsCount = useMemo(() => {
     return filteredAndSortedBusinesses.reduce((acc, b) => {
       const count = b.deficitCount ?? Object.values(getBusinessDeficits(b)).filter(Boolean).length;
       return acc + count;
     }, 0);
-  }, [filteredAndSortedBusinesses]);
+  }, [filteredAndSortedBusinesses, deficitCache]);
 
   // Export Sales List Handler
   const handleExportSalesList = (format: 'csv' | 'text' | 'json') => {
@@ -442,7 +466,7 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
                   onChange={(e) => setNoWebsiteOnly(e.target.checked)}
                   className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
                 />
-                <span>"No Website" Only</span>
+                <span>"No Website Discovered" Only</span>
               </label>
             </div>
           </div>
@@ -490,7 +514,7 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
               <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 max-w-3xl leading-relaxed">
                 Real business records flow through a deterministic verification pipeline: 
                 <strong> Branch A</strong> (Website URL detected) triggers a live technical audit &amp; objective deficit diagnosis; 
-                <strong> Branch B</strong> (No website) triggers directory candidate verification before generating an instant custom website.
+                <strong> Branch B</strong> (No website discovered) triggers directory candidate verification before generating an instant custom website.
               </p>
             </div>
           </div>
@@ -542,7 +566,7 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
                 <div className="flex items-center gap-2 mb-2">
                   <span className="h-6 w-6 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 text-xs font-bold flex items-center justify-center">B</span>
                   <h5 className="text-xs font-extrabold text-slate-900 dark:text-white uppercase tracking-wider">
-                    Branch B: No Website Found (Greenfield Pipeline)
+                    Branch B: No Website Discovered (Greenfield Pipeline)
                   </h5>
                 </div>
                 <div className="space-y-2 text-[11px] text-slate-600 dark:text-slate-300">
@@ -560,7 +584,7 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="w-4 text-center font-bold text-emerald-500">4</span>
-                    <span><strong>Instant Website Generation:</strong> Builds custom prototype with real verified business info.</span>
+                    <span><strong>Instant Website Generation:</strong> Builds custom prototype anchored on source-backed business info.</span>
                   </div>
                 </div>
               </div>
@@ -771,7 +795,7 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
                 title="Businesses with zero website → Candidate verified for instant tailored prototype build"
               >
                 <Zap className="w-3.5 h-3.5" />
-                Branch B: No Website ({branchBCount})
+                Branch B: No Website Discovered ({branchBCount})
               </button>
             </div>
 
@@ -803,7 +827,7 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
                   onClick={() => setDataTypeFilter('real')}
                   className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shrink-0 cursor-pointer shadow-xs transition-colors"
                 >
-                  View Only Live Verified ({realCount})
+                  View Only Live Records ({realCount})
                 </button>
               )}
             </div>
@@ -821,7 +845,7 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {filteredAndSortedBusinesses.map((biz) => {
+                {paginatedBusinesses.map((biz) => {
                   const defs = getBusinessDeficits(biz);
                   const defCount = biz.deficitCount ?? Object.values(defs).filter(Boolean).length;
                   const score = biz.presenceScore ?? 40;
@@ -856,12 +880,12 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
                                   ⚠️ Demo / Synthetic Data
                                 </span>
                               ) : biz.verificationState === "CONTACT_READY" ? (
-                                <span className="inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-md font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40" title="Identity, contact phone, and website status independently verified and ready for outreach.">
+                                <span className="inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-md font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40" title="Identity, contact phone, and website status verified via directory source checks and ready for outreach.">
                                   <CheckCircle2 className="h-2.5 w-2.5" /> Contact Ready
                                 </span>
-                              ) : biz.verificationState === "VERIFIED" || biz.evidence?.verificationStatus === "verified_live_listing" ? (
-                                <span className="inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-md font-bold bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/40" title="SiteScout has validated the business identity and contact information.">
-                                  <CheckCircle2 className="h-2.5 w-2.5" /> Verified Lead
+                              ) : biz.verificationState === "VERIFIED" || biz.evidence?.verificationStatus === "verified_live_listing" || biz.evidence?.verificationStatus === "source_backed" ? (
+                                <span className="inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-md font-bold bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/40" title="Business citation and contact details matched against source.">
+                                  <CheckCircle2 className="h-2.5 w-2.5" /> Source-Backed
                                 </span>
                               ) : biz.verificationState === "CANDIDATE" ? (
                                 <span className="inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-md font-bold bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/40" title="Discovered in directory listings. Audit recommended to verify contact line and operating status.">
@@ -879,7 +903,7 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
                                 </span>
                               ) : (!isDemo) ? (
                                 <span className="inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-md font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800/40">
-                                  <Zap className="h-2.5 w-2.5" /> Branch B: Verified (No Web)
+                                  <Zap className="h-2.5 w-2.5" /> Branch B: No Web Discovered
                                 </span>
                               ) : null}
                               {biz.sourceUrl && (
@@ -921,7 +945,7 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
                           <div className="flex flex-wrap gap-1 max-w-sm">
                             {defs.noWebsite && (
                               <span className="rounded bg-red-50 px-1.5 py-0.2 text-[9px] font-bold text-red-700 dark:bg-red-950/40 dark:text-red-400 border border-red-100 dark:border-red-900/40">
-                                No Website
+                                No Website Discovered
                               </span>
                             )}
                             {defs.noWhatsappCta && (
@@ -957,14 +981,14 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
                         <div>
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                              Opp Score: {biz.opportunityScore ?? (100 - score)}%
+                              Opp Score: {biz.opportunityScore ?? 65}%
                             </span>
                             <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
-                              (biz.opportunityScore ?? (100 - score)) >= 85 
+                              (biz.opportunityScore ?? 65) >= 80 
                                 ? "text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300" 
                                 : "text-blue-700 bg-blue-50 dark:bg-blue-950/40 dark:text-blue-300"
                             }`}>
-                              {(biz.opportunityScore ?? (100 - score)) >= 85 ? "🔥 Prime Opportunity" : "⚡ Strong Lead"}
+                              {(biz.opportunityScore ?? 65) >= 80 ? "🔥 Prime Opportunity" : "⚡ Strong Lead"}
                             </span>
                           </div>
                           <p className="text-[10px] text-slate-400 mt-1">
@@ -1037,28 +1061,68 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
           </div>
 
           {filteredAndSortedBusinesses.length > 0 && (
-            <div className="flex justify-center py-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20 rounded-b-3xl">
-              <button
-                type="button"
-                disabled={loading}
-                onClick={handleLoadMore}
-                className="inline-flex items-center gap-2 px-6 py-3 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 active:scale-95 disabled:opacity-50 disabled:pointer-events-none transition-all cursor-pointer shadow-xs"
-              >
-                {loading ? (
-                  <>
-                    <svg className="animate-spin h-4 w-4 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span>Loading next page...</span>
-                  </>
-                ) : (
-                  <>
-                    <Database className="h-4 w-4 text-indigo-500" />
-                    <span>Load More Prospects (Page {filters.page ? filters.page + 1 : 2})</span>
-                  </>
-                )}
-              </button>
+            <div className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20 rounded-b-3xl p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+                <span>
+                  Showing <strong className="text-slate-800 dark:text-slate-200">{(currentPage - 1) * pageSize + 1}</strong> to <strong className="text-slate-800 dark:text-slate-200">{Math.min(currentPage * pageSize, filteredAndSortedBusinesses.length)}</strong> of <strong className="text-slate-800 dark:text-slate-200">{filteredAndSortedBusinesses.length}</strong> prospects
+                </span>
+                <span className="text-slate-300 dark:text-slate-700">|</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px]">Per page:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-slate-700 dark:text-slate-300 cursor-pointer"
+                  >
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={currentPage <= 1}
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:pointer-events-none transition-colors cursor-pointer shadow-xs"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" /> Previous
+                </button>
+
+                <span className="text-xs font-bold px-2 text-slate-600 dark:text-slate-400">
+                  Page {currentPage} of {totalPages}
+                </span>
+
+                <button
+                  type="button"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:pointer-events-none transition-colors cursor-pointer shadow-xs"
+                >
+                  Next <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={handleLoadMore}
+                  className="ml-2 inline-flex items-center gap-1.5 px-3 py-1.5 border border-indigo-200 dark:border-indigo-800/80 rounded-xl text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50/70 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 disabled:opacity-50 disabled:pointer-events-none transition-all cursor-pointer shadow-xs"
+                  title="Query next page from directory data providers"
+                >
+                  {loading ? (
+                    <span className="animate-spin h-3.5 w-3.5 border-2 border-indigo-600 border-t-transparent rounded-full" />
+                  ) : (
+                    <Database className="h-3.5 w-3.5 text-indigo-500" />
+                  )}
+                  <span>Fetch More</span>
+                </button>
+              </div>
             </div>
           )}
         </div>

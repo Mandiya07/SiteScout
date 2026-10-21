@@ -39,19 +39,9 @@ export default function WebsiteEditor({
   onSave,
   onPublish
 }: WebsiteEditorProps) {
-  // Initialize state with fallback layout parameters
+  // Initialize state with canonical schema parameters
   const [site, setSite] = useState<GeneratedSite>(() => {
-    const s = { ...initialSite };
-    if (!s.sectionsOrder) {
-      s.sectionsOrder = ["hero", "features", "services", "about", "testimonials", "faqs", "gallery", "blog", "contact"];
-    }
-    if (!s.logoType) {
-      s.logoType = "text";
-    }
-    if (!s.logoIcon) {
-      s.logoIcon = "Sparkles";
-    }
-    return s;
+    return normalizeWebsiteSchema(initialSite);
   });
 
   const [viewport, setViewport] = useState<"desktop" | "mobile" | "seo">("desktop");
@@ -128,14 +118,19 @@ export default function WebsiteEditor({
   ]);
   const [historyIndex, setHistoryIndex] = useState<number>(0);
 
-  // Helper to append a state checkpoint
+  const MAX_HISTORY_DEPTH = 30;
+
+  // Helper to append a state checkpoint with bounded memory footprint
   const commitHistory = (newSite: GeneratedSite) => {
     const cleanedHistory = history.slice(0, historyIndex + 1);
     const lastState = cleanedHistory[cleanedHistory.length - 1];
     
     // Check if anything has actually changed
     if (JSON.stringify(lastState) !== JSON.stringify(newSite)) {
-      const nextHistory = [...cleanedHistory, JSON.parse(JSON.stringify(newSite))];
+      let nextHistory = [...cleanedHistory, JSON.parse(JSON.stringify(newSite))];
+      if (nextHistory.length > MAX_HISTORY_DEPTH) {
+        nextHistory = nextHistory.slice(nextHistory.length - MAX_HISTORY_DEPTH);
+      }
       setHistory(nextHistory);
       setHistoryIndex(nextHistory.length - 1);
     }
@@ -234,7 +229,7 @@ export default function WebsiteEditor({
   const addService = () => {
     const updatedServices = [
       ...site.services,
-      { title: "New Custom Service Offered", description: "Premium service details customized for client requirements.", price: "$149" }
+      { title: "New Custom Service Offered", description: "Premium service details customized for client requirements.", price: "Request a Quote" }
     ];
     handleSiteUpdate({ ...site, services: updatedServices }, false);
   };
@@ -445,7 +440,7 @@ export default function WebsiteEditor({
           </section>
         );
       case "testimonials":
-        return site.testimonials && (
+        return (site.testimonials && site.testimonials.length > 0) ? (
           <section key="testimonials" className="p-6 max-w-2xl mx-auto">
             <h3 className={`text-center text-sm font-bold text-slate-800 mb-5 ${getFontFamilyClass(site.fontStyle)}`} style={{ color: site.primaryColor }}>
               What Our Clients Say
@@ -453,18 +448,20 @@ export default function WebsiteEditor({
             <div className="grid gap-4 sm:grid-cols-2">
               {site.testimonials.map((test, i) => (
                 <div key={i} className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm text-left dark:bg-slate-950 dark:border-slate-800">
-                  <div className="flex items-center gap-1 mb-2">
-                    {Array.from({ length: 5 }).map((_, j) => (
-                      <svg key={j} className={`w-3 h-3 ${j < test.rating ? 'text-amber-400' : 'text-slate-200'}`} fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
-                    ))}
-                  </div>
+                  {test.rating > 0 && (
+                    <div className="flex items-center gap-1 mb-2">
+                      {Array.from({ length: 5 }).map((_, j) => (
+                        <svg key={j} className={`w-3 h-3 ${j < test.rating ? 'text-amber-400' : 'text-slate-200'}`} fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
+                      ))}
+                    </div>
+                  )}
                   <p className="text-[10px] text-slate-600 italic mb-2 leading-relaxed font-sans">"{test.review}"</p>
                   <p className="text-xs font-bold text-slate-800 dark:text-slate-200 font-sans">- {test.name}</p>
                 </div>
               ))}
             </div>
           </section>
-        );
+        ) : null;
       case "faqs":
         return (
           <section key="faqs" className="p-6 bg-slate-50 max-w-2xl mx-auto rounded-t-2xl">
@@ -580,9 +577,25 @@ export default function WebsiteEditor({
           </div>
 
           <div>
-            <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-              Live Preview Builder <span className="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.2 rounded font-semibold dark:bg-blue-900/30 dark:text-blue-300">Editor</span>
-            </h2>
+            <div className="flex items-center gap-1.5">
+              <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+                Live Preview Builder
+              </h2>
+              <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded dark:bg-blue-950 dark:text-blue-300 dark:border-blue-900">
+                v{site.currentVersion || site.version || 1}
+              </span>
+              {site.previewApprovalStatus && (
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                  site.previewApprovalStatus === "APPROVED" 
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900"
+                    : site.previewApprovalStatus === "CHANGES_REQUESTED"
+                    ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900"
+                    : "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
+                }`}>
+                  {site.previewApprovalStatus.replace(/_/g, " ")}
+                </span>
+              )}
+            </div>
             <p className="text-[10px] text-slate-500 dark:text-slate-400">Editing structure for: {site.businessName}</p>
           </div>
         </div>
@@ -1388,34 +1401,67 @@ export default function WebsiteEditor({
                     Edit the AI-generated testimonials or replace them with real client feedback.
                   </p>
                 </div>
-                {site.testimonials?.map((t, i) => (
-                   <div key={i} className="space-y-2 rounded-xl border border-slate-100 p-3.5 dark:border-slate-800 bg-slate-50/20">
-                     <input 
-                       type="text" 
-                       value={t.name} 
-                       onChange={(e) => {
-                         const newT = [...(site.testimonials || [])];
-                         newT[i].name = e.target.value;
-                         handleSiteUpdate({ ...site, testimonials: newT }, true);
-                       }} 
-                       onBlur={() => commitHistory(site)}
-                       className="w-full rounded border border-slate-200 px-2 py-1 text-xs font-bold dark:border-slate-800 dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none" 
-                       placeholder="Reviewer Name" 
-                     />
-                     <textarea 
-                       value={t.review} 
-                       rows={3} 
-                       onChange={(e) => {
-                         const newT = [...(site.testimonials || [])];
-                         newT[i].review = e.target.value;
-                         handleSiteUpdate({ ...site, testimonials: newT }, true);
-                       }} 
-                       onBlur={() => commitHistory(site)}
-                       className="w-full rounded border border-slate-200 px-2 py-1 text-xs leading-relaxed dark:border-slate-800 dark:bg-slate-900 text-slate-600 dark:text-slate-300 focus:outline-none" 
-                       placeholder="Review Content" 
-                     />
-                   </div>
-                ))}
+                {!site.testimonials || site.testimonials.length === 0 ? (
+                  <div className="text-center py-8 px-4 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-900/10">
+                    <Star className="h-6 w-6 text-slate-300 dark:text-slate-700 mx-auto mb-2" />
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                      Customer reviews can be added when available.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {site.testimonials.map((t, i) => (
+                      <div key={i} className="space-y-2 rounded-xl border border-slate-100 p-3.5 dark:border-slate-800 bg-slate-50/20 relative group">
+                        <button
+                          onClick={() => {
+                            const newT = (site.testimonials || []).filter((_, idx) => idx !== i);
+                            handleSiteUpdate({ ...site, testimonials: newT, isUserSupplied: true }, false);
+                          }}
+                          className="absolute top-2.5 right-2.5 text-slate-400 hover:text-rose-500 transition-colors p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800"
+                          title="Delete Review"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                        <div className="pr-6">
+                          <input 
+                            type="text" 
+                            value={t.name} 
+                            onChange={(e) => {
+                              const newT = [...(site.testimonials || [])];
+                              newT[i].name = e.target.value;
+                              handleSiteUpdate({ ...site, testimonials: newT }, true);
+                            }} 
+                            onBlur={() => commitHistory(site)}
+                            className="w-full rounded border border-slate-200 px-2 py-1 text-xs font-bold dark:border-slate-800 dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none" 
+                            placeholder="Reviewer Name" 
+                          />
+                        </div>
+                        <textarea 
+                          value={t.review} 
+                          rows={3} 
+                          onChange={(e) => {
+                            const newT = [...(site.testimonials || [])];
+                            newT[i].review = e.target.value;
+                            handleSiteUpdate({ ...site, testimonials: newT }, true);
+                          }} 
+                          onBlur={() => commitHistory(site)}
+                          className="w-full rounded border border-slate-200 px-2 py-1 text-xs leading-relaxed dark:border-slate-800 dark:bg-slate-900 text-slate-600 dark:text-slate-300 focus:outline-none" 
+                          placeholder="Review Content" 
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button
+                  onClick={() => {
+                    const newT = [...(site.testimonials || [])];
+                    newT.push({ name: "New Client Feedback", review: "Highly professional service, strongly recommend!", rating: 5 });
+                    handleSiteUpdate({ ...site, testimonials: newT, isUserSupplied: true }, false);
+                  }}
+                  className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 focus:outline-none"
+                >
+                  <Plus className="h-3.5 w-3.5 text-slate-500" /> Add Custom Review
+                </button>
               </div>
             )}
 
@@ -1512,7 +1558,7 @@ export default function WebsiteEditor({
                   {site.seo.title || `${site.businessName} - Reliable Trade Professional`}
                 </h4>
                 <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-sans">
-                  {site.seo.description || "Expert services customized to your needs. Highly rated, local expertise, 24/7 client callbacks available."}
+                  {site.seo.description || "Expert services customized to your needs. Highly rated, local expertise, responsive client callbacks available."}
                 </p>
               </div>
 

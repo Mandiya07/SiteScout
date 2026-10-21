@@ -1,11 +1,12 @@
-import { useState } from "react";
-import { Business, ProspectStatus, GeneratedSite, CanonicalSalesStage } from "../types";
+import { useState, useMemo } from "react";
+import { Business, ProspectStatus, GeneratedSite, CanonicalSalesStage, QualificationStatus } from "../types";
 import { generateWhatsappLink } from "../lib/formatters";
 import { 
   Building2, Phone, MapPin, Globe, ArrowRight, MessageSquare, 
   Calendar, CheckCircle2, Clock, Flame, Filter, Plus, FileText, 
   Sparkles, ExternalLink, RefreshCw, XCircle, AlertCircle, Eye,
-  Check, ChevronRight, Mail, ShieldCheck, Zap, Layers, History
+  Check, ChevronRight, Mail, ShieldCheck, Zap, Layers, History,
+  Award, ArrowUpDown, ClipboardCheck
 } from "lucide-react";
 import DraftEmailModal from "./DraftEmailModal";
 import OpportunityScoreModal from "./OpportunityScoreModal";
@@ -14,8 +15,14 @@ import {
   CANONICAL_STAGES, 
   toCanonicalStage, 
   getStageMeta,
+  canonicalToProspectStatus,
   calculateExplainableOpportunityScore 
 } from "../lib/prospectCrm";
+import { 
+  evaluateProspectQualification, 
+  compareProspectPrioritization 
+} from "../lib/prospectQualification";
+import { buildProspectContactProfile } from "../lib/prospectContactValidation";
 
 interface ProspectPipelineProps {
   prospects: Business[];
@@ -24,6 +31,7 @@ interface ProspectPipelineProps {
   onOpenSalesAssistant: (business: Business) => void;
   onOpenProposal: (business: Business) => void;
   onViewAudit?: (business: Business) => void;
+  onOpenReviewQueue?: () => void;
   userSites: GeneratedSite[];
   userId?: string;
   userName?: string;
@@ -36,11 +44,14 @@ export default function ProspectPipeline({
   onOpenSalesAssistant,
   onOpenProposal,
   onViewAudit,
+  onOpenReviewQueue,
   userSites,
   userId,
   userName
 }: ProspectPipelineProps) {
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [qualificationFilter, setQualificationFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<"priority" | "opportunity" | "rating" | "name">("priority");
   const [dataTypeFilter, setDataTypeFilter] = useState<'all' | 'real' | 'demo'>('all');
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [editingNotesId, setEditingNotesId] = useState<string | null>(null);
@@ -57,29 +68,64 @@ export default function ProspectPipeline({
     return biz.isDemo === true || biz.dataType === "demo" || biz.evidence?.verificationStatus === "sample_demo";
   };
 
-  const realProspects = prospects.filter(p => !isDemoBiz(p));
-  const demoProspects = prospects.filter(p => isDemoBiz(p));
+  const realProspects = useMemo(() => prospects.filter(p => !isDemoBiz(p)), [prospects]);
+  const demoProspects = useMemo(() => prospects.filter(p => isDemoBiz(p)), [prospects]);
 
-  const filteredProspects = prospects.filter((p) => {
-    const isDemo = isDemoBiz(p);
-    if (dataTypeFilter === 'real' && isDemo) return false;
-    if (dataTypeFilter === 'demo' && !isDemo) return false;
+  const filteredProspects = useMemo(() => {
+    return prospects.filter((p) => {
+      const isDemo = isDemoBiz(p);
+      if (dataTypeFilter === 'real' && isDemo) return false;
+      if (dataTypeFilter === 'demo' && !isDemo) return false;
 
-    const canonicalStage = toCanonicalStage(p.salesStage || p.prospectStatus);
-    const matchesStatus = selectedStatus === "all" || canonicalStage === selectedStatus;
-    const matchesSearch = !searchTerm || 
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.address.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesStatus && matchesSearch;
-  });
+      const canonicalStage = toCanonicalStage(p.salesStage || p.prospectStatus);
+      const matchesStatus = selectedStatus === "all" || canonicalStage === selectedStatus;
+      
+      // Qualification filter
+      const qualStatus = p.qualificationStatus || p.qualificationResult?.status || evaluateProspectQualification(p).status;
+      const matchesQual = qualificationFilter === "all" || qualStatus === qualificationFilter;
+
+      const matchesSearch = !searchTerm || 
+        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.address.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchesStatus && matchesQual && matchesSearch;
+    }).sort((a, b) => {
+      if (sortBy === "priority") {
+        return compareProspectPrioritization(a, b);
+      }
+      if (sortBy === "opportunity") {
+        const oppA = a.opportunityScore ?? 0;
+        const oppB = b.opportunityScore ?? 0;
+        return oppB - oppA;
+      }
+      if (sortBy === "rating") {
+        const rA = a.rating ?? 0;
+        const rB = b.rating ?? 0;
+        return rB - rA;
+      }
+      if (sortBy === "name") {
+        return (a.name || "").localeCompare(b.name || "");
+      }
+      return 0;
+    });
+  }, [prospects, dataTypeFilter, selectedStatus, qualificationFilter, searchTerm, sortBy]);
 
   const handleStageChange = (business: Business, newStage: CanonicalSalesStage) => {
+    if (newStage === "WON") {
+      const confirmWon = window.confirm(
+        `Are you sure you want to mark deal "${business.name}" as CLOSED / WON? This is an explicit closure action.`
+      );
+      if (!confirmWon) return;
+    }
+
     const updated: Business = {
       ...business,
       salesStage: newStage,
-      prospectStatus: newStage === "WON" ? "Won" : (newStage === "LOST" ? "Lost" : (newStage === "PROPOSAL_SENT" ? "Proposal" : "Interested")),
-      lastContactedAt: ["PREVIEW_SENT", "PROPOSAL_SENT", "FOLLOW_UP_1", "FOLLOW_UP_2"].includes(newStage)
+      prospectStatus: canonicalToProspectStatus(newStage),
+      dealOutcome: newStage === "WON" ? "WON" : (newStage === "LOST" ? "LOST" : "OPEN"),
+      dealClosedAt: newStage === "WON" ? new Date().toISOString() : (newStage === "LOST" ? undefined : business.dealClosedAt),
+      dealClosedBy: newStage === "WON" ? (userName || "User") : business.dealClosedBy,
+      lastContactedAt: ["PREVIEW_SENT", "PROPOSAL_SENT", "FOLLOW_UP"].includes(newStage)
         ? new Date().toISOString()
         : business.lastContactedAt,
       updatedAt: new Date().toISOString()
@@ -148,19 +194,19 @@ export default function ProspectPipeline({
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
           <input
             type="text"
             placeholder="Search prospects..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="px-3.5 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 w-48 sm:w-64"
+            className="px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 w-40 sm:w-56"
           />
 
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
-            className="px-3.5 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            className="px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
           >
             <option value="all">All Stages ({prospects.length})</option>
             {CANONICAL_STAGES.map(s => {
@@ -172,6 +218,39 @@ export default function ProspectPipeline({
               );
             })}
           </select>
+
+          <select
+            value={qualificationFilter}
+            onChange={(e) => setQualificationFilter(e.target.value)}
+            className="px-3 py-2 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+          >
+            <option value="all">All Qualification</option>
+            <option value="QUALIFIED">Qualified</option>
+            <option value="NEEDS_REVIEW">Needs Review</option>
+            <option value="UNQUALIFIED">Unqualified</option>
+            <option value="DISQUALIFIED">Disqualified</option>
+          </select>
+
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="px-3 py-2 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+          >
+            <option value="priority">Sort: Priority Rank</option>
+            <option value="opportunity">Sort: Opportunity Score</option>
+            <option value="rating">Sort: Review Rating</option>
+            <option value="name">Sort: Name (A-Z)</option>
+          </select>
+
+          {onOpenReviewQueue && (
+            <button
+              onClick={onOpenReviewQueue}
+              className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-100 transition-colors flex items-center gap-1.5"
+            >
+              <ClipboardCheck className="w-3.5 h-3.5" />
+              Review Queue
+            </button>
+          )}
         </div>
       </div>
 
@@ -293,14 +372,18 @@ export default function ProspectPipeline({
             const canonicalStage = toCanonicalStage(biz.salesStage || biz.prospectStatus);
             const stageMeta = getStageMeta(canonicalStage);
             
-            // Calculate explainable score
+            // Calculate explainable score & qualification
             const scoreExplanation = calculateExplainableOpportunityScore(
               biz.presence, 
               biz.rating, 
               biz.reviewsCount, 
-              biz.name
+              biz.name,
+              biz.category,
+              biz.phone,
+              biz.evidence
             );
             const oppScore = scoreExplanation.totalScore;
+            const qualResult = biz.qualificationResult || evaluateProspectQualification(biz, scoreExplanation);
 
             return (
               <div 
@@ -314,9 +397,24 @@ export default function ProspectPipeline({
                       <span className="text-xs font-semibold uppercase tracking-wider px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
                         {biz.category}
                       </span>
+                      {/* Qualification Badge */}
+                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 border ${
+                        qualResult.status === "QUALIFIED"
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40"
+                          : qualResult.status === "NEEDS_REVIEW"
+                          ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/40"
+                          : qualResult.status === "DISQUALIFIED"
+                          ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/40"
+                          : "bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300"
+                      }`}>
+                        <Award className="w-2.5 h-2.5" />
+                        {qualResult.status}
+                        {qualResult.isManualOverride && <span title="Manual Override Active">*</span>}
+                      </span>
+
                       {isDemoBiz(biz) ? (
                         <span className="text-[9px] font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
-                          ⚠️ Demo / Synthetic Data
+                          ⚠️ Demo
                         </span>
                       ) : biz.verificationState === "CONTACT_READY" ? (
                         <span className="text-[9px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40 flex items-center gap-1">
@@ -349,19 +447,24 @@ export default function ProspectPipeline({
                     <h3 className="text-base font-bold text-slate-900 dark:text-white line-clamp-1">
                       {biz.name}
                     </h3>
-                    <button
-                      onClick={() => setScoreModalBiz(biz)}
-                      className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1 cursor-pointer transition-transform hover:scale-105 ${
-                        oppScore >= 80 
-                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
-                          : "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300"
-                      }`}
-                      title="Click to view explainable formula breakdown (55% Deficit + 45% Quality)"
-                    >
-                      <Zap className="w-3 h-3 fill-current" />
-                      <span>{oppScore}% Opp</span>
-                      <span className="text-[9px] font-normal underline opacity-80 ml-0.5">Explain</span>
-                    </button>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300" title={`Priority Rank: #${qualResult.prioritizationRank}`}>
+                        #{qualResult.prioritizationRank}
+                      </span>
+                      <button
+                        onClick={() => setScoreModalBiz(biz)}
+                        className={`text-[11px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 cursor-pointer transition-transform hover:scale-105 ${
+                          oppScore >= 80 
+                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                            : "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300"
+                        }`}
+                        title="Click to view explainable formula breakdown & qualification audit"
+                      >
+                        <Zap className="w-3 h-3 fill-current" />
+                        <span>{oppScore}% Opp</span>
+                        <span className="text-[9px] font-normal underline opacity-80 ml-0.5">Details</span>
+                      </button>
+                    </div>
                   </div>
 
                   {/* Location & Contact */}
@@ -370,14 +473,38 @@ export default function ProspectPipeline({
                       <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       <span className="truncate">{biz.address}</span>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span>{biz.phone}</span>
+                    <div className="flex items-center justify-between gap-1.5">
+                      <div className="flex items-center gap-1.5 truncate">
+                        <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="truncate">{biz.phone}</span>
+                      </div>
+                      {(() => {
+                        const cntProf = biz.contactProfile || buildProspectContactProfile(biz);
+                        const ph = cntProf.primaryPhone;
+                        if (!ph) return null;
+                        return (
+                          <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded shrink-0 ${
+                            ph.status === "VERIFIED"
+                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                              : ph.status === "FORMAT_VALID"
+                              ? "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300"
+                              : ph.status === "INVALID"
+                              ? "bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300"
+                              : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                          }`} title={`Contact Status: ${ph.status} (Source: ${ph.source})`}>
+                            {ph.status === "FORMAT_VALID" ? "Format Valid" : ph.status}
+                          </span>
+                        );
+                      })()}
                     </div>
                     <div className="flex items-center gap-1.5">
                       <Globe className="w-3.5 h-3.5 text-rose-500 shrink-0" />
                       <span className="text-rose-600 dark:text-rose-400 font-medium">
-                        {biz.presence?.hasWebsite ? "Outdated Website" : "No Website Found"}
+                        {biz.presence?.websiteStatus === "WEBSITE_CANDIDATE" || biz.presence?.websiteStatus === "UNREACHABLE"
+                          ? "Website Unreachable"
+                          : biz.presence?.hasWebsite 
+                          ? "Live Website Audited" 
+                          : "No Website Discovered"}
                       </span>
                     </div>
                   </div>
@@ -390,7 +517,7 @@ export default function ProspectPipeline({
                     >
                       <span className="text-slate-400 dark:text-slate-500 text-[10px] uppercase font-bold">Commercial Quality</span>
                       <span className="font-bold text-slate-800 dark:text-slate-200 mt-0.5">
-                        ⭐ {biz.rating || 4.2} ({biz.reviewsCount || 8} reviews)
+                        {biz.rating > 0 ? `⭐ ${biz.rating} (${biz.reviewsCount || 0} reviews)` : "Unrated / No reviews"}
                       </span>
                     </div>
                     <div 
@@ -401,6 +528,82 @@ export default function ProspectPipeline({
                       <span className="font-bold text-rose-600 dark:text-rose-400 mt-0.5">
                         {scoreExplanation.deficitItems.filter(i => i.detected).length} Deficits Detected
                       </span>
+                    </div>
+                  </div>
+
+                  {/* 4 Separated Lifecycle Dimensions Strip (Micro-Phase 8D) */}
+                  <div className="mt-3 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 space-y-1.5 text-[10px]">
+                    <div className="flex items-center justify-between font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider text-[9px]">
+                      <span>Lifecycle Tracker</span>
+                      <span className="font-mono text-slate-700 dark:text-slate-300">
+                        {biz.dealOutcome === "WON" ? "WON DEAL" : biz.dealOutcome === "LOST" ? "LOST" : "IN PIPELINE"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                      {/* Preview Approval Status */}
+                      <div className="flex items-center justify-between p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800">
+                        <span className="text-slate-500">Preview:</span>
+                        <span className={`font-bold px-1.5 py-0.2 rounded text-[9px] ${
+                          (biz.previewApprovalStatus || "PENDING") === "APPROVED"
+                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                            : (biz.previewApprovalStatus === "CHANGES_REQUESTED"
+                              ? "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                              : (biz.previewApprovalStatus === "REJECTED"
+                                ? "bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300"
+                                : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"))
+                        }`}>
+                          {biz.previewApprovalStatus || "PENDING"}
+                        </span>
+                      </div>
+
+                      {/* Contract Status */}
+                      <div className="flex items-center justify-between p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800">
+                        <span className="text-slate-500">Contract:</span>
+                        <span className={`font-bold px-1.5 py-0.2 rounded text-[9px] ${
+                          (biz.contractStatus || "NOT_SENT") === "SIGNED"
+                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                            : ((biz.contractStatus === "SENT")
+                              ? "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300"
+                              : (biz.contractStatus === "DECLINED"
+                                ? "bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300"
+                                : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"))
+                        }`}>
+                          {biz.contractStatus || "NOT_SENT"}
+                        </span>
+                      </div>
+
+                      {/* Payment Status */}
+                      <div className="flex items-center justify-between p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800">
+                        <span className="text-slate-500">Payment:</span>
+                        <span className={`font-bold px-1.5 py-0.2 rounded text-[9px] ${
+                          (biz.paymentStatus || "UNPAID") === "PAID"
+                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                            : (biz.paymentStatus === "PARTIALLY_PAID"
+                              ? "bg-cyan-100 text-cyan-800 dark:bg-cyan-950/60 dark:text-cyan-300"
+                              : (biz.paymentStatus === "PENDING"
+                                ? "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                                : (biz.paymentStatus === "REFUNDED"
+                                  ? "bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300"
+                                  : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400")))
+                        }`}>
+                          {biz.paymentStatus || "UNPAID"}
+                        </span>
+                      </div>
+
+                      {/* Deal Outcome */}
+                      <div className="flex items-center justify-between p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800">
+                        <span className="text-slate-500">Outcome:</span>
+                        <span className={`font-bold px-1.5 py-0.2 rounded text-[9px] ${
+                          (biz.dealOutcome || "OPEN") === "WON"
+                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                            : (biz.dealOutcome === "LOST"
+                              ? "bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300"
+                              : "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300")
+                        }`}>
+                          {biz.dealOutcome || "OPEN"}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -629,6 +832,11 @@ export default function ProspectPipeline({
           onAdvanceStage={(biz) => {
             onSelectBusinessForWebsite(biz);
           }}
+          onUpdateBusiness={(updated) => {
+            onUpdateProspect(updated);
+            setScoreModalBiz(updated);
+          }}
+          currentUser={{ uid: userId || "usr_sales_agent", displayName: userName || "Sales Agent" }}
         />
       )}
 

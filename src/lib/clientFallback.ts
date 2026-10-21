@@ -3,6 +3,7 @@ import { detectCountryFromLocation } from "./countryCurrency";
 import { getCategoryHeroImage } from "./heroImages";
 import { buildBusinessTruthProfile } from "./businessTruth";
 import { normalizeWebsiteSchema } from "./websiteSchema";
+import { calculateExplainableOpportunityScore } from "./prospectCrm";
 
 // Helper to compute deficit counts and scores on client fallback
 export function computeDefaultDeficits(presence: any): DigitalDeficitAudit {
@@ -17,8 +18,8 @@ export function computeDefaultDeficits(presence: any): DigitalDeficitAudit {
     noBookingSystem: true,
     noEnquiryForm: !presence?.hasEmail,
     noSeo: !presence?.hasWebsite,
-    brokenLinks: !presence?.hasWebsite,
-    poorMobileExperience: !presence?.hasWebsite,
+    brokenLinks: false,
+    poorMobileExperience: false,
     missingContact: !presence?.hasEmail || presence?.contactCompleteness === "missing"
   };
 }
@@ -71,7 +72,7 @@ function generateProceduralMockBusinesses(city: string, category: string, countr
     descs = ["Luxury bridal hair styling, dreadlock maintenance, weaves, braids, and scalp treatments.", "Precision hot towel fades, beard sculpting, facial treatments, and premium styling.", "Gel nails, acrylic extensions, organic pedicures, and soothing massage therapy.", "Deep cleansing facials, micro-needling, laser hair reduction, and chemical peels.", "Knotless braids, cornrows, wig customization, and hair coloring specialists."];
   } else if (c.includes("car") || c.includes("dealership") || c.includes("auto sales") || c.includes("vehicle") || c.includes("mechanic") || c.includes("auto repair") || c.includes("garage") || c.includes("workshop")) {
     nouns = ["Motors & Auto Dealership", "Auto Traders & Imports", "Prestige Auto Gallery", "Commercial Bakkie Centre", "Car Hub & Finance Centre", "DriveWise Motors", "Preowned Vehicle Market", "Performance Auto Group", "Precision Auto Workshop & Diagnostics", "Auto Electricians & Starter Repairs", "Gearbox & Suspension Specialists", "Diesel Injection & Turbo Centre", "Panel Beating & Spray Painting", "Mobile Fleet Mechanics & Roadside Rescue"];
-    descs = ["Certified pre-owned sedans, SUVs, double-cab bakkies, and vehicle finance assistance.", "Direct quality vehicle imports, commercial trucks, and trade-in evaluations.", "Luxury sports crossovers, professional detailing, and extensive warranty packages.", "Heavy duty 4WD pickups, mining fleet vehicles, and farm utility transport.", "Computerized engine diagnostics, brake overhaul, clutch repairs, and major vehicle servicing.", "Alternator rebuilds, vehicle wiring, ECU reprogramming, and alarm repairs.", "Automatic & manual transmission overhauls, shock absorber replacements, and wheel alignments."];
+    descs = ["Quality pre-owned sedans, SUVs, double-cab bakkies, and vehicle finance assistance.", "Direct quality vehicle imports, commercial trucks, and trade-in evaluations.", "Luxury sports crossovers, professional detailing, and extensive warranty packages.", "Heavy duty 4WD pickups, mining fleet vehicles, and farm utility transport.", "Computerized engine diagnostics, brake overhaul, clutch repairs, and major vehicle servicing.", "Alternator rebuilds, vehicle wiring, ECU reprogramming, and alarm repairs.", "Automatic & manual transmission overhauls, shock absorber replacements, and wheel alignments."];
   } else if (c.includes("construct") || c.includes("build") || c.includes("engineer") || c.includes("civil") || c.includes("contractor") || c.includes("trade") || c.includes("plumb") || c.includes("electric")) {
     nouns = ["Civil & Building Contractors", "Structural Engineering Ltd", "Build & Plant Hire", "Construction & Joinery", "Valley Builders & Civils", "Brick & Paving Works", "Infrastructure Group", "General Contractors", "Expert Plumbers & Drainlayers", "Commercial Electricians & Wiremen", "Roofing & Ceiling Specialists", "Tiling & Masonry Group"];
     descs = ["Full-scale commercial building, earthworks, and roofing infrastructure provider.", "Steel fabrication, residential developments, and project management specialists.", "Earthmoving plant hire, masonry, paving, and industrial civil contracts.", "Bespoke residential architectural buildouts, renovations, and structural woodwork.", "Emergency leak detection, hot water cylinder geyser installations, and blocked drain clearing.", "Industrial electrical certificates of compliance, solar inverter wiring, and light fittings."];
@@ -188,12 +189,12 @@ export function getClientMockBusinesses(city: string, category: string, country:
       ];
     } else if (c.includes("car") || c.includes("dealership") || c.includes("auto sales") || c.includes("vehicle")) {
       return [
-        { name: `${cityName} Motors & Auto Dealership`, addr: `Plot 84 Matsapha Highway, ${cityName}`, phoneSuffix: "52 8810", desc: `Certified pre-owned sedans, SUVs, double-cab bakkies, and vehicle finance assistance.` },
+        { name: `${cityName} Motors & Auto Dealership`, addr: `Plot 84 Matsapha Highway, ${cityName}`, phoneSuffix: "52 8810", desc: `Quality pre-owned sedans, SUVs, double-cab bakkies, and vehicle finance assistance.` },
         { name: `Kingdom Auto Traders & Imports`, addr: `King Mswati III Avenue, ${cityName}`, phoneSuffix: "99 3324", desc: `Direct Japanese and UK vehicle imports, commercial trucks, and trade-in evaluations.` },
         { name: `Apex Prestige Auto Gallery`, addr: `Somhlolo Road, ${cityName}`, phoneSuffix: "27 6651", desc: `Luxury German sedans, sports crossovers, detailing, and warranty packages.` },
         { name: `Highveld 4x4 Commercial Bakkie Centre`, addr: `Industrial Bypass, ${cityName}`, phoneSuffix: "83 1190", desc: `Heavy duty 4WD pickups, mining fleet vehicles, and farm utility transport.` },
         { name: `Swazi Car Hub & Finance Centre`, addr: `Dzeliwe Street, ${cityName}`, phoneSuffix: "41 7738", desc: `Affordable starter vehicles, flexible bank financing, and verified roadworthy certs.` },
-        { name: `DriveWise Motors`, addr: `Commercial Way Suite 2, ${cityName}`, phoneSuffix: "68 4402", desc: `Fast trade-ins, fleet disposals, quality hatchbacks, and certified multi-point inspection.` }
+        { name: `DriveWise Motors`, addr: `Commercial Way Suite 2, ${cityName}`, phoneSuffix: "68 4402", desc: `Fast trade-ins, fleet disposals, quality hatchbacks, and multi-point safety inspection.` }
       ];
     } else if (c.includes("construct") || c.includes("build") || c.includes("engineer") || c.includes("civil")) {
       return [
@@ -223,7 +224,7 @@ export function getClientMockBusinesses(city: string, category: string, country:
       return [
         { name: `${cityName} ${formattedCategory} Enterprises`, addr: `Main Commercial Bypass, ${cityName}`, phoneSuffix: "15 8820", desc: `Professional localized ${category} services with experienced personnel and guaranteed workmanship.` },
         { name: `Apex ${formattedCategory} Agency`, addr: `Corporate Suites Block C, ${cityName}`, phoneSuffix: "44 9210", desc: `Full-service ${category} solutions customized for corporate and individual residential requirements.` },
-        { name: `Elite ${formattedCategory} Specialists`, addr: `Somhlolo Road Office 12, ${cityName}`, phoneSuffix: "78 3045", desc: `Prompt and reliable ${category} support utilizing advanced equipment and certified processes.` },
+        { name: `Elite ${formattedCategory} Specialists`, addr: `Somhlolo Road Office 12, ${cityName}`, phoneSuffix: "78 3045", desc: `Prompt and reliable ${category} support utilizing advanced equipment and quality processes.` },
         { name: `Highveld ${formattedCategory} & Maintenance`, addr: `Industrial District Suite 8, ${cityName}`, phoneSuffix: "99 1122", desc: `Leading local contractor delivering commercial-grade ${category} works, safety inspections, and servicing.` },
         { name: `Kingdom ${formattedCategory} Co.`, addr: `Central Plaza ground level, ${cityName}`, phoneSuffix: "23 4567", desc: `Dependable and trusted ${category} provider in ${cityName} committed to absolute quality and customer satisfaction.` },
         { name: `Summit ${formattedCategory} Professionals`, addr: ` Ngwane Street Annex, ${cityName}`, phoneSuffix: "68 5542", desc: `Your premier destination for verified ${category} solutions, maintenance plans, and turnkey projects.` }
@@ -254,17 +255,25 @@ export function getClientMockBusinesses(city: string, category: string, country:
     const defs = computeDefaultDeficits(presence);
     const defCount = Object.values(defs).filter(Boolean).length;
     const presenceScore = calculatePresenceScore(presence, rating, reviewsCount);
+    const phone = `${phonePrefix} ${p.phoneSuffix}`;
 
-    const domainSlug = p.name.toLowerCase().replace(/[^a-z0-9]/g, "");
-    const domainExt = isEswatini ? "co.sz" : "com";
-    const businessEmail = `info@${domainSlug}.${domainExt}`;
+    const oppResult = calculateExplainableOpportunityScore(
+      { ...presence, deficits: defs },
+      rating,
+      reviewsCount,
+      p.name,
+      category,
+      phone
+    );
+
+    const businessEmail = null;
 
     return {
       id: `client_biz_${Date.now()}_${index}`,
       name: p.name,
       category: category,
       address: p.addr,
-      phone: `${phonePrefix} ${p.phoneSuffix}`,
+      phone,
       email: businessEmail,
       reviewsCount,
       rating,
@@ -276,14 +285,14 @@ export function getClientMockBusinesses(city: string, category: string, country:
       isDemo: true,
       dataType: "demo" as const,
       verificationState: "DEMO" as const,
-      salesStage: "NEW" as const,
+      salesStage: "DISCOVERED" as const,
       description: p.desc,
       deficitCount: defCount,
       presenceScore,
-      businessQualityScore: rating * 20,
-      digitalDeficitScore: defCount * 7.5,
-      websiteOpportunityScore: 100 - presenceScore,
-      opportunityScore: 100 - presenceScore,
+      businessQualityScore: oppResult.businessQualityScore,
+      digitalDeficitScore: oppResult.digitalDeficitScore,
+      websiteOpportunityScore: oppResult.totalScore,
+      opportunityScore: oppResult.totalScore,
       prospectStatus: "New",
       evidence: {
         checkedAt: new Date().toISOString(),
@@ -479,7 +488,7 @@ export function getIndustryDetails(category: string, city: string) {
       },
       {
         title: `Core ${category} Service`,
-        description: "Professional execution by our dedicated local team with certified workmanship.",
+        description: "Professional execution by our dedicated local team with guaranteed workmanship.",
         price: "Contact Us",
         imageUrl: "https://images.unsplash.com/photo-1521737711867-e3b97375f902?auto=format&fit=crop&w=800"
       },
@@ -550,7 +559,7 @@ export function generateClientMockSite(biz: Business): GeneratedSite {
     seo: {
       title: `${cleanBizName} | High-Quality ${biz.category} in ${addressCity}`,
       description: `Looking for reliable, professional ${biz.category} in ${addressCity}? Contact ${cleanBizName} today at ${biz.phone} for exceptional local service.`,
-      keywords: `${biz.category.toLowerCase()} ${addressCity.toLowerCase()}, reliable ${biz.category.toLowerCase()}, certified technician, same-day service`
+      keywords: `${biz.category.toLowerCase()} ${addressCity.toLowerCase()}, reliable ${biz.category.toLowerCase()}, qualified technician, responsive service`
     },
     hero: {
       title: industryConfig.heroTitle,
@@ -576,15 +585,13 @@ export function generateClientMockSite(biz: Business): GeneratedSite {
       { question: "How do you handle pricing?", answer: "We believe in complete transparency. We provide clear, itemized quotes before any work begins." },
       { question: "What areas do you serve?", answer: `We proudly serve ${addressCity} and the surrounding local communities.` }
     ],
-    testimonials: [
-      { name: "Customer Reviews Coming Soon", review: "Your verified customer reviews will appear here.", rating: 5, isVerified: false }
-    ],
+    testimonials: [],
     blog: [],
     whatsappMessage: `Hi ${cleanBizName}, I noticed your website and would love to get a quote/estimate for your local ${biz.category} services. Let me know when you are free!`,
     contactPage: {
       title: "Get In Touch Today",
       description: `Don't delay your essential property repairs. Call our active customer hotline directly or send an instant WhatsApp text.`,
-      email: `contact@${biz.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.com`
+      email: biz.email || null
     },
     privacyPolicy: "Consumer data is handled strictly in accordance with regional privacy guidelines.",
     termsOfService: "Service calls are subject to standard technician dispatch agreements.",

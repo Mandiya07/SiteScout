@@ -8,14 +8,24 @@ export interface DiscoverProspectsParams {
   city: string;
   category: string;
   country?: string;
+  keywords?: string;
+  page?: number;
   idToken?: string;
+  allowSandboxFallback?: boolean;
 }
 
 export interface DiscoverProspectsResponse {
+  success?: boolean;
   businesses: Prospect[];
   source: string;
   groundingUrls?: string[];
   error?: string;
+  errorCode?: string;
+  isEmpty?: boolean;
+  isCached?: boolean;
+  cachedAt?: string;
+  totalResults?: number;
+  retryAfterSeconds?: number;
 }
 
 export async function discoverProspectsApi(params: DiscoverProspectsParams): Promise<DiscoverProspectsResponse> {
@@ -32,13 +42,20 @@ export async function discoverProspectsApi(params: DiscoverProspectsParams): Pro
     body: JSON.stringify({
       city: params.city,
       category: params.category,
-      country: params.country || "South Africa"
+      country: params.country || "Eswatini",
+      keywords: params.keywords || "",
+      page: params.page || 1,
+      allowSandboxFallback: params.allowSandboxFallback ?? true
     })
   });
 
   if (!res.ok) {
     const errData = await res.json().catch(() => ({}));
-    throw new Error(errData.error || `Prospect discovery failed (${res.status})`);
+    const err = new Error(errData.error || `Prospect discovery failed (${res.status})`) as any;
+    err.errorCode = errData.errorCode;
+    err.status = res.status;
+    err.retryAfterSeconds = errData.retryAfterSeconds;
+    throw err;
   }
 
   return res.json();

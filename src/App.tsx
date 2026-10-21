@@ -22,10 +22,15 @@ import CRMSync from "./components/CRMSync";
 import ConversionFunnel from "./components/ConversionFunnel";
 import PartnerEcosystem from "./components/PartnerEcosystem";
 import ProspectPipeline from "./components/ProspectPipeline";
+import ProspectReviewQueue from "./components/ProspectReviewQueue";
 import MyWebsites from "./components/MyWebsites";
 import ThreeStepRevenueEngine from "./components/ThreeStepRevenueEngine";
 import { getClientMockBusinesses, generateClientMockSite } from "./lib/clientFallback";
 import { generateSecurePreviewToken, sanitizePublicPreview } from "./lib/security";
+import { toCanonicalStage } from "./lib/prospectCrm";
+import { deduplicateAndIngestBusinesses } from "./lib/businessIdentity";
+import { fetchUserBusinesses, saveBusinessRecord, ingestAndPersistBusinesses } from "./lib/businessPersistence";
+import { applyWebsiteUpdate } from "./lib/websiteVersioning";
 import { 
   Search, Globe, Award, Trophy, User, MessageSquare, Phone, MapPin, 
   CheckCircle2, AlertTriangle, ShieldCheck, HeartCrack, Flame, TrendingUp, Users, ArrowRight, BookOpen, Database, Handshake, Sparkles, Clock, Calendar,
@@ -77,7 +82,7 @@ const placeholderSite: GeneratedSite = {
   whatsappMessage: "Hello, I would like to get a free estimate for repairs.",
   contactPage: {
     title: "Schedule Your Service Call Today",
-    description: "Fill out our quick dispatch form or contact our 24/7 priority hotline to book your certified local technician.",
+    description: "Fill out our quick dispatch form or contact our priority hotline during business hours to book your qualified local technician.",
     email: "service@a1localservices.com"
   },
   privacyPolicy: "Privacy terms apply to consumer information.",
@@ -89,7 +94,7 @@ const placeholderSite: GeneratedSite = {
 };
 
 export default function App() {
-  const { user: session, loading: authLoading } = useAuth();
+  const { user: session, loading: authLoading, logout } = useAuth();
 
   // Public Client Presentation Portal States
   const [isPreviewModeActive, setIsPreviewModeActive] = useState<boolean>(false);
@@ -206,6 +211,26 @@ export default function App() {
   // Load user's saved sites from Firestore
   useEffect(() => {
     if (session) {
+      // If user is running in preview mode or Firebase Auth is not yet signed in
+      if (!auth.currentUser || session.uid.startsWith("preview_")) {
+        try {
+          const cached = localStorage.getItem("sitescout_user_sites");
+          if (cached) {
+            const parsed: GeneratedSite[] = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setUserSites(parsed);
+              if (!generatedSite) {
+                setGeneratedSite(parsed[0]);
+              }
+            }
+          }
+        } catch (cacheErr) {
+          console.warn("Fallback cache error:", cacheErr);
+        }
+        setFirestorePermissionNotice(false);
+        return;
+      }
+
       const fetchUserSites = async () => {
         try {
           const q = query(collection(db, "sites"), where("userId", "==", session.uid));
@@ -250,37 +275,18 @@ export default function App() {
       };
       fetchUserSites();
 
-      // Load user's saved businesses from Firestore
-      const fetchUserBusinesses = async () => {
+      // Load user's saved businesses from canonical persistence layer
+      const loadUserBusinesses = async () => {
         try {
-          const q = query(collection(db, "businesses"), where("userId", "==", session.uid));
-          const querySnapshot = await getDocs(q);
-          const bizList: Business[] = [];
-          querySnapshot.forEach((docSnap) => {
-            bizList.push(docSnap.data() as Business);
-          });
-          if (bizList.length > 0) {
+          const bizList = await fetchUserBusinesses(session.uid);
+          if (bizList && bizList.length > 0) {
             setBusinesses(bizList);
-            try {
-              localStorage.setItem("sitescout_user_businesses", JSON.stringify(bizList));
-            } catch (e) {}
           }
         } catch (err) {
-          console.error("Error fetching user businesses from Firestore:", err);
-          try {
-            const cached = localStorage.getItem("sitescout_user_businesses");
-            if (cached) {
-              const parsed = JSON.parse(cached);
-              if (parsed && Array.isArray(parsed) && parsed.length > 0) {
-                setBusinesses(parsed);
-              }
-            }
-          } catch (cacheErr) {
-            console.error("Fallback business cache error:", cacheErr);
-          }
+          console.error("Error loading user businesses:", err);
         }
       };
-      fetchUserBusinesses();
+      loadUserBusinesses();
     }
   }, [session, activeTab]);
 
@@ -297,7 +303,8 @@ export default function App() {
     const foundCount = businesses.length;
     const generatedCount = userSites.length;
     const proposalsCount = userSites.filter(s => s.proposal).length;
-    const wonCount = businesses.filter(b => b.prospectStatus === "Won").length + userSites.filter(s => s.clientApproved || s.crmSynced).length;
+    const wonCount = businesses.filter(b => toCanonicalStage(b.salesStage || b.prospectStatus) === "WON").length + 
+      userSites.filter(s => toCanonicalStage(s.salesStage || s.salesStatus) === "WON").length;
 
     setStats({
       found: foundCount,
@@ -308,43 +315,34 @@ export default function App() {
   }, [userSites, businesses]);
 
   const handleUpdateProspect = async (updated: Business) => {
-    setBusinesses(prev => prev.map(b => b.id === updated.id ? updated : b));
-    if (selectedBusiness?.id === updated.id) {
-      setSelectedBusiness(updated);
+    // 1. Save through canonical persistence service
+    const saveResult = await saveBusinessRecord(updated, session?.uid);
+    const persisted = saveResult.business;
+
+    setBusinesses(prev => prev.map(b => b.id === persisted.id || b.id === updated.id ? persisted : b));
+    if (selectedBusiness?.id === updated.id || selectedBusiness?.id === persisted.id) {
+      setSelectedBusiness(persisted);
     }
-    try {
-      localStorage.setItem("sitescout_user_businesses", JSON.stringify(
-        businesses.map(b => b.id === updated.id ? updated : b)
-      ));
-    } catch (e) {}
 
-    if (session && !updated.isDemo) {
+    if (session && !persisted.isDemo && db) {
       try {
-        const bizDoc = {
-          ...updated,
-          userId: session.uid,
-          ownerId: session.uid,
-          updatedAt: new Date().toISOString()
-        };
-        await setDoc(doc(db, "businesses", updated.id), bizDoc, { merge: true });
-
         // Record activity in subcollection: /businesses/{businessId}/activities/{activityId}
         const actId = `act-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-        await setDoc(doc(db, "businesses", updated.id, "activities", actId), {
+        await setDoc(doc(db, "businesses", persisted.id, "activities", actId), {
           id: actId,
-          businessId: updated.id,
-          type: updated.prospectStatus === "Won" 
+          businessId: persisted.id,
+          type: persisted.prospectStatus === "Won" 
             ? "deal_won" 
-            : (updated.prospectStatus === "Proposal" 
+            : (persisted.prospectStatus === "Proposal" 
               ? "proposal_sent" 
-              : (updated.prospectStatus === "Preview Sent" ? "preview_sent" : "follow_up_sent")),
-          title: `Prospect Updated: ${updated.prospectStatus || "Stage Change"}`,
-          description: updated.prospectNotes ? `Notes: ${updated.prospectNotes.slice(0, 100)}` : `Stage updated to ${updated.prospectStatus}`,
+              : (persisted.prospectStatus === "Preview Sent" ? "preview_sent" : "follow_up_sent")),
+          title: `Prospect Updated: ${persisted.prospectStatus || "Stage Change"}`,
+          description: persisted.prospectNotes ? `Notes: ${persisted.prospectNotes.slice(0, 100)}` : `Stage updated to ${persisted.prospectStatus}`,
           timestamp: new Date().toISOString(),
           actorId: session.uid
         });
       } catch (err) {
-        console.warn("Firestore update business error:", err);
+        console.warn("Activity log error:", err);
       }
     }
   };
@@ -378,45 +376,11 @@ export default function App() {
       }
 
       const data = await response.json();
-      const isAppend = !!(filters.page && filters.page > 1);
-      const newBizs = data.businesses || [];
+      const newBizs: Business[] = data.businesses || [];
       
-      setBusinesses(prev => {
-        const updated = !isAppend ? newBizs : [...prev, ...newBizs.filter(b => !new Set(prev.map(p => p.name.toLowerCase())).has(b.name.toLowerCase()))];
-        try {
-          localStorage.setItem("sitescout_user_businesses", JSON.stringify(updated));
-        } catch (e) {}
-        return updated;
-      });
-
-      if (session && newBizs.length > 0) {
-        newBizs.forEach(async (biz: Business) => {
-          if (biz.isDemo) return;
-          try {
-            const bizDoc = {
-              ...biz,
-              userId: session.uid,
-              ownerId: session.uid,
-              createdAt: biz.createdAt || new Date().toISOString(),
-              updatedAt: new Date().toISOString()
-            };
-            await setDoc(doc(db, "businesses", biz.id), bizDoc, { merge: true });
-
-            const actId = `act-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-            await setDoc(doc(db, "businesses", biz.id, "activities", actId), {
-              id: actId,
-              businessId: biz.id,
-              type: "business_discovered",
-              title: "Discovered via Directory Search",
-              description: `Source: ${biz.directorySource || "Directory Listing"}. Opportunity Score: ${biz.opportunityScore || 0}%`,
-              timestamp: new Date().toISOString(),
-              actorId: session.uid
-            });
-          } catch (e) {
-            console.warn("Firestore save business error:", e);
-          }
-        });
-      }
+      // Ingest and persist through canonical persistence service
+      const ingestionResult = await ingestAndPersistBusinesses(newBizs, session?.uid);
+      setBusinesses(ingestionResult.consolidated);
       
       if (data.source === "error_fallback") {
         setApiNotice("sandbox_simulated");
@@ -430,7 +394,7 @@ export default function App() {
         setStats(prev => ({ ...prev, found: prev.found + (newBizs.length || 0) }));
       }
     } catch (error) {
-      console.error("Search API Error, triggering robust client-side fallback:", error);
+      console.warn("Search API fallback active:", error);
       
       const pageNum = filters.page || 1;
       // Fallback directly to generating high-quality localized client-side mock businesses
@@ -443,12 +407,13 @@ export default function App() {
       );
       
       const isAppend = pageNum > 1;
-      setBusinesses(prev => {
-        if (!isAppend) return mockBizs;
-        const existingNames = new Set(prev.map(b => b.name.toLowerCase()));
-        const uniqueNew = mockBizs.filter(b => !existingNames.has(b.name.toLowerCase()));
-        return [...prev, ...uniqueNew];
-      });
+      if (isAppend) {
+        const ingestion = await ingestAndPersistBusinesses(mockBizs, session?.uid);
+        setBusinesses(ingestion.consolidated);
+      } else {
+        const ingestion = await ingestAndPersistBusinesses(mockBizs, session?.uid);
+        setBusinesses(ingestion.consolidated);
+      }
       
       setApiNotice("sandbox_simulated");
       
@@ -792,7 +757,11 @@ export default function App() {
                   </div>
                   <div>
                     <p className="text-xs font-bold text-slate-200">Needs Optimization</p>
-                    <p className="text-[10px] text-slate-400 mt-1">Your Google listing has a fantastic {publicPreviewSite.presence?.rating || 4.8}★ reputation but lacks essential customer conversion triggers.</p>
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      {publicPreviewSite.presence?.rating && publicPreviewSite.presence.rating > 0
+                        ? `Your Google listing has a ${publicPreviewSite.presence.rating}★ rating but lacks essential customer conversion triggers.`
+                        : `Your Google listing is discoverable, but lacks essential customer conversion triggers.`}
+                    </p>
                   </div>
                 </div>
 
@@ -898,6 +867,17 @@ export default function App() {
                       body: JSON.stringify({ message: feedbackMessage })
                     });
                     
+                    // Also register the CHANGES_REQUESTED lifecycle status
+                    fetch(`/api/preview/${publicPreviewSite.id}/approval`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        clientSignoffName: "Client Reviewer",
+                        clientNotes: feedbackMessage,
+                        decision: "CHANGES_REQUESTED"
+                      })
+                    }).catch(() => {});
+                    
                     if (res.ok) {
                       const data = await res.json();
                       if (data.success && data.feedback) {
@@ -905,7 +885,12 @@ export default function App() {
                           ...(publicPreviewSite.clientFeedback || []),
                           data.feedback
                         ];
-                        setPublicPreviewSite({ ...publicPreviewSite, clientFeedback: updatedFeedbacks });
+                        setPublicPreviewSite({ 
+                          ...publicPreviewSite, 
+                          previewApprovalStatus: "CHANGES_REQUESTED",
+                          clientApproved: false,
+                          clientFeedback: updatedFeedbacks 
+                        });
                         try {
                           localStorage.setItem(`site_${publicPreviewSite.id}`, JSON.stringify({ ...publicPreviewSite, clientFeedback: updatedFeedbacks }));
                         } catch (e) {}
@@ -1113,8 +1098,11 @@ export default function App() {
     }
   };
 
-  // Save changes to site draft
-  const handleSaveDraft = async (updatedSite: GeneratedSite) => {
+  // Save changes to site draft with deterministic versioning & approval state tracking
+  const handleSaveDraft = async (rawUpdatedSite: GeneratedSite) => {
+    const updatedSite = generatedSite && generatedSite.id === rawUpdatedSite.id
+      ? applyWebsiteUpdate(generatedSite, rawUpdatedSite, session?.email || "USER")
+      : rawUpdatedSite;
     setGeneratedSite(updatedSite);
     setUserSites(prev => {
       const exists = prev.some(s => s.id === updatedSite.id);
@@ -1132,6 +1120,12 @@ export default function App() {
     }
 
     if (session) {
+      if (!auth.currentUser || session.uid.startsWith("preview_")) {
+        console.log("Draft saved locally in preview mode.");
+        setFirestorePermissionNotice(false);
+        return;
+      }
+
       try {
         // Ensure a cryptographically secure previewToken exists
         const previewToken = updatedSite.previewToken || generateSecurePreviewToken();
@@ -1188,7 +1182,7 @@ export default function App() {
           } catch (e) {
             console.error("Error updating site in localStorage:", e);
           }
-          if (session) {
+          if (session && auth.currentUser && !session.uid.startsWith("preview_")) {
             setDoc(doc(db, "sites", siteId), {
               salesStatus: status,
               tags: tags !== undefined ? tags : (s.tags || []),
@@ -1225,7 +1219,11 @@ export default function App() {
 
   const handleLogout = async () => {
     try {
-      await signOut(auth);
+      if (logout) {
+        await logout();
+      } else {
+        await signOut(auth);
+      }
     } catch (error) {
       console.error("Logout error", error);
     }
@@ -1267,9 +1265,9 @@ export default function App() {
           {activeTab === "dashboard" && (() => {
             const prospectsFound = businesses.length;
             const websitesCreated = userSites.length;
-            const previewsSent = userSites.filter(s => s.proposal?.status === 'sent' || s.salesStatus === 'contacted' || s.salesStatus === 'proposal_sent').length;
-            const interestedCount = businesses.filter(b => b.prospectStatus === 'Interested' || b.prospectStatus === 'Hot').length + userSites.filter(s => s.clientFeedback && s.clientFeedback.length > 0 && !s.clientApproved).length;
-            const wonCount = businesses.filter(b => b.prospectStatus === 'Won').length + userSites.filter(s => s.clientApproved || s.salesStatus === 'Won').length;
+            const previewsSent = userSites.filter(s => s.proposal?.status === 'sent' || toCanonicalStage(s.salesStage || s.salesStatus) === 'PREVIEW_SENT').length;
+            const interestedCount = businesses.filter(b => toCanonicalStage(b.salesStage || b.prospectStatus) === 'ENGAGED').length + userSites.filter(s => toCanonicalStage(s.salesStage || s.salesStatus) === 'ENGAGED').length;
+            const wonCount = businesses.filter(b => toCanonicalStage(b.salesStage || b.prospectStatus) === 'WON').length + userSites.filter(s => toCanonicalStage(s.salesStage || s.salesStatus) === 'WON').length;
 
             return (
             <div className="space-y-8">
@@ -1419,7 +1417,7 @@ export default function App() {
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     {businesses.slice(0, 6).map((biz) => {
                       const matchedSite = userSites.find(s => s.businessName.toLowerCase() === biz.name.toLowerCase());
-                      const oppScore = biz.opportunityScore ?? (100 - (biz.presenceScore || 40));
+                      const oppScore = biz.opportunityScore ?? 65;
 
                       return (
                         <div 
@@ -1628,6 +1626,7 @@ export default function App() {
               userId={session?.uid}
               userName={session?.displayName || session?.email || "Agent"}
               onUpdateProspect={handleUpdateProspect}
+              onOpenReviewQueue={() => setActiveTab("review_queue")}
               onViewAudit={(biz) => {
                 setSelectedBusiness(biz);
                 setActiveTab("analysis");
@@ -1651,6 +1650,19 @@ export default function App() {
                   setGeneratedSite(matched);
                 }
                 setActiveTab("proposals");
+              }}
+            />
+          )}
+
+          {/* View: Prospect Review Queue & Qualification Console (Micro-Phase 11C) */}
+          {activeTab === "review_queue" && (
+            <ProspectReviewQueue
+              businesses={businesses}
+              onUpdateBusiness={handleUpdateProspect}
+              currentUser={session}
+              onNavigateToOutreach={(biz) => {
+                setSelectedBusiness(biz);
+                setActiveTab("prospects");
               }}
             />
           )}

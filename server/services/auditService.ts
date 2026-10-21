@@ -20,7 +20,7 @@ export interface AuditDeficits {
 export interface TechnicalMetrics {
   statusCode: number;
   statusText: string;
-  responseTimeMs: number;
+  responseTimeMs: number | null;
   speedGrade: "FAST" | "AVERAGE" | "SLOW" | "FAILED";
   isSsl: boolean;
   hasViewport: boolean;
@@ -57,13 +57,25 @@ export interface ModernizationPitch {
   quickWinSolution: string;
 }
 
+export type FindingStatus = "PRESENT" | "MISSING" | "WEAK" | "BROKEN" | "UNKNOWN";
+
+export interface DetailedAuditFinding {
+  field: string;
+  key: keyof AuditDeficits;
+  status: FindingStatus;
+  evidence: string;
+  checkedUrl: string;
+  checkedAt: string;
+}
+
 export interface AuditResult {
   hasWebsite: boolean;
   httpStatus: string;
-  responseTimeMs: number;
+  responseTimeMs: number | null;
   isSsl: boolean;
   notes: string;
   deficits: AuditDeficits;
+  detailedFindings?: DetailedAuditFinding[];
   technicalMetrics?: TechnicalMetrics;
   conversionBottlenecks?: ConversionBottleneck[];
   executiveSummary?: string;
@@ -92,47 +104,59 @@ export async function auditLiveWebsite(
   businessName = "", 
   category = "Professional Services"
 ): Promise<AuditResult> {
+  const checkedAt = new Date().toISOString();
+
   if (!rawUrl || rawUrl.trim() === "" || rawUrl.toLowerCase() === "none" || rawUrl.toLowerCase() === "null") {
     const deficits: AuditDeficits = {
       noWebsite: true,
       outdatedWebsite: false,
-      noGooglePresence: true,
-      noSocialMedia: true,
-      poorBranding: true,
-      noWhatsappCta: true,
-      noOnlineCatalogue: true,
-      noBookingSystem: true,
-      noEnquiryForm: true,
-      noSeo: true,
-      brokenLinks: true,
-      poorMobileExperience: true,
+      noGooglePresence: false,
+      noSocialMedia: false,
+      poorBranding: false,
+      noWhatsappCta: false,
+      noOnlineCatalogue: false,
+      noBookingSystem: false,
+      noEnquiryForm: false,
+      noSeo: false,
+      brokenLinks: false,
+      poorMobileExperience: false,
       missingContact: false
     };
 
+    const detailedFindings: DetailedAuditFinding[] = [
+      { field: "Website Presence", key: "noWebsite", status: "MISSING", evidence: "No website was discovered from available sources or registered in public DNS records", checkedUrl: "N/A", checkedAt },
+      { field: "Google Search Presence", key: "noGooglePresence", status: "UNKNOWN", evidence: "No website available to inspect for search metadata", checkedUrl: "N/A", checkedAt },
+      { field: "Social Links", key: "noSocialMedia", status: "UNKNOWN", evidence: "No website available to inspect for social links", checkedUrl: "N/A", checkedAt },
+      { field: "WhatsApp CTA", key: "noWhatsappCta", status: "UNKNOWN", evidence: "No website available to inspect for WhatsApp CTA", checkedUrl: "N/A", checkedAt },
+      { field: "Booking System", key: "noBookingSystem", status: "UNKNOWN", evidence: "No website available to inspect for booking system", checkedUrl: "N/A", checkedAt },
+      { field: "Enquiry Form", key: "noEnquiryForm", status: "UNKNOWN", evidence: "No website available to inspect for enquiry form", checkedUrl: "N/A", checkedAt },
+      { field: "Mobile Experience", key: "poorMobileExperience", status: "UNKNOWN", evidence: "No website available for mobile rendering test", checkedUrl: "N/A", checkedAt },
+      { field: "Broken Links", key: "brokenLinks", status: "UNKNOWN", evidence: "No website available to crawl or test links", checkedUrl: "N/A", checkedAt },
+      { field: "Contact Information", key: "missingContact", status: "UNKNOWN", evidence: "No website available to inspect contact links", checkedUrl: "N/A", checkedAt },
+      { field: "SEO Metadata", key: "noSeo", status: "UNKNOWN", evidence: "No website available to inspect SEO meta tags", checkedUrl: "N/A", checkedAt },
+      { field: "Brand Identity", key: "poorBranding", status: "UNKNOWN", evidence: "No website available to inspect branding assets", checkedUrl: "N/A", checkedAt },
+      { field: "Service Showcase", key: "noOnlineCatalogue", status: "UNKNOWN", evidence: "No website available to inspect catalogue", checkedUrl: "N/A", checkedAt },
+      { field: "Markup Modernity", key: "outdatedWebsite", status: "UNKNOWN", evidence: "No website available to evaluate markup modernity", checkedUrl: "N/A", checkedAt }
+    ];
+
     return {
       hasWebsite: false,
-      httpStatus: "No Domain Registered",
-      responseTimeMs: 0,
+      httpStatus: "No Domain Discovered",
+      responseTimeMs: null,
       isSsl: false,
-      notes: "Verified: No website registered or mapped for this business in public DNS records.",
+      notes: "No website was discovered from the available sources or public DNS records.",
       deficits,
+      detailedFindings,
       conversionBottlenecks: [
         {
           severity: "CRITICAL",
-          label: "Zero Online Presence",
-          finding: "Business has no registered domain name or web hosting.",
-          revenueImpact: "100% of high-intent search traffic defaults to local competitors.",
-          recommendedPitch: "Deploy an instant mobile-responsive website with click-to-call & WhatsApp booking within 24 hours."
-        },
-        {
-          severity: "MAJOR",
-          label: "Missing 1-Click WhatsApp Booking",
-          finding: "No instant messaging gateway for smartphone visitors.",
-          revenueImpact: "Mobile prospects abandon inquiries when calling is inconvenient.",
-          recommendedPitch: "Equip your prototype with floating WhatsApp integration to capture instant leads."
+          label: "No Website Discovered",
+          finding: "No website was discovered from the available sources.",
+          revenueImpact: "High-intent search traffic defaults to local competitors with discovered websites.",
+          recommendedPitch: "Deploy an instant mobile-responsive website with click-to-call & WhatsApp booking."
         }
       ],
-      executiveSummary: `Zero active domain presence detected for ${businessName || "this business"}. A custom greenfield prototype will establish immediate search authority.`,
+      executiveSummary: `No website was discovered from available sources for ${businessName || "this business"}. A custom greenfield prototype will establish immediate search authority.`,
       modernizationPitch: {
         hook: `Did you know that over 70% of clients searching for ${category.toLowerCase()} in your city choose competitors with active mobile websites?`,
         coreArgument: "Without a web presence, your phone number and services are invisible on local Google Search queries.",
@@ -166,19 +190,31 @@ export async function auditLiveWebsite(
 
       const deficits: AuditDeficits = {
         noWebsite: true,
-        outdatedWebsite: true,
-        noGooglePresence: true,
-        noSocialMedia: true,
-        poorBranding: true,
-        noWhatsappCta: true,
-        noOnlineCatalogue: true,
-        noBookingSystem: true,
-        noEnquiryForm: true,
-        noSeo: true,
+        outdatedWebsite: false,
+        noGooglePresence: false,
+        noSocialMedia: false,
+        poorBranding: false,
+        noWhatsappCta: false,
+        noOnlineCatalogue: false,
+        noBookingSystem: false,
+        noEnquiryForm: false,
+        noSeo: false,
         brokenLinks: true,
-        poorMobileExperience: true,
+        poorMobileExperience: false,
         missingContact: false
       };
+
+      const detailedFindings: DetailedAuditFinding[] = [
+        { field: "Website Connection", key: "noWebsite", status: "BROKEN", evidence: `Target URL connection failed (${statusText})`, checkedUrl: formattedUrl, checkedAt },
+        { field: "Broken Links", key: "brokenLinks", status: "BROKEN", evidence: `Site host returned HTTP error (${statusText})`, checkedUrl: formattedUrl, checkedAt },
+        { field: "WhatsApp CTA", key: "noWhatsappCta", status: "UNKNOWN", evidence: "Unreachable site; WhatsApp CTA unverified", checkedUrl: formattedUrl, checkedAt },
+        { field: "Social Links", key: "noSocialMedia", status: "UNKNOWN", evidence: "Unreachable site; social links unverified", checkedUrl: formattedUrl, checkedAt },
+        { field: "Booking System", key: "noBookingSystem", status: "UNKNOWN", evidence: "Unreachable site; booking mechanism unverified", checkedUrl: formattedUrl, checkedAt },
+        { field: "Mobile Experience", key: "poorMobileExperience", status: "UNKNOWN", evidence: "Mobile rendering test not performed on unreachable host", checkedUrl: formattedUrl, checkedAt },
+        { field: "Contact Information", key: "missingContact", status: "UNKNOWN", evidence: "Unreachable site; contact links unverified", checkedUrl: formattedUrl, checkedAt },
+        { field: "Enquiry Form", key: "noEnquiryForm", status: "UNKNOWN", evidence: "Unreachable site; enquiry form unverified", checkedUrl: formattedUrl, checkedAt },
+        { field: "SEO Metadata", key: "noSeo", status: "UNKNOWN", evidence: "Unreachable site; SEO metadata unverified", checkedUrl: formattedUrl, checkedAt }
+      ];
 
       return {
         hasWebsite: false,
@@ -189,6 +225,7 @@ export async function auditLiveWebsite(
           ? `Audit Blocked: The target URL (${formattedUrl}) resolves to a restricted or internal network resource.`
           : `HTTP Error (${fetchResult.status}): ${fetchResult.error || "Server returned error code. Site is currently broken or offline."}`,
         deficits,
+        detailedFindings,
         conversionBottlenecks: [
           {
             severity: "CRITICAL",
@@ -281,22 +318,131 @@ export async function auditLiveWebsite(
       contentLengthBytes: rawHtml.length
     };
 
-    // Deficit mapping
+    // Deficit mapping (evidence-based: UNKNOWN conditions are NEVER marked as true deficits!)
     const deficits: AuditDeficits = {
       noWebsite: false,
       outdatedWebsite: isOutdated,
       noGooglePresence: !hasOpenGraph && !hasMetaDesc,
-      noSocialMedia: !hasSocial,
-      poorBranding: !hasOpenGraph || isOutdated,
-      noWhatsappCta: !hasWhatsapp,
-      noOnlineCatalogue: !html.includes("service") && !html.includes("product") && !html.includes("pricing"),
-      noBookingSystem: !hasBooking,
-      noEnquiryForm: !hasForm,
-      noSeo: !(hasTitle && hasMetaDesc && hasH1),
-      brokenLinks: !isSsl || legacyTags.includes("Mixed HTTP Content"),
-      poorMobileExperience: !hasViewport,
-      missingContact: !(hasTel || hasMailto)
+      noSocialMedia: false, // UNKNOWN is not a confirmed deficit
+      poorBranding: isOutdated || (!hasOpenGraph && !hasMetaDesc),
+      noWhatsappCta: false, // UNKNOWN is not a confirmed deficit
+      noOnlineCatalogue: false, // UNKNOWN is not a confirmed deficit
+      noBookingSystem: false, // UNKNOWN is not a confirmed deficit
+      noEnquiryForm: false, // UNKNOWN is not a confirmed deficit
+      noSeo: !hasTitle || (!hasMetaDesc && !hasH1),
+      brokenLinks: false, // UNKNOWN is not a confirmed deficit
+      poorMobileExperience: !hasViewport, // Confirmed MISSING if viewport tag is absent
+      missingContact: false // UNKNOWN is not a confirmed deficit
     };
+
+    const detailedFindings: DetailedAuditFinding[] = [
+      {
+        field: "Website Presence",
+        key: "noWebsite",
+        status: "PRESENT",
+        evidence: `Reachable web host (${statusText}, ${responseTimeMs}ms latency)`,
+        checkedUrl: formattedUrl,
+        checkedAt
+      },
+      {
+        field: "WhatsApp CTA",
+        key: "noWhatsappCta",
+        status: hasWhatsapp ? "PRESENT" : "UNKNOWN",
+        evidence: hasWhatsapp 
+          ? "WhatsApp CTA link directly detected on inspected page" 
+          : "No WhatsApp CTA detected on inspected homepage (subpages and floating widgets un-crawled)",
+        checkedUrl: formattedUrl,
+        checkedAt
+      },
+      {
+        field: "Social Links",
+        key: "noSocialMedia",
+        status: socialNetworks.length >= 2 ? "PRESENT" : socialNetworks.length === 1 ? "WEAK" : "UNKNOWN",
+        evidence: socialNetworks.length > 0 
+          ? `Social profiles detected: ${socialNetworks.join(", ")}` 
+          : "No social profile links detected on inspected homepage (external channels un-crawled)",
+        checkedUrl: formattedUrl,
+        checkedAt
+      },
+      {
+        field: "Booking System",
+        key: "noBookingSystem",
+        status: hasBooking ? "PRESENT" : "UNKNOWN",
+        evidence: hasBooking 
+          ? "Booking mechanism or appointment scheduling keywords detected on page" 
+          : "No booking widget detected on inspected homepage (external booking portals un-crawled)",
+        checkedUrl: formattedUrl,
+        checkedAt
+      },
+      {
+        field: "Mobile Responsiveness",
+        key: "poorMobileExperience",
+        status: !hasViewport ? "MISSING" : "PRESENT",
+        evidence: !hasViewport 
+          ? "Explicitly confirmed: <meta name=\"viewport\"> tag is missing from HTML head" 
+          : "Viewport meta tag configured (full device rendering quality un-tested)",
+        checkedUrl: formattedUrl,
+        checkedAt
+      },
+      {
+        field: "Broken Links",
+        key: "brokenLinks",
+        status: "UNKNOWN",
+        evidence: "Links on page were not individually crawled or tested for 404 response",
+        checkedUrl: formattedUrl,
+        checkedAt
+      },
+      {
+        field: "Contact Information",
+        key: "missingContact",
+        status: (hasTel || hasMailto) ? "PRESENT" : "UNKNOWN",
+        evidence: (hasTel || hasMailto) 
+          ? `Direct contact links detected (${hasTel ? "tel: " : ""}${hasMailto ? "mailto: " : ""})` 
+          : "No direct tel: or mailto: links on inspected homepage (contact subpages un-crawled)",
+        checkedUrl: formattedUrl,
+        checkedAt
+      },
+      {
+        field: "Enquiry Form",
+        key: "noEnquiryForm",
+        status: hasForm ? "PRESENT" : "UNKNOWN",
+        evidence: hasForm 
+          ? "Interactive form element with submit button detected on page" 
+          : "No lead enquiry form detected on inspected homepage (contact subpages un-crawled)",
+        checkedUrl: formattedUrl,
+        checkedAt
+      },
+      {
+        field: "SEO Metadata",
+        key: "noSeo",
+        status: (hasTitle && hasMetaDesc && hasH1) ? "PRESENT" : (hasTitle && (hasMetaDesc || hasH1)) ? "WEAK" : !hasTitle ? "MISSING" : "WEAK",
+        evidence: hasTitle 
+          ? `Title tag: "${titleText.slice(0, 50)}"${hasMetaDesc ? " with meta description" : " (missing meta description)"}` 
+          : "Explicitly confirmed: <title> tag is missing from HTML head",
+        checkedUrl: formattedUrl,
+        checkedAt
+      },
+      {
+        field: "Service Showcase",
+        key: "noOnlineCatalogue",
+        status: (html.includes("service") || html.includes("product") || html.includes("pricing")) ? "PRESENT" : "UNKNOWN",
+        evidence: (html.includes("service") || html.includes("product") || html.includes("pricing")) 
+          ? "Service or catalogue keywords detected on inspected page" 
+          : "No catalogue sections detected on inspected homepage (subpages un-crawled)",
+        checkedUrl: formattedUrl,
+        checkedAt
+      },
+      {
+        field: "Design Modernity",
+        key: "outdatedWebsite",
+        status: isOutdated ? "WEAK" : "PRESENT",
+        evidence: isOutdated 
+          ? `Legacy markup detected: ${legacyTags.join(", ") || "Missing responsive viewport"}` 
+          : "Modern semantic HTML markup detected",
+        checkedUrl: formattedUrl,
+        checkedAt
+      }
+    ];
 
     // Synthesize structured conversion bottlenecks
     const conversionBottlenecks: ConversionBottleneck[] = [];
@@ -304,20 +450,20 @@ export async function auditLiveWebsite(
     if (!hasWhatsapp) {
       conversionBottlenecks.push({
         severity: "CRITICAL",
-        label: "Missing 1-Click WhatsApp CTA",
-        finding: "Website has no direct WhatsApp chat link or floating action button.",
-        revenueImpact: "Mobile visitors looking for immediate quotes or chat abandon without calling.",
-        recommendedPitch: "Add an instant WhatsApp booking button to capture 3x more mobile inquiries."
+        label: "No WhatsApp CTA Detected",
+        finding: "No WhatsApp CTA detected on the inspected page.",
+        revenueImpact: "Mobile visitors looking for immediate messaging cannot start a chat directly from the page.",
+        recommendedPitch: "Add a 1-click floating WhatsApp chat button to enable instant inquiries."
       });
     }
 
     if (!hasViewport) {
       conversionBottlenecks.push({
         severity: "CRITICAL",
-        label: "Non-Responsive Mobile Layout",
-        finding: "No mobile viewport meta tag configured. Page appears zoomed out on smartphones.",
-        revenueImpact: "Over 75% of local smartphone visitors immediately bounce due to hard-to-read text.",
-        recommendedPitch: "Upgrade to a responsive mobile-first architecture optimized for touch devices."
+        label: "Missing Mobile Viewport Tag",
+        finding: "No viewport meta tag detected on the inspected page.",
+        revenueImpact: "Smartphone visitors may see an unscaled desktop layout.",
+        recommendedPitch: "Configure a responsive viewport meta tag and mobile layout."
       });
     }
 
@@ -325,29 +471,29 @@ export async function auditLiveWebsite(
       conversionBottlenecks.push({
         severity: "MAJOR",
         label: "Insecure HTTP Protocol (Missing SSL)",
-        finding: "Site served over unencrypted HTTP. Browsers display 'Not Secure' warning.",
-        revenueImpact: "Security warnings cause high customer distrust before visitors even read your offer.",
-        recommendedPitch: "Implement full SSL encryption and automated HTTPS redirects."
+        finding: "Site served over unencrypted HTTP protocol.",
+        revenueImpact: "Security warnings in browsers discourage visitor interaction.",
+        recommendedPitch: "Implement SSL encryption and automated HTTPS redirects."
       });
     }
 
     if (!hasTel && !hasMailto) {
       conversionBottlenecks.push({
         severity: "MAJOR",
-        label: "Non-Clickable Contact Info",
-        finding: "Phone number or email is not formatted with tap-to-call links.",
-        revenueImpact: "Friction in dialing forces mobile users to manually copy-paste numbers.",
-        recommendedPitch: "Prominently display verified one-tap click-to-call and quote enquiry forms."
+        label: "No Direct Contact Links Detected",
+        finding: "No direct tel: or mailto: contact links detected on the inspected page.",
+        revenueImpact: "Visitors cannot click to call or email directly from the inspected page.",
+        recommendedPitch: "Prominently display verified click-to-call tel: and mailto: links."
       });
     }
 
     if (!hasForm && !hasBooking) {
       conversionBottlenecks.push({
         severity: "MAJOR",
-        label: "No Interactive Lead Capture",
-        finding: "Site lacks structured quotation forms or appointment scheduling.",
-        revenueImpact: "Inquiries after business hours cannot be captured automatically.",
-        recommendedPitch: "Integrate automated quotation and booking forms that dispatch instant email notifications."
+        label: "No Lead Form or Booking Mechanism Detected",
+        finding: "No booking mechanism or lead form detected on the inspected page.",
+        revenueImpact: "After-hours visitors cannot submit inquiries or request appointments online.",
+        recommendedPitch: "Integrate automated quotation and booking forms."
       });
     }
 
@@ -355,9 +501,9 @@ export async function auditLiveWebsite(
       conversionBottlenecks.push({
         severity: "MINOR",
         label: "Weak Search Engine Metadata",
-        finding: "Missing or incomplete meta description and optimized title tags.",
-        revenueImpact: "Lower search engine rankings and lower click-through rates from Google Search results.",
-        recommendedPitch: "Configure local SEO metadata targeting high-intent keywords in your city."
+        finding: "Incomplete title or meta description tags on the inspected page.",
+        revenueImpact: "Lower search engine click-through rates.",
+        recommendedPitch: "Configure local SEO metadata targeting high-intent keywords."
       });
     }
 
@@ -365,7 +511,7 @@ export async function auditLiveWebsite(
     let notes = `Live website verified (${responseTimeMs}ms response). `;
     const activeDefsCount = Object.values(deficits).filter(Boolean).length;
     if (activeDefsCount > 0) {
-      notes += `Identified ${activeDefsCount} digital deficits including ${!hasWhatsapp ? "missing WhatsApp CTA, " : ""}${!hasViewport ? "poor mobile responsiveness, " : ""}${!hasForm ? "no lead capture form, " : ""}and ${!isSsl ? "insecure HTTP." : "SEO gaps."}`;
+      notes += `Identified ${activeDefsCount} digital deficits including ${!hasWhatsapp ? "missing WhatsApp CTA, " : ""}${!hasViewport ? "missing viewport tag, " : ""}${!hasForm ? "no lead capture form, " : ""}and ${!isSsl ? "insecure HTTP." : "SEO gaps."}`;
     } else {
       notes += "Site is active with modern responsive styling and contact channels configured.";
     }
@@ -374,7 +520,7 @@ export async function auditLiveWebsite(
     let executiveSummary = `Website audit of ${formattedUrl} completed in ${responseTimeMs}ms. Identified ${activeDefsCount} actionable conversion gaps.`;
     let modernizationPitch: ModernizationPitch = {
       hook: `We reviewed your current website (${formattedUrl}) and found that simple mobile enhancements could capture significantly more local customers.`,
-      coreArgument: `While your business has an active domain, it currently lacks ${!hasWhatsapp ? "1-click WhatsApp messaging, " : ""}${!hasViewport ? "mobile responsive design, " : ""}${!hasForm ? "an online lead enquiry form, " : ""}costing you valuable inquiries.`,
+      coreArgument: `While your business has an active domain, it currently lacks ${!hasWhatsapp ? "1-click WhatsApp messaging, " : ""}${!hasForm ? "an online lead enquiry form, " : ""}costing you valuable inquiries.`,
       quickWinSolution: `We have drafted an updated modern prototype featuring fast mobile loading, instant WhatsApp booking, and clear service showcases.`
     };
 
@@ -400,7 +546,7 @@ Provide a concise 2-sentence executive summary and a persuasive 3-part moderniza
 }`;
 
         const aiResponse = await generateContentWithRetry({
-          model: "gemini-2.5-flash",
+          model: "gemini-3.8-flash",
           contents: aiPrompt,
           config: {
             responseMimeType: "application/json"
@@ -424,6 +570,7 @@ Provide a concise 2-sentence executive summary and a persuasive 3-part moderniza
       isSsl,
       notes,
       deficits,
+      detailedFindings,
       technicalMetrics,
       conversionBottlenecks,
       executiveSummary,
@@ -446,9 +593,19 @@ Provide a concise 2-sentence executive summary and a persuasive 3-part moderniza
       noEnquiryForm: true,
       noSeo: true,
       brokenLinks: true,
-      poorMobileExperience: true,
-      missingContact: true
+      poorMobileExperience: false,
+      missingContact: false
     };
+
+    const detailedFindings: DetailedAuditFinding[] = [
+      { field: "Website Connection", key: "noWebsite", status: "BROKEN", evidence: `Connection failed: ${httpStatus}`, checkedUrl: formattedUrl, checkedAt },
+      { field: "Broken Links", key: "brokenLinks", status: "BROKEN", evidence: `Host connection failed (${httpStatus})`, checkedUrl: formattedUrl, checkedAt },
+      { field: "WhatsApp CTA", key: "noWhatsappCta", status: "MISSING", evidence: "Host unreachable; no WhatsApp CTA detected", checkedUrl: formattedUrl, checkedAt },
+      { field: "Social Links", key: "noSocialMedia", status: "MISSING", evidence: "Host unreachable; no social links detected", checkedUrl: formattedUrl, checkedAt },
+      { field: "Booking System", key: "noBookingSystem", status: "MISSING", evidence: "Host unreachable; no booking mechanism detected", checkedUrl: formattedUrl, checkedAt },
+      { field: "Mobile Experience", key: "poorMobileExperience", status: "UNKNOWN", evidence: "Mobile rendering test not performed", checkedUrl: formattedUrl, checkedAt },
+      { field: "Contact Information", key: "missingContact", status: "UNKNOWN", evidence: "Host unreachable; contact links unverified", checkedUrl: formattedUrl, checkedAt }
+    ];
 
     return {
       hasWebsite: false,
@@ -457,6 +614,7 @@ Provide a concise 2-sentence executive summary and a persuasive 3-part moderniza
       isSsl: false,
       notes: `Failed to connect to domain (${formattedUrl}): ${err.message || "DNS host not found"}. Unregistered or defunct website confirmed.`,
       deficits,
+      detailedFindings,
       conversionBottlenecks: [
         {
           severity: "CRITICAL",
@@ -473,6 +631,123 @@ Provide a concise 2-sentence executive summary and a persuasive 3-part moderniza
         quickWinSolution: "We have built a fully verified prototype that can be hosted on a fast, reliable domain immediately."
       }
     };
+  }
+}
+
+/**
+ * Derives accurate WebsiteStatus from HTTP audit result rather than assuming URL exists = LIVE
+ */
+export function determineWebsiteStatusFromAudit(
+  auditResult?: AuditResult | null,
+  rawUrl?: string,
+  hasSocial?: boolean,
+  directorySource?: string
+): "NONE" | "WEBSITE_NOT_DISCOVERED" | "LIVE" | "WEBSITE_LIVE" | "WEBSITE_CONFIRMED" | "BROKEN" | "PARKED" | "DIRECTORY_ONLY" | "SOCIAL_ONLY" | "UNKNOWN" | "WEBSITE_CANDIDATE" | "WEBSITE_UNVERIFIED" | "UNREACHABLE" | "WEBSITE_UNREACHABLE" | "WEBSITE_ASSOCIATION_UNCONFIRMED" | "ERROR" | "REDIRECT" {
+  if (!rawUrl || rawUrl.trim() === "" || rawUrl.toLowerCase() === "none" || rawUrl.toLowerCase() === "null") {
+    if (hasSocial) return "SOCIAL_ONLY";
+    if (directorySource) return "DIRECTORY_ONLY";
+    return "WEBSITE_NOT_DISCOVERED";
+  }
+
+  // URL exists, but check was not performed or pending -> WEBSITE_CANDIDATE
+  if (!auditResult) {
+    return "WEBSITE_CANDIDATE";
+  }
+
+  // Reachable 2xx/3xx HTTP response
+  if (auditResult.hasWebsite) {
+    return "LIVE";
+  }
+
+  const statusStr = (auditResult.httpStatus || "").toLowerCase();
+  
+  if (
+    statusStr.includes("timed out") ||
+    statusStr.includes("unreachable") ||
+    statusStr.includes("dns failure") ||
+    statusStr.includes("connection refused") ||
+    statusStr.includes("host not found") ||
+    statusStr.includes("no domain")
+  ) {
+    return "UNREACHABLE";
+  }
+
+  if (statusStr.includes("redirect")) {
+    return "REDIRECT";
+  }
+
+  if (
+    statusStr.includes("403") ||
+    statusStr.includes("restricted") ||
+    statusStr.includes("security alert") ||
+    statusStr.includes("404") ||
+    statusStr.includes("500") ||
+    statusStr.includes("http error") ||
+    statusStr.includes("error")
+  ) {
+    return "ERROR";
+  }
+
+  return "BROKEN";
+}
+
+export function normalizeCanonicalWebsiteStatus(
+  status?: string | null
+): "WEBSITE_CONFIRMED" | "WEBSITE_NOT_DISCOVERED" | "WEBSITE_UNREACHABLE" | "WEBSITE_UNVERIFIED" {
+  if (!status) return "WEBSITE_NOT_DISCOVERED";
+  const s = status.trim().toUpperCase();
+  if (s === "WEBSITE_CONFIRMED" || s === "LIVE" || s === "WEBSITE_LIVE") {
+    return "WEBSITE_CONFIRMED";
+  }
+  if (
+    s === "WEBSITE_UNREACHABLE" ||
+    s === "UNREACHABLE" ||
+    s === "BROKEN" ||
+    s === "ERROR"
+  ) {
+    return "WEBSITE_UNREACHABLE";
+  }
+  if (
+    s === "WEBSITE_NOT_DISCOVERED" ||
+    s === "NONE" ||
+    s === "CONFIRMED_NO_WEBSITE" ||
+    s === "DIRECTORY_ONLY" ||
+    s === "SOCIAL_ONLY"
+  ) {
+    return "WEBSITE_NOT_DISCOVERED";
+  }
+  return "WEBSITE_UNVERIFIED";
+}
+
+/**
+ * Returns human-readable, factual description for website status
+ */
+export function getWebsiteStatusDescription(status?: string | null, hasWebsite?: boolean): string {
+  switch (status) {
+    case "WEBSITE_NOT_DISCOVERED":
+    case "NONE":
+      return "No website was discovered from the available sources.";
+    case "WEBSITE_CANDIDATE":
+    case "WEBSITE_UNVERIFIED":
+      return "A website candidate was found, but it could not be confirmed as live.";
+    case "UNREACHABLE":
+    case "WEBSITE_UNREACHABLE":
+      return "A website candidate was found, but it was unreachable.";
+    case "LIVE":
+    case "WEBSITE_LIVE":
+    case "WEBSITE_CONFIRMED":
+      return "A live website was detected and audited.";
+    case "WEBSITE_ASSOCIATION_UNCONFIRMED":
+      return "A website was found, but its association with this business could not be confirmed.";
+    case "BROKEN":
+    case "ERROR":
+      return "The target website URL returned connection or server errors.";
+    case "DIRECTORY_ONLY":
+      return "Discovered via directory profile; no dedicated website discovered.";
+    case "SOCIAL_ONLY":
+      return "Discovered via social page; no dedicated website discovered.";
+    default:
+      return hasWebsite ? "A live website was detected." : "No website was discovered from the available sources.";
   }
 }
 

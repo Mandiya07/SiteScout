@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Business, GeneratedSite, ProspectStatus } from "../types";
+import { toCanonicalStage, canonicalToProspectStatus } from "../lib/prospectCrm";
 import { authedFetch } from "../lib/firebase";
 import { 
   Mail, Sparkles, Copy, Check, ExternalLink, RefreshCw, Send, 
@@ -137,8 +138,11 @@ export default function DraftEmailModal({
       // Fallback in-client if network error occurs
       const city = business.address.split(",")[0]?.trim() || business.address;
       setSubject(`Quick observation regarding ${business.name}'s online presence in ${city}`);
+      const ratingPart = business.rating && business.rating > 0 
+        ? `your ${business.rating}★ Google rating and positive reviews` 
+        : "your positive client reviews and solid Google Business reputation";
       setBody(
-        `Hi ${business.name} Team,\n\nWhile reviewing top ${business.category} providers in ${city}, your ${business.rating || 4.8}★ Google rating and positive reviews caught my attention. Customers clearly trust your work.\n\nHowever, when local clients search on mobile, there are a few friction points: ${gapsToUse.join(", ").toLowerCase()}.\n\nI created a free website preview for your business:\n${previewUrl}\n\nTake a quick look on your phone or computer. Once you approve it, let's customize and launch it!\n\nBest regards,\nDigital Strategy Specialist`
+        `Hi ${business.name} Team,\n\nWhile reviewing top ${business.category} providers in ${city}, ${ratingPart} caught my attention. Customers clearly trust your work.\n\nHowever, when local clients search on mobile, there are a few friction points: ${gapsToUse.join(", ").toLowerCase()}.\n\nI created a free website preview for your business:\n${previewUrl}\n\nTake a quick look on your phone or computer. Once you approve it, let's customize and launch it!\n\nBest regards,\nDigital Strategy Specialist`
       );
       setFollowUpSubject(`Following up on the website preview for ${business.name}`);
       setFollowUpBody(
@@ -188,9 +192,11 @@ export default function DraftEmailModal({
     const nextDate = new Date();
     nextDate.setDate(nextDate.getDate() + 2);
 
-    const nextStatus: ProspectStatus = business.prospectStatus === "New" || business.prospectStatus === "Analyzed" || business.prospectStatus === "Preview Ready"
-      ? "Preview Sent" 
-      : business.prospectStatus || "Preview Sent";
+    const currentStage = toCanonicalStage(business.salesStage || business.prospectStatus);
+    const targetStage = ["DISCOVERED", "VERIFICATION_REQUIRED", "VERIFIED", "AUDIT_COMPLETE", "OPPORTUNITY_IDENTIFIED", "WEBSITE_GENERATED", "PREVIEW_READY"].includes(currentStage)
+      ? "PREVIEW_SENT"
+      : currentStage;
+    const nextStatus = canonicalToProspectStatus(targetStage);
 
     const noteEntry = `AI Email Outreach (${selectedTone}) sent on ${new Date().toLocaleDateString()} with subject: "${subject}". Focused on: ${selectedGaps.slice(0, 2).join(", ")}.`;
     const updatedNotes = business.prospectNotes 
@@ -200,6 +206,7 @@ export default function DraftEmailModal({
     const updated: Business = {
       ...business,
       email: recipientEmail || business.email,
+      salesStage: targetStage,
       prospectStatus: nextStatus,
       lastContactedAt: now,
       nextFollowUpDate: nextDate.toISOString().split("T")[0],
@@ -288,7 +295,7 @@ export default function DraftEmailModal({
 
               <div className="flex items-center gap-2 shrink-0">
                 <span className="text-xs font-bold text-slate-700 dark:text-slate-300 px-2 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                  ⭐ {business.rating || 4.8} ({business.reviewsCount || 24} reviews)
+                  {business.rating && business.rating > 0 ? `⭐ ${business.rating} (${business.reviewsCount || 0} reviews)` : "Unrated / No reviews"}
                 </span>
                 <span className="text-xs font-bold text-rose-700 dark:text-rose-400 px-2 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900/50">
                   {selectedGaps.length} Gaps Targeted
@@ -410,7 +417,7 @@ export default function DraftEmailModal({
                 type="email"
                 value={recipientEmail}
                 onChange={(e) => setRecipientEmail(e.target.value)}
-                placeholder={business.email || `contact@${business.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.com`}
+                placeholder={business.email || "Enter recipient email..."}
                 className="flex-1 text-xs bg-transparent text-slate-900 dark:text-white focus:outline-none placeholder:text-slate-400"
               />
               {!business.email && (

@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { getGeminiClient, isApiKeyConfigured } from "./geminiService";
+import { getGeminiClient, isApiKeyConfigured, generateContentWithRetry } from "./geminiService";
 
 export interface SalesCopyParams {
   site: any;
@@ -49,8 +49,9 @@ Location: "${site.address || prospect?.address}"
 Tone: "${salesPitchTone}"
 
 Grounding Rules:
-- STRICTLY DO NOT FABRICATE metrics, visitor counts, or revenue figures.
-- Ground arguments in actual observed Google Maps listing elements or missing digital capabilities (missing mobile site, missing 1-tap WhatsApp, missing online quote form).
+- STRICTLY DO NOT FABRICATE metrics, visitor counts, revenue figures, founding dates, staff names/qualifications, awards, 24/7 claims, or money-back guarantees.
+- Ground arguments strictly in actual observed Google Maps listing elements or verified digital gaps (missing mobile site, missing 1-tap WhatsApp, missing online quote form).
+- AI may improve wording and presentation of known information, but MUST NOT invent new factual claims.
 
 Return JSON:
 {
@@ -63,8 +64,8 @@ Return JSON:
 }`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+    const response = await generateContentWithRetry({
+      model: "gemini-3.8-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json"

@@ -26,93 +26,93 @@ const DEFICIT_DEFINITIONS: {
 }[] = [
   { 
     key: "noWebsite", 
-    label: "No Dedicated Website", 
+    label: "No Website Discovered", 
     icon: Globe, 
-    revenueImpact: "Losing ~65% of searchers who research suppliers online first", 
+    revenueImpact: "No website was discovered from the available sources or public DNS records.", 
     pitchHook: "Build a modern fast-loading web landing page to capture high-intent buyers." 
   },
   { 
     key: "outdatedWebsite", 
-    label: "Terrible / Outdated Web Design", 
+    label: "Outdated / Legacy Web Design", 
     icon: ShieldAlert, 
-    revenueImpact: "High bounce rates due to poor trust & 2000s era layout", 
+    revenueImpact: "Legacy HTML markup or missing modern standards on inspected page.", 
     pitchHook: "Upgrade to a sleek, modern visual design that builds instant authority." 
   },
   { 
     key: "noGooglePresence", 
-    label: "No Google Maps / Profile Presence", 
+    label: "Unverified Search Metadata", 
     icon: MapPin, 
-    revenueImpact: "Invisible on local 'near me' Google searches & directions", 
-    pitchHook: "Optimize Google Maps positioning with structured schema and business address." 
+    revenueImpact: "No OpenGraph or search meta tags detected on the inspected page.", 
+    pitchHook: "Optimize local search positioning with structured schema and business address." 
   },
   { 
     key: "noSocialMedia", 
-    label: "No Active Social Media", 
+    label: "No Social Links Detected", 
     icon: Layers, 
-    revenueImpact: "Missing community trust & organic word-of-mouth validation", 
+    revenueImpact: "No social links detected on the inspected page.", 
     pitchHook: "Integrate direct links to Facebook, Instagram, and LinkedIn company updates." 
   },
   { 
     key: "poorBranding", 
-    label: "Poor / Missing Brand Identity", 
+    label: "Unverified Brand Identity", 
     icon: Sparkles, 
-    revenueImpact: "Seen as a budget amateur provider rather than an industry authority", 
+    revenueImpact: "Missing OpenGraph branding graphics or modern typography.", 
     pitchHook: "Deploy high-res vector branding, polished typography, and clean brand colors." 
   },
   { 
     key: "noWhatsappCta", 
-    label: "No WhatsApp Direct CTA Button", 
+    label: "No WhatsApp CTA Detected", 
     icon: MessageSquare, 
-    revenueImpact: "Losing 40%+ mobile leads who prefer instant direct messaging over email", 
-    pitchHook: "Add a 1-click floating WhatsApp chat button to convert direct inquiries in seconds." 
+    revenueImpact: "No WhatsApp CTA detected on the inspected page.", 
+    pitchHook: "Add a 1-click floating WhatsApp chat button to convert direct inquiries." 
   },
   { 
     key: "noOnlineCatalogue", 
-    label: "No Online Product/Service Catalogue", 
+    label: "No Catalogue / Service Menu Detected", 
     icon: ShoppingBag, 
-    revenueImpact: "Prospects cannot inspect package offerings or inventory pricing", 
+    revenueImpact: "No service catalogue or pricing keywords detected on inspected page.", 
     pitchHook: "Showcase an interactive service and product showcase with clear feature lists." 
   },
   { 
     key: "noBookingSystem", 
-    label: "No Online Booking / Appointment Engine", 
+    label: "No Booking Mechanism Detected", 
     icon: Calendar, 
-    revenueImpact: "Friction in scheduling site visits, consultations, or service calls", 
+    revenueImpact: "No booking mechanism detected on the inspected pages.", 
     pitchHook: "Provide an automated appointment booking request interface." 
   },
   { 
     key: "noEnquiryForm", 
-    label: "No Structured Quote / Enquiry Form", 
+    label: "No Lead Enquiry Form Detected", 
     icon: Mail, 
-    revenueImpact: "After-hours leads drop off without an easy way to submit requests", 
+    revenueImpact: "No interactive quotation or lead form detected on inspected page.", 
     pitchHook: "Include an instant quote request form with lead email notifications." 
   },
   { 
     key: "noSeo", 
-    label: "No Local Search SEO Optimization", 
+    label: "Incomplete Local SEO Metadata", 
     icon: Search, 
-    revenueImpact: "Competitors with basic meta tags rank above them on Google", 
+    revenueImpact: "Missing or incomplete title/meta description tags on inspected page.", 
     pitchHook: "Implement targeted local SEO meta tags, OpenGraph data, and fast Core Web Vitals." 
   },
   { 
     key: "brokenLinks", 
-    label: "Broken Links / Insecure Connection", 
+    label: "Broken Links / Host Check", 
     icon: XCircle, 
-    revenueImpact: "Browser security warnings scare away prospective corporate clients", 
+    revenueImpact: "Only tested links returning HTTP errors are reported as broken.", 
     pitchHook: "Guarantee modern SSL encryption, zero broken links, and high uptime." 
   },
   { 
     key: "poorMobileExperience", 
-    label: "Poor Smartphone / Mobile Responsiveness", 
+    label: "Mobile Experience Test", 
     icon: Smartphone, 
-    revenueImpact: "Over 75% of local African & global traffic is mobile-first", 
+    revenueImpact: "Mobile quality remains UNKNOWN (no mobile viewport rendering test performed).", 
     pitchHook: "Deliver a fluid, responsive mobile layout with tap-to-call and quick actions." 
   },
   { 
     key: "missingContact", 
-    label: "Missing Direct Contact Channels", 
+    label: "No Direct Contact Links Detected", 
     icon: Phone, 
-    revenueImpact: "Frustrated customers abandon inquiry when contact info is hard to find", 
+    revenueImpact: "No direct tel: or mailto: links detected on the inspected page.", 
     pitchHook: "Prominently display verified phone numbers, direct email, and map location." 
   }
 ];
@@ -138,14 +138,14 @@ export default function OpportunityAnalysis({
   const [activeCheckingStep, setActiveCheckingStep] = useState<number>(-1);
 
   const stepsToAnimate = [
-    "Cross-referencing trade registers & legal identity...",
-    "Validating phone line routing & signal format...",
-    "Confirming geo-coordinates & address mapping accuracy...",
-    "Pinging domain hosts to verify website absence/presence...",
-    "Auditing current operating status via citizen reviews...",
-    "Syncing reviews & rating counters with search index...",
-    "Analyzing active social media presence & last post times...",
-    "Compiling SiteScout 8-Point Independent Trust Stamp..."
+    "Checking public directory listing & citation...",
+    "Validating phone number formatting...",
+    "Checking reported address citation...",
+    "Checking domain reachability & website presence...",
+    "Checking operational citation records...",
+    "Checking public review metrics...",
+    "Checking public social media profile links...",
+    "Synthesizing multi-point verification results..."
   ];
 
   const handleRunVerify = async () => {
@@ -206,16 +206,16 @@ export default function OpportunityAnalysis({
       noWebsite: !biz.presence?.hasWebsite,
       outdatedWebsite: false,
       noGooglePresence: biz.presence?.googleProfileQuality === 'poor',
-      noSocialMedia: biz.presence?.facebookStatus === 'none' && biz.presence?.instagramStatus === 'none',
-      poorBranding: biz.presence?.photosStatus === 'missing' || biz.presence?.photosStatus === 'outdated',
-      noWhatsappCta: true,
-      noOnlineCatalogue: !biz.presence?.hasWebsite,
-      noBookingSystem: true,
-      noEnquiryForm: !biz.presence?.hasEmail,
-      noSeo: !biz.presence?.hasWebsite,
-      brokenLinks: !biz.presence?.hasWebsite,
-      poorMobileExperience: !biz.presence?.hasWebsite,
-      missingContact: !biz.presence?.hasEmail || biz.presence?.contactCompleteness === 'missing'
+      noSocialMedia: false,
+      poorBranding: false,
+      noWhatsappCta: false,
+      noOnlineCatalogue: false,
+      noBookingSystem: false,
+      noEnquiryForm: false,
+      noSeo: false,
+      brokenLinks: false,
+      poorMobileExperience: false,
+      missingContact: false
     };
   };
 
@@ -245,48 +245,10 @@ export default function OpportunityAnalysis({
       } else {
         throw new Error("Audit was unsuccessful in response payload");
       }
-    } catch (e) {
-      console.error("Live audit failed, running robust client-side backup simulation:", e);
-      // Generate a high-fidelity simulated response matching the requested URL
-      const fallbackResult: WebsiteAuditPayload = {
-        success: true,
-        url: target,
-        businessName: business.name,
-        audit: {
-          hasWebsite: false,
-          httpStatus: "Connection Refused (No Active Host)",
-          responseTimeMs: Math.floor(Math.random() * 200) + 120,
-          isSsl: false,
-          notes: `Live ping test to "${target}" completed. Port 80 and Port 443 refused connections, confirming the domain is unregistered or missing an active web server.`,
-          deficits: {
-            noWebsite: true,
-            outdatedWebsite: false,
-            noGooglePresence: business.presence?.googleProfileQuality === 'poor',
-            noSocialMedia: business.presence?.facebookStatus === 'none' && business.presence?.instagramStatus === 'none',
-            poorBranding: true,
-            noWhatsappCta: true,
-            noOnlineCatalogue: true,
-            noBookingSystem: true,
-            noEnquiryForm: true,
-            noSeo: true,
-            brokenLinks: true,
-            poorMobileExperience: true,
-            missingContact: false
-          }
-        },
-        deficitCount: 10,
-        presenceScore: 28,
-        opportunityScore: 88,
-        evidence: {
-          checkedAt: new Date().toISOString(),
-          source: "Website Technical & Deficit Audit",
-          notes: `Live ping test to "${target}" completed. Port 80 and Port 443 refused connections, confirming the domain is unregistered or missing an active web server.`,
-          responseTimeMs: Math.floor(Math.random() * 200) + 120,
-          httpStatus: "Connection Refused (No Host)",
-          websiteVerified: false
-        }
-      };
-      setCustomAuditResult(fallbackResult);
+    } catch (e: any) {
+      console.error("Live audit failed:", e);
+      setCustomAuditResult(null);
+      setVerificationError("Live website audit failed: " + (e.message || "Network error"));
     } finally {
       setIsAuditingUrl(false);
     }
@@ -356,13 +318,13 @@ export default function OpportunityAnalysis({
             <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md font-bold bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
               ⚠️ Demo / Synthetic Data
             </span>
-          ) : business.evidence?.verificationStatus === "verified_live_listing" ? (
-            <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40" title="SiteScout has independently validated this business details via a strict 8-point trust audit.">
-              <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600" /> ✓ Verified Lead
+          ) : business.evidence?.verificationStatus === "verified_live_listing" || business.evidence?.verificationStatus === "source_backed" ? (
+            <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40" title="Source-backed verification check performed.">
+              <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600" /> Source-Backed
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md font-bold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/40" title="Discovered via public indexes. Exact trading status, phone, address ownership, and website absence are unverified.">
-              <ShieldAlert className="h-2.5 w-2.5 text-amber-600" /> Discovered (Pending Audit)
+            <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md font-bold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/40" title="Discovered via public indexes. Exact trading status, phone, address ownership, and website presence are unconfirmed.">
+              <ShieldAlert className="h-2.5 w-2.5 text-amber-600" /> Discovered (Unconfirmed)
             </span>
           )}
           <span className="text-xs text-slate-400 dark:text-slate-500">
@@ -379,14 +341,14 @@ export default function OpportunityAnalysis({
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 transition-colors">
             <h3 className="text-base font-extrabold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
               <ShieldCheck className="h-5 w-5 text-indigo-500" />
-              Independent Trust Audit
+              Verification Check
             </h3>
             
             {isVerifying ? (
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
                   <RefreshCw className="h-5 w-5 text-indigo-500 animate-spin" />
-                  <p className="text-sm font-bold text-slate-900 dark:text-white">Running SiteScout Trust Audit...</p>
+                  <p className="text-sm font-bold text-slate-900 dark:text-white">Running Multi-Point Verification Check...</p>
                 </div>
                 <div className="space-y-2.5 mt-2">
                   {stepsToAnimate.map((step, idx) => {
@@ -415,24 +377,24 @@ export default function OpportunityAnalysis({
                   <div className="flex gap-2">
                     <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
                     <div>
-                      <h4 className="text-xs font-extrabold text-emerald-900 dark:text-emerald-300 uppercase tracking-wider">Independent Audit Certified</h4>
+                      <h4 className="text-xs font-extrabold text-emerald-900 dark:text-emerald-300 uppercase tracking-wider">Multi-Point Check Assessment</h4>
                       <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-1">{business.evidence?.notes}</p>
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-3 mt-4">
-                  <h4 className="text-xs font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider">8-Point Verification Report</h4>
+                  <h4 className="text-xs font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Verification Checklist</h4>
                   
                   {[
-                    { key: "businessIdentity", label: "Business Identity Integrity", icon: ShieldCheck },
-                    { key: "exactPhone", label: "Contact Line Routing (Phone)", icon: Phone },
-                    { key: "exactAddress", label: "Address Mapping Accuracy", icon: MapPin },
-                    { key: "websiteAbsenceCheck", label: "Website Absence/Presence Audit", icon: Globe },
-                    { key: "operatingStatus", label: "Current Operating Status", icon: Zap },
-                    { key: "ratingSync", label: "Live Review Synchronicity", icon: MessageSquare },
-                    { key: "socialMediaPresence", label: "Social Media Integrity", icon: Layers },
-                    { key: "independentVerificationAuditStamp", label: "SiteScout Certified Stamp", icon: CheckCircle2 }
+                    { key: "businessIdentity", label: "Business Identity Citation", icon: ShieldCheck },
+                    { key: "exactPhone", label: "Telephone Number Format", icon: Phone },
+                    { key: "exactAddress", label: "Address Citation", icon: MapPin },
+                    { key: "websiteAbsenceCheck", label: "Website Absence / Presence Check", icon: Globe },
+                    { key: "operatingStatus", label: "Operational Status Check", icon: Zap },
+                    { key: "ratingSync", label: "Public Review Citation", icon: MessageSquare },
+                    { key: "socialMediaPresence", label: "Social Media Links Check", icon: Layers },
+                    { key: "independentVerificationAuditStamp", label: "Verification Synthesis", icon: CheckCircle2 }
                   ].map(({ key, label, icon: IconComponent }) => {
                     const item = business.verificationChecklist?.[key as keyof typeof business.verificationChecklist];
                     const passed = item?.status === "passed";
@@ -444,7 +406,7 @@ export default function OpportunityAnalysis({
                             {label}
                           </span>
                           <span className={`text-[10px] font-extrabold uppercase px-1.5 py-0.2 rounded ${passed ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-400" : "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-400"}`}>
-                            {item?.status === "passed" ? "Passed" : "Unconfirmed"}
+                            {item?.status === "passed" ? "Detected" : "Unconfirmed"}
                           </span>
                         </div>
                         <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed pl-5">
@@ -463,23 +425,22 @@ export default function OpportunityAnalysis({
                     <div>
                       <h4 className="text-xs font-extrabold text-amber-900 dark:text-amber-300 uppercase tracking-wider">Unverified Directory Citation</h4>
                       <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1">
-                        This prospect details were obtained via public indexes. Exact trading status, phone, address ownership, and website absence are unverified.
+                        Prospect details were obtained via public indexes. Exact trading status, phone ownership, physical address, and domain status are unconfirmed.
                       </p>
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-2 text-xs text-slate-500 dark:text-slate-400 pl-1">
-                  <p className="font-bold text-slate-700 dark:text-slate-300 text-xs">SiteScout 8-Point Trust Audit verifies:</p>
+                  <p className="font-bold text-slate-700 dark:text-slate-300 text-xs">SiteScout Verification Check evaluates:</p>
                   <ul className="list-disc pl-4 space-y-1.5 text-[11px] text-slate-600 dark:text-slate-400">
-                    <li>Physical business identity registry logs</li>
-                    <li>Dialable phone line carrier routing</li>
-                    <li>Physical address coordinates verification</li>
-                    <li>DNS registry website absence checking</li>
-                    <li>Operating hours & active citizen reviews</li>
-                    <li>Live Google Maps review synchronization</li>
-                    <li>Active Facebook & Instagram profiles check</li>
-                    <li>Independent Trust Score & audit stamp</li>
+                    <li>Public directory business citation records</li>
+                    <li>Dialable phone number format</li>
+                    <li>Reported address citation</li>
+                    <li>DNS registry & website reachability check</li>
+                    <li>Public review citations</li>
+                    <li>Public social media profile links</li>
+                    <li>Source-backed verification summary</li>
                   </ul>
                 </div>
 
@@ -491,7 +452,7 @@ export default function OpportunityAnalysis({
                   onClick={handleRunVerify}
                   className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-4 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 shadow transition-all cursor-pointer"
                 >
-                  <ShieldCheck className="h-4 w-4" /> Run Independent 8-Point Audit
+                  <ShieldCheck className="h-4 w-4" /> Run Verification Check
                 </button>
               </div>
             )}
@@ -546,20 +507,20 @@ export default function OpportunityAnalysis({
             <div className="flex items-center justify-between text-xs">
               <span className="text-slate-500 dark:text-slate-400 font-medium">Opportunity Score</span>
               <span className="font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full font-mono">
-                {business.opportunityScore ?? (100 - score)}% Close Probability
+                {business.opportunityScore ?? 75}%
               </span>
             </div>
 
             {/* Score Precision & Provenance Callout */}
-            <div className="p-2.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-900/40 text-[10px] text-amber-900 dark:text-amber-300">
-              <div className="flex items-center justify-between font-bold text-amber-800 dark:text-amber-200 mb-0.5">
-                <span>Score Precision Provenance:</span>
-                <span className="px-1.5 py-0.5 rounded bg-amber-200/60 dark:bg-amber-900/60 text-[9px] uppercase tracking-wide">
-                  {customAuditResult ? "Live Ping Verified" : business.dataType === "demo" || business.isDemo ? "Synthetic Model Baseline" : "Directory Estimate"}
+            <div className="p-2.5 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/70 dark:border-blue-900/40 text-[10px] text-blue-900 dark:text-blue-300">
+              <div className="flex items-center justify-between font-bold text-blue-800 dark:text-blue-200 mb-0.5">
+                <span>Assessment Basis:</span>
+                <span className="px-1.5 py-0.5 rounded bg-blue-200/60 dark:bg-blue-900/60 text-[9px] uppercase tracking-wide">
+                  {customAuditResult ? "Live Ping Verified" : business.dataType === "demo" || business.isDemo ? "Sample Data" : "Directory Evidence"}
                 </span>
               </div>
-              <p className="leading-snug text-amber-800/80 dark:text-amber-300/80">
-                Formula: <strong>55% Deficit Weight + 45% Quality Weight</strong>. {customAuditResult ? "Verified via real HTTP ping." : "Score uses synthetic AI heuristics. Connect live Google API feeds for verified precision."}
+              <p className="leading-snug text-blue-800/80 dark:text-blue-300/80">
+                Opportunity assessment based on available evidence across digital deficits, commercial fit, customer quality, and reachability.
               </p>
             </div>
 
@@ -622,7 +583,9 @@ export default function OpportunityAnalysis({
                     <div className="grid grid-cols-2 gap-2 text-[11px]">
                       <div className="bg-white dark:bg-slate-900 p-2 rounded-lg border border-slate-200/60 dark:border-slate-800">
                         <span className="text-slate-400 block text-[9px] uppercase">Speed Latency</span>
-                        <strong className="text-slate-800 dark:text-slate-200 font-mono">{tech.responseTimeMs}ms</strong>
+                        <strong className="text-slate-800 dark:text-slate-200 font-mono">
+                          {tech.responseTimeMs !== null && tech.responseTimeMs !== undefined ? `${tech.responseTimeMs}ms` : "N/A"}
+                        </strong>
                         <span className={`ml-1 text-[9px] font-bold ${tech.speedGrade === 'FAST' ? 'text-emerald-500' : tech.speedGrade === 'AVERAGE' ? 'text-amber-500' : 'text-red-500'}`}>
                           ({tech.speedGrade})
                         </span>
@@ -739,21 +702,45 @@ export default function OpportunityAnalysis({
                 const isDeficit = !!deficits[item.key];
                 const Icon = item.icon;
 
+                const detailedFinding = customAuditResult?.audit?.detailedFindings?.find(
+                  f => f.key === item.key
+                );
+
+                const status = detailedFinding?.status || (
+                  item.key === "poorMobileExperience" || item.key === "brokenLinks" || item.key === "noWhatsappCta" || item.key === "noBookingSystem" || item.key === "noSocialMedia" || item.key === "missingContact"
+                    ? "UNKNOWN"
+                    : isDeficit ? "MISSING" : "PRESENT"
+                );
+
+                const isPresent = status === "PRESENT";
+                const isBroken = status === "BROKEN";
+                const isMissing = status === "MISSING";
+                const isWeak = status === "WEAK";
+                const isUnknown = status === "UNKNOWN" || status === "NOT_DETECTED";
+
                 return (
                   <div 
                     key={item.key} 
                     className={`rounded-xl p-3.5 border transition-all ${
-                      isDeficit
+                      isPresent
+                        ? "bg-emerald-50/30 border-emerald-100 dark:bg-emerald-950/15 dark:border-emerald-900/30"
+                        : isBroken || isMissing
                         ? "bg-red-50/40 border-red-100 dark:bg-red-950/20 dark:border-red-900/40"
-                        : "bg-emerald-50/30 border-emerald-100 dark:bg-emerald-950/15 dark:border-emerald-900/30"
+                        : isWeak
+                        ? "bg-amber-50/30 border-amber-100 dark:bg-amber-950/15 dark:border-amber-900/30"
+                        : "bg-slate-50 border-slate-200 dark:bg-slate-900/40 dark:border-slate-800"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <div className={`p-1.5 rounded-lg ${
-                          isDeficit 
+                          isPresent
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
+                            : isBroken || isMissing
                             ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
-                            : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
+                            : isWeak
+                            ? "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300"
+                            : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
                         }`}>
                           <Icon className="h-3.5 w-3.5" />
                         </div>
@@ -763,21 +750,39 @@ export default function OpportunityAnalysis({
                       </div>
 
                       <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-extrabold uppercase ${
-                        isDeficit 
+                        isPresent
+                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
+                          : isBroken || isMissing
                           ? "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300"
-                          : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
+                          : isWeak
+                          ? "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                          : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
                       }`}>
-                        {isDeficit ? <XCircle className="h-2.5 w-2.5" /> : <CheckCircle2 className="h-2.5 w-2.5" />}
-                        {isDeficit ? "Deficit Detected" : "Optimized"}
+                        {isPresent ? (
+                          <CheckCircle2 className="h-2.5 w-2.5" />
+                        ) : isBroken || isMissing ? (
+                          <XCircle className="h-2.5 w-2.5" />
+                        ) : isWeak ? (
+                          <AlertTriangle className="h-2.5 w-2.5" />
+                        ) : (
+                          <ShieldAlert className="h-2.5 w-2.5" />
+                        )}
+                        {isPresent ? "Detected" : isMissing ? "Confirmed Missing" : isWeak ? "Weak" : isBroken ? "Failed" : "Untested / Inconclusive"}
                       </span>
                     </div>
 
                     <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-2 leading-relaxed">
-                      {isDeficit ? item.revenueImpact : "This channel is currently functioning."}
+                      {detailedFinding?.evidence || (isPresent ? "Verified functioning channel." : item.revenueImpact)}
                     </p>
 
-                    {isDeficit && (
-                      <div className="mt-2 pt-2 border-t border-red-100/80 dark:border-red-900/30 flex items-start gap-1.5 text-[10px] text-blue-700 dark:text-blue-300 font-semibold">
+                    {detailedFinding?.checkedUrl && detailedFinding.checkedUrl !== "N/A" && (
+                      <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-1 font-mono truncate" title={detailedFinding.checkedUrl}>
+                        Inspected: {detailedFinding.checkedUrl}
+                      </p>
+                    )}
+
+                    {!isPresent && (
+                      <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800/60 flex items-start gap-1.5 text-[10px] text-blue-700 dark:text-blue-300 font-semibold">
                         <span className="font-bold shrink-0">Sales Hook:</span>
                         <span>{item.pitchHook}</span>
                       </div>

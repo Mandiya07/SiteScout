@@ -49,9 +49,9 @@ export function rankAndScoreImage(
   // 6. Deduplication Penalty across site sections
   let deduplicationPenalty = 0;
   if (
-    context.usedImageIds.has(image.id) || 
-    context.usedImageIds.has(image.fullUrl) || 
-    context.usedImageIds.has(image.sourceUrl)
+    context.usedImageIds?.has(image.id) || 
+    context.usedImageIds?.has(image.fullUrl) || 
+    context.usedImageIds?.has(image.sourceUrl)
   ) {
     deduplicationPenalty = 50; // Heavy penalty to prevent identical image reuse across sections
   }

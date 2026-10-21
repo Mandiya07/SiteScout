@@ -100,7 +100,7 @@ export default function ImagePickerModal({
         presets = [
           { url: "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=800&q=80", alt: "Corporate Taxation Sheets and Ledger" },
           { url: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=800&q=80", alt: "Audit Analytics Dashboard & Meeting" },
-          { url: "https://images.unsplash.com/photo-1507679799987-c73779587ccf?auto=format&fit=crop&w=800&q=80", alt: "Certified Business Consulting Advisors" }
+          { url: "https://images.unsplash.com/photo-1507679799987-c73779587ccf?auto=format&fit=crop&w=800&q=80", alt: "Professional Business Consulting Advisors" }
         ];
       } else if (ind.includes("law") || ind.includes("legal") || ind.includes("attorney")) {
         presets = [

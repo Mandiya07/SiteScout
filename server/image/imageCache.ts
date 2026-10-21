@@ -9,12 +9,12 @@ class ImageCacheManager {
   private cache = new Map<string, CacheEntry>();
   private readonly TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
 
-  private getCacheKey(query: string, section: string, orientation?: string): string {
-    return `${query.toLowerCase().trim()}_${section}_${orientation || "all"}`;
+  private getCacheKey(query: string, section: string, orientation?: string, industry?: string): string {
+    return `${industry ? industry.toLowerCase().trim() + "_" : ""}${query.toLowerCase().trim()}_${section}_${orientation || "all"}`;
   }
 
-  get(query: string, section: string, orientation?: string): ImageMetadata[] | null {
-    const key = this.getCacheKey(query, section, orientation);
+  get(query: string, section: string, orientation?: string, industry?: string): ImageMetadata[] | null {
+    const key = this.getCacheKey(query, section, orientation, industry);
     const entry = this.cache.get(key);
     if (!entry) return null;
 
@@ -26,8 +26,8 @@ class ImageCacheManager {
     return entry.images;
   }
 
-  set(query: string, section: string, orientation: string | undefined, images: ImageMetadata[]): void {
-    const key = this.getCacheKey(query, section, orientation);
+  set(query: string, section: string, orientation: string | undefined, images: ImageMetadata[], industry?: string): void {
+    const key = this.getCacheKey(query, section, orientation, industry);
     this.cache.set(key, {
       images,
       timestamp: Date.now()

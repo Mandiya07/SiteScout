@@ -127,6 +127,7 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
       page: nextPage
     };
     setFilters(updatedFilters);
+    setCurrentPage(nextPage);
     onSearch(updatedFilters);
   };
 

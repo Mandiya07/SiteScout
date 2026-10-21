@@ -3931,12 +3931,16 @@ function generateProceduralMockBusinesses(city: string, category: string, countr
     seedNum += seedString.charCodeAt(i);
   }
 
+  const pageOffset = (Math.max(1, page) - 1) * 25;
+  const pageSeed = seedNum * 137 + (page * 997);
+
   // Generate 25 distinct businesses so that Step 1 ("Scan 20 Businesses") actually returns 20 businesses!
   for (let i = 0; i < 25; i++) {
-    const prefixIdx = (seedNum + i * 7) % localPrefixes.length;
-    const nounIdx = (seedNum + i * 13) % nouns.length;
-    const streetIdx = (seedNum + i * 3) % streets.length;
-    const descIdx = (seedNum + i * 17) % descs.length;
+    const globalIdx = pageOffset + i;
+    const prefixIdx = (pageSeed + globalIdx * 7) % localPrefixes.length;
+    const nounIdx = (pageSeed + globalIdx * 11) % nouns.length;
+    const streetIdx = (pageSeed + globalIdx * 13) % streets.length;
+    const descIdx = (pageSeed + globalIdx * 17) % descs.length;
     
     const prefix = localPrefixes[prefixIdx];
     const noun = nouns[nounIdx];
@@ -3961,9 +3965,9 @@ function generateProceduralMockBusinesses(city: string, category: string, countr
       }
     }
 
-    const plotNum = 10 + (i * 12) + (seedNum % 80);
+    const plotNum = 10 + (globalIdx * 14) + (pageSeed % 80);
     const addr = `${streets[streetIdx]}, Plot ${plotNum}, ${city}`;
-    const phoneSuffix = `${Math.floor(10 + ((seedNum + i * 31) % 90))} ${Math.floor(1000 + ((seedNum + i * 47) % 9000))}`;
+    const phoneSuffix = `${Math.floor(10 + ((pageSeed + globalIdx * 37) % 90))} ${Math.floor(1000 + ((pageSeed + globalIdx * 53) % 9000))}`;
     
     generated.push({
       name,
@@ -4282,7 +4286,7 @@ function getMockBusinesses(city: string, category: string, country: string = "Es
     const businessEmail = null;
 
     return {
-      id: `${formattedCity.toLowerCase()}-${category.toLowerCase()}-${idx + 1}`,
+      id: `${formattedCity.toLowerCase()}-${category.toLowerCase()}-${((page - 1) * 25) + idx + 1}`,
       name: item.name,
       category: formattedCategory,
       address: item.addr,

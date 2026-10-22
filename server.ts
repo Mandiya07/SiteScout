@@ -672,7 +672,7 @@ Return ONLY a valid JSON array of 10 to 15 real businesses enclosed in \`\`\`jso
 
       const response = await withTimeout(
         generateContentWithRetry({
-          model: "gemini-3.8-flash",
+          model: "gemini-3.1-flash-lite",
           contents: prompt,
           config: {
             tools: [{ googleSearch: {} }]

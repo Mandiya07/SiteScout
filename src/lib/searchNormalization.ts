@@ -2,6 +2,7 @@ import { Business, EvidenceItem, BusinessVerificationState } from "../types";
 import { resolveDeterministicBusinessId, GENERIC_PLATFORM_DOMAINS } from "./businessIdentity";
 import { buildBusinessTruthProfile, normalizeUrl, extractDomain } from "./businessTruth";
 import { evaluateProspectQualification } from "./prospectQualification";
+import { assignIndustryTag } from "./industryTagger";
 
 export interface SearchQuery {
   category: string;
@@ -369,6 +370,7 @@ export function normalizeSearchResult(
     rating,
     reviewsCount,
     directorySource: rawBusiness.directorySource || providerName,
+    industryTag: rawBusiness.industryTag || assignIndustryTag({ name: rawBusiness.name || rawBusiness.title, category, description: rawBusiness.description }),
     providerName,
     providerId: String(providerId),
     sourceUrl: assignedSourceUrl,

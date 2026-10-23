@@ -25,6 +25,8 @@ export const GENERIC_PLATFORM_DOMAINS = new Set([
   "cybo.com",
   "sayellow.com",
   "swazibusiness.com",
+  "eswatinimarketsquare.com",
+  "market-square.co.sz",
   "google.com",
   "maps.google.com",
   "yelp.com",
@@ -189,17 +191,33 @@ export function resolveDeterministicBusinessId(
   const rawSourceId = input.sourceId || input.placeId || input.googlePlaceId;
   if (rawSourceId && typeof rawSourceId === "string" && rawSourceId.trim().length > 3) {
     const cleanSourceId = rawSourceId.trim();
-    const hash = deterministicHash(`source:${cleanSourceId}`);
-    return {
-      businessId: `biz_src_${slugify(cleanSourceId, 24)}_${hash.slice(0, 6)}`,
-      strategy: "SOURCE_ID",
-      confidence: 1.0,
-      normalizedKey: `source:${cleanSourceId}`
-    };
+    const isUrl = /^https?:\/\//i.test(cleanSourceId);
+    const isDomain = !isUrl && cleanSourceId.includes(".") && !cleanSourceId.includes(" ");
+
+    if (isUrl || isDomain) {
+      // If a URL or domain was passed as sourceId (e.g. from an external directory page),
+      // it must combine with the normalized entity name to prevent collisions among multiple businesses from the same page.
+      const key = `source_entity:${normName || "unnamed"}:${cleanSourceId}`;
+      const hash = deterministicHash(key);
+      return {
+        businessId: `biz_src_${slugify(normName || "ent", 20)}_${hash.slice(0, 6)}`,
+        strategy: "SOURCE_ID",
+        confidence: 0.95,
+        normalizedKey: key
+      };
+    } else {
+      const hash = deterministicHash(`source:${cleanSourceId}`);
+      return {
+        businessId: `biz_src_${slugify(cleanSourceId, 24)}_${hash.slice(0, 6)}`,
+        strategy: "SOURCE_ID",
+        confidence: 1.0,
+        normalizedKey: `source:${cleanSourceId}`
+      };
+    }
   }
 
-  // Priority 2: Normalized website domain
-  const candidateUrl = input.websiteUrl || input.presence?.websiteUrl || input.sourceUrl;
+  // Priority 2: Normalized website domain (the business's own dedicated website, NOT external source/directory citation)
+  const candidateUrl = input.websiteUrl || input.presence?.websiteUrl;
   const canonicalDomain = getCanonicalDomain(candidateUrl);
   if (canonicalDomain) {
     const cleanDomain = canonicalDomain.replace(/\./g, "_");

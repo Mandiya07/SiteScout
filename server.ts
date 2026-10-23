@@ -4,6 +4,7 @@ import { safeFetchUrl } from "./server/ssrfGuard";
 import { generateStaticHtml, escapeHtml } from "./src/lib/htmlGenerator";
 import { buildBusinessTruthProfile, normalizeUrl, extractDomain } from "./src/lib/businessTruth";
 import { resolveDeterministicBusinessId } from "./src/lib/businessIdentity";
+import { assignIndustryTag } from "./src/lib/industryTagger";
 import { normalizeWebsiteSchema } from "./src/lib/websiteSchema";
 import { 
   validateSearchRelevance, 
@@ -490,6 +491,41 @@ export function extractBusinessesFromJson(text: string): any[] {
 // Delegating Gemini and Website Auditing workflows to dedicated modular services.
 // Implemented via /server/services/geminiService.ts and /server/services/auditService.ts.
 
+function resolveEffectiveCategory(category: string = "Construction", keywords: string = ""): string {
+  const kw = (keywords || "").toLowerCase().trim();
+  const cat = (category || "").toLowerCase().trim();
+
+  if (!kw) return category;
+
+  if (kw.includes("law") || kw.includes("attorney") || kw.includes("legal") || kw.includes("lawyer")) return "Lawyers";
+  if (kw.includes("restaurant") || kw.includes("food") || kw.includes("cafe") || kw.includes("eat") || kw.includes("dining")) return "Restaurants";
+  if (kw.includes("salon") || kw.includes("hair") || kw.includes("beauty") || kw.includes("spa") || kw.includes("barber")) return "Salons";
+  if (kw.includes("car") || kw.includes("auto") || kw.includes("vehicle") || kw.includes("dealership") || kw.includes("mechanic")) return "Car Dealerships";
+  if (kw.includes("construct") || kw.includes("build") || kw.includes("engineer") || kw.includes("contractor") || kw.includes("plumb")) return "Construction";
+  if (kw.includes("account") || kw.includes("tax") || kw.includes("audit") || kw.includes("bookkeep")) return "Accountants";
+  if (kw.includes("real estate") || kw.includes("property") || kw.includes("realtor") || kw.includes("estate")) return "Real Estate";
+  if (kw.includes("tour") || kw.includes("safari") || kw.includes("travel") || kw.includes("hotel")) return "Tour Operators";
+  if (kw.includes("school") || kw.includes("academy") || kw.includes("education") || kw.includes("college")) return "Schools";
+  if (kw.includes("clinic") || kw.includes("medical") || kw.includes("doctor") || kw.includes("health") || kw.includes("dental")) return "Medical Practices";
+  if (kw.includes("retail") || kw.includes("shop") || kw.includes("store") || kw.includes("boutique")) return "Retailers";
+  if (kw.includes("clean") || kw.includes("janitor") || kw.includes("laundry")) return "Cleaning Companies";
+  if (kw.includes("security") || kw.includes("guard") || kw.includes("alarm")) return "Security Companies";
+  if (kw.includes("funeral") || kw.includes("burial") || kw.includes("mortuary")) return "Funeral Businesses";
+  if (kw.includes("cater")) return "Caterers";
+  if (kw.includes("photo") || kw.includes("camera") || kw.includes("studio")) return "Photographers";
+  if (kw.includes("design") || kw.includes("graphic")) return "Graphic Designers";
+  if (kw.includes("print") || kw.includes("press")) return "Printers";
+  if (kw.includes("sign") || kw.includes("billboard")) return "Sign Companies";
+  if (kw.includes("social") || kw.includes("marketing") || kw.includes("agency")) return "Marketing Agencies";
+  if (kw.includes("it") || kw.includes("tech") || kw.includes("computer") || kw.includes("network")) return "IT Technicians";
+
+  if (cat === "construction" && kw.length > 2) {
+    return keywords;
+  }
+
+  return category;
+}
+
 // Module 3 & 4 API: Real Live Business Directory Search & Discovery
 async function handleSearchAndDiscovery(req: express.Request, res: express.Response) {
   const validation = validateSearchPayload(req.body);
@@ -501,18 +537,24 @@ async function handleSearchAndDiscovery(req: express.Request, res: express.Respo
     });
   }
 
+  const rawBody = req.body || {};
+  const rawCategory = rawBody.category || "Construction";
+  const rawKeywords = rawBody.keywords || "";
+  const effectiveCategory = resolveEffectiveCategory(rawCategory, rawKeywords);
+
   const { 
     country = "Eswatini", 
     city = "Mbabane", 
     town = "", 
-    category = "Construction", 
-    keywords = "", 
     radius = "15",
     page = 1,
     directorySource = "National Directory",
     isSandbox = false,
     allowSandboxFallback = true
-  } = req.body || {};
+  } = rawBody;
+
+  const category = effectiveCategory;
+  const keywords = rawKeywords;
 
   const correlationId = generateSearchCorrelationId();
   const startTime = Date.now();
@@ -577,43 +619,11 @@ async function handleSearchAndDiscovery(req: express.Request, res: express.Respo
       statusCode: 503
     });
 
-    console.warn(`[Circuit Breaker] Search provider circuit is OPEN. Fast failing or serving fallback.`);
-    if (isSandbox || allowSandboxFallback || !isApiKeyConfigured()) {
-      const sampleBizs = getMockBusinesses(city, category, country, keywords, page).map((b: any) => {
-        const rel = validateSearchRelevance(b, { category, city, country, keywords });
-        const qual = detectDataQualityAndConflicts(b);
-        return {
-          ...b,
-          isDemo: true,
-          dataType: "demo" as const,
-          verificationState: "DEMO" as const,
-          salesStage: "DISCOVERED" as const,
-          providerName: "Local Sandbox Catalog",
-          matchConfidence: rel.matchConfidence,
-          categoryMatch: rel.categoryMatch,
-          locationMatch: rel.locationMatch,
-          relevanceScore: rel.relevanceScore,
-          relevanceExplanation: rel.relevanceExplanation,
-          missingFields: qual.missingFields,
-          hasConflictingData: qual.hasConflictingData,
-          conflicts: qual.conflicts
-        };
-      });
-
-      return res.json({
-        success: true,
-        correlationId,
-        businesses: sampleBizs,
-        source: "circuit_breaker_fallback",
-        isFallback: true,
-        error: "Live search provider is currently cooling down after consecutive outages. Showing sandbox preview."
-      });
-    }
-
+    console.warn(`[Circuit Breaker] Search provider circuit is OPEN. Fast failing.`);
     return res.status(503).json({
       success: false,
       correlationId,
-      error: "Search provider is currently experiencing temporary downtime. Please try again shortly.",
+      error: "Live search provider is currently cooling down after consecutive requests. Please retry in a few seconds.",
       errorCode: "PROVIDER_OUTAGE",
       status: 503,
       businesses: []
@@ -624,12 +634,12 @@ async function handleSearchAndDiscovery(req: express.Request, res: express.Respo
     // 3. Single-Flight Request Coalescing (prevents duplicate simultaneous API calls)
     const result = await coalesceSearchRequest(cacheKey, async () => {
       if (!isApiKeyConfigured()) {
-        const mockBizs = getMockBusinesses(city, category, country, keywords, page);
         return {
-          success: true,
-          businesses: mockBizs,
-          source: "mock_fallback",
-          isFallback: true,
+          success: false,
+          businesses: [],
+          totalResults: 0,
+          source: "live_verified_search",
+          error: "API key is not configured for live search grounding. Please configure GEMINI_API_KEY.",
           groundingUrls: []
         };
       }
@@ -652,7 +662,7 @@ CRITICAL ACCURACY MANDATES:
    - Note the exact directory or platform where you confirmed their real listing.
    - If a real public rating and review count is shown on their listing, include it. If not found or unlisted, set rating to 0 and reviewsCount to 0. NEVER fabricate a rating or review count.
 
-Return ONLY a valid JSON array of 10 to 15 real businesses enclosed in \`\`\`json and \`\`\` with this exact structure:
+Return ONLY a valid JSON array of 6 to 10 real businesses enclosed in \`\`\`json and \`\`\` with this exact structure:
 [
   {
     "name": "Exact Real Business Name",
@@ -672,13 +682,13 @@ Return ONLY a valid JSON array of 10 to 15 real businesses enclosed in \`\`\`jso
 
       const response = await withTimeout(
         generateContentWithRetry({
-          model: "gemini-3.1-flash-lite",
+          model: "gemini-2.5-flash",
           contents: prompt,
           config: {
             tools: [{ googleSearch: {} }]
           }
         }, 1, 300),
-        45000,
+        60000,
         "Live directory search timed out"
       );
 
@@ -691,21 +701,6 @@ Return ONLY a valid JSON array of 10 to 15 real businesses enclosed in \`\`\`jso
       const groundingUrls = groundingChunks.map((c: any) => c.web?.uri).filter(Boolean);
 
       if (!Array.isArray(rawBusinesses) || rawBusinesses.length === 0) {
-        if (allowSandboxFallback || isSandbox) {
-          console.log(`[Live Search] No listings extracted from live provider for '${category}' in '${locationStr}'. Serving curated sandbox catalog.`);
-          const fallbackBizs = getMockBusinesses(city, category, country, keywords, page);
-          return {
-            success: true,
-            businesses: fallbackBizs,
-            totalResults: fallbackBizs.length,
-            isEmpty: false,
-            source: "sandbox_catalog_fallback",
-            isFallback: true,
-            groundingUrls,
-            message: `Live search provider returned no structured listings for '${category}' in '${locationStr}'. Displaying verified catalog preview.`
-          };
-        }
-
         return {
           success: true,
           businesses: [],
@@ -821,7 +816,7 @@ Return ONLY a valid JSON array of 10 to 15 real businesses enclosed in \`\`\`jso
 
         const deterministicIdentity = resolveDeterministicBusinessId({
           id: b.id,
-          sourceId: b.sourceId || assignedSourceUrl,
+          sourceId: b.sourceId,
           name: b.name,
           websiteUrl: rawWebUrl,
           sourceUrl: assignedSourceUrl,
@@ -853,7 +848,7 @@ Return ONLY a valid JSON array of 10 to 15 real businesses enclosed in \`\`\`jso
         });
 
         const enrichedBiz: any = {
-          id: b.id || deterministicIdentity.businessId,
+          id: deterministicIdentity.businessId,
           name: b.name || "Local Establishment",
           category: b.category || category,
           address: b.address || `${city}, ${country}`,
@@ -864,6 +859,7 @@ Return ONLY a valid JSON array of 10 to 15 real businesses enclosed in \`\`\`jso
           reviewsCount,
           rating,
           directorySource: b.directorySource || directorySource || "Public Business Directory",
+          industryTag: b.industryTag || assignIndustryTag({ name: b.name, category: b.category || category, description: b.description }),
           providerName: b.directorySource || directorySource || "Google Search Grounding",
           providerId: String(b.sourceId || assignedSourceUrl || deterministicIdentity.businessId),
           sourceUrl: assignedSourceUrl,
@@ -917,13 +913,21 @@ Return ONLY a valid JSON array of 10 to 15 real businesses enclosed in \`\`\`jso
       const queryObj = { category, city, country, keywords };
       const relevantBizs = enrichedData.filter((b: any) => validateSearchRelevance(b, queryObj).isRelevant);
 
+      // Deduplicate by business id to ensure uniqueness in responses and frontend keys
+      const seenIds = new Set<string>();
+      const dedupedBizs = relevantBizs.filter((b: any) => {
+        if (!b.id || seenIds.has(b.id)) return false;
+        seenIds.add(b.id);
+        return true;
+      });
+
       // Save to short-term search cache
-      setCachedSearchResults(cacheKey, relevantBizs, groundingUrls);
+      setCachedSearchResults(cacheKey, dedupedBizs, groundingUrls);
 
       return {
         success: true,
-        businesses: relevantBizs,
-        totalResults: relevantBizs.length,
+        businesses: dedupedBizs,
+        totalResults: dedupedBizs.length,
         source: "live_verified_search",
         groundingUrls
       };
@@ -939,7 +943,7 @@ Return ONLY a valid JSON array of 10 to 15 real businesses enclosed in \`\`\`jso
       keywords,
       durationMs,
       resultCount: result.totalResults || 0,
-      isFallback: !!result.isFallback
+      isFallback: false
     });
 
     res.json({
@@ -964,58 +968,15 @@ Return ONLY a valid JSON array of 10 to 15 real businesses enclosed in \`\`\`jso
       statusCode: classified.statusCode
     });
 
-    // If client explicitly requests sandbox preview or fallback is allowed
-    if (isSandbox || allowSandboxFallback) {
-      console.log(`[Search Notice] Search provider rate limited or unavailable (${classified.errorCode}). Seamlessly serving verified directory catalog for '${category}' in '${city}'.`);
-      const sampleBizs = getMockBusinesses(city, category, country, keywords, page).map((b: any) => {
-        const rel = validateSearchRelevance(b, { category, city, country, keywords });
-        const qual = detectDataQualityAndConflicts(b);
-        return {
-          ...b,
-          isDemo: true,
-          dataType: "demo" as const,
-          verificationState: "DEMO" as const,
-          salesStage: "DISCOVERED" as const,
-          providerName: "Local Sandbox Catalog",
-          matchConfidence: rel.matchConfidence,
-          categoryMatch: rel.categoryMatch,
-          locationMatch: rel.locationMatch,
-          relevanceScore: rel.relevanceScore,
-          relevanceExplanation: rel.relevanceExplanation,
-          missingFields: qual.missingFields,
-          hasConflictingData: qual.hasConflictingData,
-          conflicts: qual.conflicts,
-          evidence: {
-            checkedAt: new Date().toISOString(),
-            source: "Demo Sample Database (Search Offline)",
-            httpStatus: "Demo Sandbox",
-            websiteVerified: false,
-            verificationStatus: "sample_demo",
-            notes: "DEMO DATA — NOT A REAL PROSPECT. Sample business for demonstration purposes only. Verify independently before outreach."
-          }
-        };
-      });
-
-      return res.json({
-        success: true,
-        correlationId,
-        businesses: sampleBizs,
-        source: "error_fallback",
-        isFallback: true,
-        error: classified.message,
-        errorCode: classified.errorCode
-      });
-    }
-
     console.warn(`[Search Failure] Query for '${category}' in '${city}' failed (${classified.errorCode}):`, error.message || error);
 
-    // Default: Return explicit error status response
-    res.status(classified.statusCode).json({
+    // Return explicit error status response with empty businesses
+    res.status(classified.statusCode || 500).json({
       success: false,
       correlationId,
-      error: classified.message,
+      error: classified.message || "Live directory search is currently unavailable. Please try again.",
       errorCode: classified.errorCode,
-      status: classified.statusCode,
+      status: classified.statusCode || 500,
       businesses: [],
       retryAfterSeconds: classified.retryAfterSeconds
     });
@@ -3986,8 +3947,9 @@ function generateProceduralMockBusinesses(city: string, category: string, countr
 
 // Mock generator for businesses without websites to enable out-of-the-box searches anywhere
 function getMockBusinesses(city: string, category: string, country: string = "Eswatini", searchKeywords: string = "", page: number = 1) {
+  const effectiveCategory = resolveEffectiveCategory(category, searchKeywords);
   const formattedCity = city.charAt(0).toUpperCase() + city.slice(1);
-  const formattedCategory = category.charAt(0).toUpperCase() + category.slice(1);
+  const formattedCategory = effectiveCategory.charAt(0).toUpperCase() + effectiveCategory.slice(1);
   const isEswatini = country.toLowerCase().includes("eswatini") || country.toLowerCase().includes("swaziland") || 
                      ["mbabane", "manzini", "matsapha", "ezulwini", "nhlangano", "siteki", "pigg's peak"].includes(city.toLowerCase());
 

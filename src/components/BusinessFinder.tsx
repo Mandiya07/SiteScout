@@ -6,6 +6,7 @@ import {
   ChevronDown, Database, ExternalLink, CheckCircle2, XCircle, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { Business, SearchFilters, DigitalDeficitAudit } from '../types';
+import { SearchHistorySidebar } from './SearchHistorySidebar';
 
 interface BusinessFinderProps {
   businesses: Business[];
@@ -187,14 +188,8 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
   };
 
   const filteredAndSortedBusinesses = useMemo(() => {
-    let result = [...businesses];
-
-    // Apply data classification filter (real vs demo)
-    if (dataTypeFilter === 'real') {
-      result = result.filter(b => !isDemoBusiness(b));
-    } else if (dataTypeFilter === 'demo') {
-      result = result.filter(b => isDemoBusiness(b));
-    }
+    // Strictly filter out any demo or synthetic records - only live directory records
+    let result = businesses.filter(b => !isDemoBusiness(b));
 
     // Apply Pipeline Branch filter (Branch A Website Audited vs Branch B Candidate Verified)
     if (branchFilter === 'branch_a') {
@@ -226,12 +221,12 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
     });
 
     return result;
-  }, [businesses, dataTypeFilter, branchFilter, noWebsiteOnly, activeDeficitFilters, sortOrder, deficitCache]);
+  }, [businesses, branchFilter, noWebsiteOnly, activeDeficitFilters, sortOrder, deficitCache]);
 
   // Reset page when filter criteria change
   useEffect(() => {
     setCurrentPage(1);
-  }, [dataTypeFilter, branchFilter, noWebsiteOnly, activeDeficitFilters, sortOrder, pageSize]);
+  }, [branchFilter, noWebsiteOnly, activeDeficitFilters, sortOrder, pageSize]);
 
   // High-performance client-side pagination slicing
   const totalPages = Math.max(1, Math.ceil(filteredAndSortedBusinesses.length / pageSize));
@@ -255,7 +250,6 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
       const headers = ["Business Name", "Category", "Address", "Phone", "Data Classification", "Rating", "Deficits Identified", "Opportunity Score", "Primary Gaps"];
       const rows = filteredAndSortedBusinesses.map(b => {
         const defs = getBusinessDeficits(b);
-        const isDemo = isDemoBusiness(b);
         const gaps = Object.entries(defs)
           .filter(([_, val]) => val)
           .map(([key]) => DEFICIT_DEFINITIONS.find(d => d.key === key)?.label || key)
@@ -266,7 +260,7 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
           `"${b.category}"`,
           `"${b.address.replace(/"/g, '""')}"`,
           `"${b.phone}"`,
-          `"${isDemo ? "DEMO_SYNTHETIC_SAMPLE (DO NOT CONTACT)" : "LIVE_VERIFIED_DIRECTORY"}"`,
+          `"LIVE_VERIFIED_DIRECTORY"`,
           b.rating,
           b.deficitCount ?? Object.values(defs).filter(Boolean).length,
           b.presenceScore ?? 40,
@@ -285,15 +279,14 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
     } else if (format === 'text') {
       const textSummary = filteredAndSortedBusinesses.map((b, idx) => {
         const defs = getBusinessDeficits(b);
-        const isDemo = isDemoBusiness(b);
         const activeDefs = Object.entries(defs)
           .filter(([_, val]) => val)
           .map(([k]) => DEFICIT_DEFINITIONS.find(d => d.key === k)?.label)
           .filter(Boolean);
         
-        return `${idx + 1}. [${isDemo ? "Demo / Synthetic Data" : "Verified"}] ${b.name} (${b.category})\n` +
+        return `${idx + 1}. [Verified] ${b.name} (${b.category})\n` +
                `   📍 Address: ${b.address}\n` +
-               `   📞 Phone: ${b.phone} ${isDemo ? "(Synthetic - Do not call)" : ""}\n` +
+               `   📞 Phone: ${b.phone}\n` +
                `   ⭐ Rating: ${b.rating} ★ (${b.reviewsCount} reviews)\n` +
                `   ⚠️ Digital Deficits (${activeDefs.length}): ${activeDefs.join(", ")}\n` +
                `   💡 Opportunity Score: ${b.presenceScore || 40}/100`;
@@ -307,6 +300,12 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
 
   return (
     <div className="space-y-6">
+      {/* Persistent Search History Sidebar */}
+      <SearchHistorySidebar 
+        onReExecuteSearch={onSearch}
+        currentFilters={filters}
+      />
+
       {/* Search & Prospecting Header */}
       <div id="search-control-panel" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 text-left transition-colors">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
@@ -715,46 +714,13 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
           </div>
 
           {/* Strict Data Classification & Architecture Pipeline Branch Tabs */}
+          {/* Architecture Pipeline Branch Tabs & Live Verified Scope */}
           <div className="px-5 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-100/50 dark:bg-slate-950/50 flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-bold text-slate-600 dark:text-slate-400 mr-1">Data:</span>
-              <button
-                type="button"
-                onClick={() => setDataTypeFilter('all')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  dataTypeFilter === 'all'
-                    ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs border border-slate-200 dark:border-slate-700"
-                    : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
-                }`}
-              >
-                All ({businesses.length})
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setDataTypeFilter('real')}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  dataTypeFilter === 'real'
-                    ? "bg-emerald-600 text-white shadow-xs"
-                    : "text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
-                }`}
-              >
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-600 text-white shadow-xs">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                Live Real ({realCount})
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setDataTypeFilter('demo')}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  dataTypeFilter === 'demo'
-                    ? "bg-amber-600 text-white shadow-xs"
-                    : "text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40"
-                }`}
-              >
-                <AlertCircle className="w-3.5 h-3.5" />
-                Demo Samples ({demoCount})
-              </button>
+                Live Real Verified ({realCount})
+              </span>
 
               <div className="h-4 w-px bg-slate-300 dark:bg-slate-700 mx-1 hidden sm:block" />
 
@@ -800,39 +766,11 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
               </button>
             </div>
 
-            {demoCount > 0 && (
-              <div className="flex items-center gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 font-medium">
-                <AlertCircle className="w-3.5 h-3.5" />
-                <span>Demo Data ≠ Real Prospects</span>
-              </div>
-            )}
-          </div>
-
-          {/* Demo Sandbox Alert Banner when demo data is visible */}
-          {demoCount > 0 && (dataTypeFilter === 'all' || dataTypeFilter === 'demo') && (
-            <div className="m-4 p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left">
-              <div className="flex items-start gap-2.5">
-                <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-xs font-bold text-amber-900 dark:text-amber-200">
-                    Demonstration Sandbox Records Active ({demoCount} Samples)
-                  </p>
-                  <p className="text-[11px] text-amber-800/90 dark:text-amber-300/90 mt-0.5 leading-relaxed">
-                    These businesses are synthetic samples generated for interface demonstration. Synthetic phone numbers and emails cannot be contacted. Real sales outreach actions are locked for demo data.
-                  </p>
-                </div>
-              </div>
-              {realCount > 0 && dataTypeFilter === 'all' && (
-                <button
-                  type="button"
-                  onClick={() => setDataTypeFilter('real')}
-                  className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shrink-0 cursor-pointer shadow-xs transition-colors"
-                >
-                  View Only Live Records ({realCount})
-                </button>
-              )}
+            <div className="flex items-center gap-1.5 text-[11px] text-emerald-700 dark:text-emerald-400 font-semibold">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>Real Verified Directory Data Only</span>
             </div>
-          )}
+          </div>
 
           {/* Table of Qualified Prospects */}
           <div className="overflow-x-auto">
@@ -846,28 +784,19 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {paginatedBusinesses.map((biz) => {
+                {paginatedBusinesses.map((biz, idx) => {
                   const defs = getBusinessDeficits(biz);
                   const defCount = biz.deficitCount ?? Object.values(defs).filter(Boolean).length;
                   const score = biz.presenceScore ?? 40;
-                  const isDemo = isDemoBusiness(biz);
 
                   return (
                     <tr 
-                      key={biz.id} 
-                      className={`transition-colors ${
-                        isDemo 
-                          ? "bg-amber-50/20 dark:bg-amber-950/10 hover:bg-amber-50/40 dark:hover:bg-amber-950/20" 
-                          : "hover:bg-slate-50/70 dark:hover:bg-slate-800/40"
-                      }`}
+                      key={`${biz.id}-${idx}`} 
+                      className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors"
                     >
                       <td className="px-5 py-4">
                         <div className="flex items-start gap-3">
-                          <div className={`p-2.5 rounded-xl mt-0.5 ${
-                            isDemo 
-                              ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
-                              : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
-                          }`}>
+                          <div className="p-2.5 rounded-xl mt-0.5 bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                             <Building2 className="h-4 w-4" />
                           </div>
                           <div>
@@ -876,11 +805,7 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
                               <span className="text-[10px] px-2 py-0.2 rounded-full font-semibold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                                 {biz.category}
                               </span>
-                              {isDemo || biz.verificationState === "DEMO" ? (
-                                <span className="inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-md font-bold bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
-                                  ⚠️ Demo / Synthetic Data
-                                </span>
-                              ) : biz.verificationState === "CONTACT_READY" ? (
+                              {biz.verificationState === "CONTACT_READY" ? (
                                 <span className="inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-md font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40" title="Identity, contact phone, and website status verified via directory source checks and ready for outreach.">
                                   <CheckCircle2 className="h-2.5 w-2.5" /> Contact Ready
                                 </span>
@@ -898,15 +823,15 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
                                 </span>
                               )}
                               {/* Pipeline Architecture Branch Badges */}
-                              {(!isDemo) && (biz.presence?.hasWebsite || biz.pipelineBranch === "BRANCH_A_WEBSITE_AUDITED") ? (
+                              {(biz.presence?.hasWebsite || biz.pipelineBranch === "BRANCH_A_WEBSITE_AUDITED") ? (
                                 <span className="inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-md font-bold bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/40">
                                   <Globe className="h-2.5 w-2.5" /> Branch A: Web Audited
                                 </span>
-                              ) : (!isDemo) ? (
+                              ) : (
                                 <span className="inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-md font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800/40">
                                   <Zap className="h-2.5 w-2.5" /> Branch B: No Web Discovered
                                 </span>
-                              ) : null}
+                              )}
                               {biz.sourceUrl && (
                                 <a
                                   href={biz.sourceUrl}
@@ -921,11 +846,9 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
                             </div>
                             <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
                               <MapPin className="h-3 w-3 shrink-0" /> {biz.address}
-                              {isDemo && <span className="text-amber-600 text-[10px] font-semibold">(Synthetic Location)</span>}
                             </p>
                             <p className="text-[11px] text-slate-600 dark:text-slate-400 font-mono mt-0.5 flex items-center gap-1.5">
                               <Phone className="h-3 w-3 shrink-0 text-emerald-600" /> {biz.phone}
-                              {isDemo && <span className="text-amber-600 text-[10px] font-semibold font-sans">(Synthetic Phone - Live Outreach Locked)</span>}
                             </p>
                           </div>
                         </div>
@@ -997,13 +920,8 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
                           </p>
                           {biz.evidence && (
                             <div className="mt-0.5">
-                              <p className={`text-[10px] truncate max-w-xs ${
-                                isDemo
-                                  ? "text-amber-700 dark:text-amber-400 font-medium"
-                                  : "text-slate-500 dark:text-slate-400"
-                              }`} title={biz.evidence.notes}>
-                                {isDemo ? "⚠️ " : "✓ "}
-                                {biz.evidence.notes}
+                              <p className="text-[10px] truncate max-w-xs text-slate-500 dark:text-slate-400" title={biz.evidence.notes}>
+                                ✓ {biz.evidence.notes}
                               </p>
                               {biz.evidence.sourceUrls && biz.evidence.sourceUrls.length > 0 && (
                                 <a
@@ -1024,16 +942,12 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
                         <button
                           onClick={() => onAnalyze(biz)}
                           className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-xs ${
-                            isDemo
-                              ? "bg-amber-600 hover:bg-amber-500 text-white"
-                              : (!biz.presence?.hasWebsite || biz.pipelineBranch === "BRANCH_B_CANDIDATE_VERIFIED")
+                            (!biz.presence?.hasWebsite || biz.pipelineBranch === "BRANCH_B_CANDIDATE_VERIFIED")
                               ? "bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-500/10"
                               : "bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/10"
                           }`}
                         >
-                          {isDemo 
-                            ? "Audit Demo Sample" 
-                            : (!biz.presence?.hasWebsite || biz.pipelineBranch === "BRANCH_B_CANDIDATE_VERIFIED")
+                          {(!biz.presence?.hasWebsite || biz.pipelineBranch === "BRANCH_B_CANDIDATE_VERIFIED")
                             ? "Generate Website"
                             : "Audit Deficits & Pitch"} <ArrowRight className="h-3.5 w-3.5" />
                         </button>

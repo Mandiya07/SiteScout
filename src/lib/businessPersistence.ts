@@ -31,8 +31,19 @@ export function clearBusinessPersistenceStore(): void {
   }
 }
 
+export function isDemoRecord(b: any): boolean {
+  if (!b) return false;
+  if (b.isDemo === true) return true;
+  if (b.dataType === "demo") return true;
+  if (typeof b.id === "string" && b.id.startsWith("demo-")) return true;
+  if (b.verificationState === "DEMO") return true;
+  if (b.evidence?.verificationStatus === "sample_demo") return true;
+  return false;
+}
+
 /**
  * Retrieves the local storage business cache safely in browser environments.
+ * Permanently filters out and purges any synthetic/demo records.
  */
 export function getLocalBusinessCache(): Business[] {
   try {
@@ -41,32 +52,49 @@ export function getLocalBusinessCache(): Business[] {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
+          // Permanently purge any demo/synthetic records from cache
+          const realOnly = parsed.filter(b => !isDemoRecord(b));
+          if (realOnly.length !== parsed.length) {
+            localStorage.setItem(BUSINESS_CACHE_KEY, JSON.stringify(realOnly));
+          }
+          // Clear any demo records from memory store as well
+          for (const [id, record] of memoryBusinessStore.entries()) {
+            if (isDemoRecord(record)) {
+              memoryBusinessStore.delete(id);
+            }
+          }
           // Keep memory store in sync with local storage
-          parsed.forEach(b => {
+          realOnly.forEach(b => {
             if (b.id && !memoryBusinessStore.has(b.id)) {
               memoryBusinessStore.set(b.id, b);
             }
           });
-          return parsed;
+          return realOnly;
         }
       }
     }
   } catch (err) {
     console.warn("[BusinessPersistence] Failed to read local storage cache:", err);
   }
-  return Array.from(memoryBusinessStore.values());
+  return Array.from(memoryBusinessStore.values()).filter(b => !isDemoRecord(b));
 }
 
 /**
- * Updates the local storage business cache safely.
+ * Updates the local storage business cache safely, strictly ensuring only real data is stored.
  */
 export function setLocalBusinessCache(businesses: Business[]): void {
   try {
-    businesses.forEach(b => {
+    const realOnly = businesses.filter(b => !isDemoRecord(b));
+    for (const [id, record] of memoryBusinessStore.entries()) {
+      if (isDemoRecord(record)) {
+        memoryBusinessStore.delete(id);
+      }
+    }
+    realOnly.forEach(b => {
       if (b.id) memoryBusinessStore.set(b.id, b);
     });
     if (typeof localStorage !== "undefined") {
-      localStorage.setItem(BUSINESS_CACHE_KEY, JSON.stringify(businesses));
+      localStorage.setItem(BUSINESS_CACHE_KEY, JSON.stringify(realOnly));
     }
   } catch (err) {
     console.warn("[BusinessPersistence] Failed to write local storage cache:", err);
@@ -489,8 +517,9 @@ export async function ingestAndPersistBusinesses(
   persistedCount: number;
   failedCount: number;
 }> {
+  const realCandidates = incomingCandidates.filter(c => !isDemoRecord(c));
   const currentList = getLocalBusinessCache();
-  const ingestion = deduplicateAndIngestBusinesses(currentList, incomingCandidates, { defaultUserId: userId });
+  const ingestion = deduplicateAndIngestBusinesses(currentList, realCandidates, { defaultUserId: userId });
 
   // Update memory and local cache immediately
   setLocalBusinessCache(ingestion.consolidated);

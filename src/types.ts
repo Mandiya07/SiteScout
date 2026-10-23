@@ -2841,6 +2841,7 @@ export interface Business {
   id: string;
   name: string;
   category: string;
+  industryTag?: string;
   address: string;
   phone: string;
   email?: string;

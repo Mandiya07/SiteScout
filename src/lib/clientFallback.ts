@@ -162,152 +162,45 @@ function generateProceduralMockBusinesses(city: string, category: string, countr
   return generated;
 }
 
-export function getClientMockBusinesses(city: string, category: string, country: string = "Eswatini", searchKeywords: string = "", page: number = 1): Business[] {
-  const formattedCity = city.charAt(0).toUpperCase() + city.slice(1);
-  const formattedCategory = category.charAt(0).toUpperCase() + category.slice(1);
-  const isEswatini = country.toLowerCase().includes("eswatini") || country.toLowerCase().includes("swaziland") || 
-                     ["mbabane", "manzini", "matsapha", "ezulwini", "nhlangano", "siteki", "pigg's peak"].includes(city.toLowerCase());
+export function resolveEffectiveCategory(category: string = "Construction", keywords: string = ""): string {
+  const kw = (keywords || "").toLowerCase().trim();
+  const cat = (category || "").toLowerCase().trim();
 
-  const phonePrefix = isEswatini ? "+268 76" : country.toLowerCase().includes("south africa") ? "+27 82" : "+1 512";
+  if (!kw) return category;
 
-  const getSectorPresets = (cat: string, cityName: string) => {
-    const c = cat.toLowerCase();
-    
-    if (c.includes("restaurant") || c.includes("diner") || c.includes("cafe") || c.includes("bistro")) {
-      return [
-        { name: `${cityName} Charcoal Grill & Steakhouse`, addr: `Somhlolo Road, Corner Plot 14, ${cityName}`, phoneSuffix: "44 1928", desc: `Prime flame-grilled steaks, traditional braai platters, and craft beverages.` },
-        { name: `The Olive Tree Mediterranean Bistro`, addr: `Mbabane CBD Mall Arcade, ${cityName}`, phoneSuffix: "78 3310", desc: `Artisan wood-fired pizzas, fresh pastas, seafood platters, and fine wines.` },
-        { name: `Royal Valley Country Kitchen & Cafe`, addr: `Ezulwini Scenic Way, ${cityName}`, phoneSuffix: "92 5541", desc: `Farm-to-table breakfast, gourmet sandwiches, specialty roasted coffees, and pastries.` },
-        { name: `Spice of Bengal Curry & Tandoor`, addr: `Dzeliwe Street, ${cityName}`, phoneSuffix: "15 8823", desc: `Authentic North Indian curries, tandoori grills, biryanis, and takeout orders.` },
-        { name: `Mama KaMusa Traditional African Cuisine`, addr: `Manzini Central Market Plaza, ${cityName}`, phoneSuffix: "63 7790", desc: `Traditional Swazi dishes, stewed beef, ting porridge, tripe, and sour milk.` },
-        { name: `Sunset Terrace Lounge & Tapas`, addr: `Pine Valley Heights, ${cityName}`, phoneSuffix: "87 2204", desc: `Cocktail bar, sharing platters, weekend DJ sets, and private dining bookings.` }
-      ];
-    } else if (c.includes("salon") || c.includes("beauty") || c.includes("spa") || c.includes("barber") || c.includes("hair")) {
-      return [
-        { name: `Crown & Glory Hair Studio & Spa`, addr: `Allister Miller Street, ${cityName}`, phoneSuffix: "81 3340", desc: `Luxury bridal hair styling, dreadlock maintenance, weaves, braids, and scalp treatments.` },
-        { name: `The Gentleman's Executive Barber Lounge`, addr: `The Gables Arcade, Shop 18, ${cityName}`, phoneSuffix: "29 7715", desc: `Precision hot towel fades, beard sculpting, facial treatments, and shoe shine.` },
-        { name: `${cityName} Aesthetics & Nail Bar`, addr: `Commercial Park Suite 12, ${cityName}`, phoneSuffix: "73 9920", desc: `Gel nails, acrylic extensions, organic pedicures, and soothing massage therapy.` },
-        { name: `Radiance Skin & Wellness Clinic`, addr: `Highland Medical Plaza, ${cityName}`, phoneSuffix: "55 1184", desc: `Deep cleansing facials, micro-needling, laser hair reduction, and chemical peels.` },
-        { name: `Afro-Chic Braiding & Weave Lounge`, addr: `Ngwane Street, ${cityName}`, phoneSuffix: "92 4438", desc: `Knotless braids, cornrows, wig customization, and hair coloring specialists.` },
-        { name: `Serenity Oasis Day Spa`, addr: `Ezulwini Valley Sanctuary, ${cityName}`, phoneSuffix: "38 6609", desc: `Couples Swedish massage, aromatherapy, body scrubs, and sauna packages.` }
-      ];
-    } else if (c.includes("car") || c.includes("dealership") || c.includes("auto sales") || c.includes("vehicle")) {
-      return [
-        { name: `${cityName} Motors & Auto Dealership`, addr: `Plot 84 Matsapha Highway, ${cityName}`, phoneSuffix: "52 8810", desc: `Quality pre-owned sedans, SUVs, double-cab bakkies, and vehicle finance assistance.` },
-        { name: `Kingdom Auto Traders & Imports`, addr: `King Mswati III Avenue, ${cityName}`, phoneSuffix: "99 3324", desc: `Direct Japanese and UK vehicle imports, commercial trucks, and trade-in evaluations.` },
-        { name: `Apex Prestige Auto Gallery`, addr: `Somhlolo Road, ${cityName}`, phoneSuffix: "27 6651", desc: `Luxury German sedans, sports crossovers, detailing, and warranty packages.` },
-        { name: `Highveld 4x4 Commercial Bakkie Centre`, addr: `Industrial Bypass, ${cityName}`, phoneSuffix: "83 1190", desc: `Heavy duty 4WD pickups, mining fleet vehicles, and farm utility transport.` },
-        { name: `Swazi Car Hub & Finance Centre`, addr: `Dzeliwe Street, ${cityName}`, phoneSuffix: "41 7738", desc: `Affordable starter vehicles, flexible bank financing, and verified roadworthy certs.` },
-        { name: `DriveWise Motors`, addr: `Commercial Way Suite 2, ${cityName}`, phoneSuffix: "68 4402", desc: `Fast trade-ins, fleet disposals, quality hatchbacks, and multi-point safety inspection.` }
-      ];
-    } else if (c.includes("construct") || c.includes("build") || c.includes("engineer") || c.includes("civil")) {
-      return [
-        { name: `${cityName} Civil & Building Contractors`, addr: `Plot 104, Matsapha Industrial Site, ${cityName}`, phoneSuffix: "45 1092", desc: `Full-scale commercial building, earthworks, and roofing infrastructure provider.` },
-        { name: `Apex Structural Engineering Ltd`, addr: `Mhlambanyatsi Road, ${cityName}`, phoneSuffix: "82 3341", desc: `Steel fabrication, residential developments, and project management specialists.` },
-        { name: `Swazi Build & Plant Hire`, addr: `King Mswati III Ave, ${cityName}`, phoneSuffix: "91 4455", desc: `Earthmoving plant hire, masonry, paving, and industrial civil contracts.` },
-        { name: `Highland Construction & Joinery`, addr: `Somhlolo Road, ${cityName}`, phoneSuffix: "23 8812", desc: `Bespoke residential architectural buildouts, renovations, and structural woodwork.` },
-        { name: `Ezulwini Valley Builders & Civils`, addr: `Old Manzini Road, ${cityName}`, phoneSuffix: "67 5521", desc: `Premier property developers, plumbing installations, and perimeter civils.` },
-        { name: `Crown Brick & Paving Works`, addr: `Commercial Park Suite 4, ${cityName}`, phoneSuffix: "14 9901", desc: `Industrial paving, concrete supply, and turn-key foundation contractors.` }
-      ];
-    } else if (c.includes("account") || c.includes("tax") || c.includes("audit") || c.includes("bookkeep")) {
-      return [
-        { name: `${cityName} Chartered Accountants & Tax Advisors`, addr: `Corporate Park Building A, ${cityName}`, phoneSuffix: "93 2280", desc: `Corporate tax filing, revenue authority audits, financial statements, and payroll.` },
-        { name: `Apex Financial & Advisory Services`, addr: `Mbabane CBD Office Tower, ${cityName}`, phoneSuffix: "48 9912", desc: `SME bookkeeping, VAT returns, business valuations, and forensic accounting.` },
-        { name: `Kingdom Tax Solutions & Bookkeeping`, addr: `Ezulwini Business Hub, ${cityName}`, phoneSuffix: "17 5543", desc: `Monthly management accounts, annual financial statements, and company registrations.` },
-        { name: `Highveld Audit & Consulting Partners`, addr: `Somhlolo Road Suite 8, ${cityName}`, phoneSuffix: "65 8801", desc: `Statutory external audits, internal control reviews, and CFO advisory services.` },
-        { name: `Swazi Ledger Bookkeeping & Payroll`, addr: `Central Chambers 2nd Floor, ${cityName}`, phoneSuffix: "39 1144", desc: `Cloud accounting software setup (Xero/QuickBooks), payroll processing, and statutory returns.` },
-        { name: `Summit Wealth & Tax Planners`, addr: `Plaza 3rd Floor, ${cityName}`, phoneSuffix: "82 7799", desc: `Estate planning, corporate structuring, capital gains tax, and business turnaround advisory.` }
-      ];
-    } else if (c.includes("law") || c.includes("attorney") || c.includes("legal") || c.includes("notary")) {
-      return [
-        { name: `${cityName} Law Chambers & Advocates`, addr: `Allister Miller Street Suite 40, ${cityName}`, phoneSuffix: "12 8091", desc: `Commercial law, dispute arbitration, conveyancing, corporate governance, and contract drafting.` },
-        { name: `Apex Criminal & Civil Defence Law`, addr: `Dzeliwe Street Chambers, ${cityName}`, phoneSuffix: "66 3041", desc: `Expert litigators, bail applications, civil litigation, labor disputes, and notary publics.` },
-        { name: `Ezulwini Estates & Family Legal Trust`, addr: `Gables Corporate Center, ${cityName}`, phoneSuffix: "77 2209", desc: `Wills and trusts, estate execution, divorce and family mediation, and property transfers.` }
-      ];
-    } else {
-      return [
-        { name: `${cityName} ${formattedCategory} Enterprises`, addr: `Main Commercial Bypass, ${cityName}`, phoneSuffix: "15 8820", desc: `Professional localized ${category} services with experienced personnel and guaranteed workmanship.` },
-        { name: `Apex ${formattedCategory} Agency`, addr: `Corporate Suites Block C, ${cityName}`, phoneSuffix: "44 9210", desc: `Full-service ${category} solutions customized for corporate and individual residential requirements.` },
-        { name: `Elite ${formattedCategory} Specialists`, addr: `Somhlolo Road Office 12, ${cityName}`, phoneSuffix: "78 3045", desc: `Prompt and reliable ${category} support utilizing advanced equipment and quality processes.` },
-        { name: `Highveld ${formattedCategory} & Maintenance`, addr: `Industrial District Suite 8, ${cityName}`, phoneSuffix: "99 1122", desc: `Leading local contractor delivering commercial-grade ${category} works, safety inspections, and servicing.` },
-        { name: `Kingdom ${formattedCategory} Co.`, addr: `Central Plaza ground level, ${cityName}`, phoneSuffix: "23 4567", desc: `Dependable and trusted ${category} provider in ${cityName} committed to absolute quality and customer satisfaction.` },
-        { name: `Summit ${formattedCategory} Professionals`, addr: ` Ngwane Street Annex, ${cityName}`, phoneSuffix: "68 5542", desc: `Your premier destination for verified ${category} solutions, maintenance plans, and turnkey projects.` }
-      ];
-    }
-  };
+  if (kw.includes("law") || kw.includes("attorney") || kw.includes("legal") || kw.includes("lawyer")) return "Lawyers";
+  if (kw.includes("restaurant") || kw.includes("food") || kw.includes("cafe") || kw.includes("eat") || kw.includes("dining")) return "Restaurants";
+  if (kw.includes("salon") || kw.includes("hair") || kw.includes("beauty") || kw.includes("spa") || kw.includes("barber")) return "Salons";
+  if (kw.includes("car") || kw.includes("auto") || kw.includes("vehicle") || kw.includes("dealership") || kw.includes("mechanic")) return "Car Dealerships";
+  if (kw.includes("construct") || kw.includes("build") || kw.includes("engineer") || kw.includes("contractor") || kw.includes("plumb")) return "Construction";
+  if (kw.includes("account") || kw.includes("tax") || kw.includes("audit") || kw.includes("bookkeep")) return "Accountants";
+  if (kw.includes("real estate") || kw.includes("property") || kw.includes("realtor") || kw.includes("estate")) return "Real Estate";
+  if (kw.includes("tour") || kw.includes("safari") || kw.includes("travel") || kw.includes("hotel")) return "Tour Operators";
+  if (kw.includes("school") || kw.includes("academy") || kw.includes("education") || kw.includes("college")) return "Schools";
+  if (kw.includes("clinic") || kw.includes("medical") || kw.includes("doctor") || kw.includes("health") || kw.includes("dental")) return "Medical Practices";
+  if (kw.includes("retail") || kw.includes("shop") || kw.includes("store") || kw.includes("boutique")) return "Retailers";
+  if (kw.includes("clean") || kw.includes("janitor") || kw.includes("laundry")) return "Cleaning Companies";
+  if (kw.includes("security") || kw.includes("guard") || kw.includes("alarm")) return "Security Companies";
+  if (kw.includes("funeral") || kw.includes("burial") || kw.includes("mortuary")) return "Funeral Businesses";
+  if (kw.includes("cater")) return "Caterers";
+  if (kw.includes("photo") || kw.includes("camera") || kw.includes("studio")) return "Photographers";
+  if (kw.includes("design") || kw.includes("graphic")) return "Graphic Designers";
+  if (kw.includes("print") || kw.includes("press")) return "Printers";
+  if (kw.includes("sign") || kw.includes("billboard")) return "Sign Companies";
+  if (kw.includes("social") || kw.includes("marketing") || kw.includes("agency")) return "Marketing Agencies";
+  if (kw.includes("it") || kw.includes("tech") || kw.includes("computer") || kw.includes("network")) return "IT Technicians";
 
-  const presets = generateProceduralMockBusinesses(formattedCity, formattedCategory, country, searchKeywords, page);
+  if (cat === "construction" && kw.length > 2) {
+    return keywords;
+  }
 
-  return presets.map((p, index) => {
-    const isOdd = index % 2 !== 0;
-    const rating = parseFloat((4.0 - (index * 0.15) + (isOdd ? 0.4 : 0)).toFixed(1));
-    const reviewsCount = 5 + (index * 7);
+  return category;
+}
 
-    const presence: any = {
-      hasWebsite: false,
-      hasEmail: index % 3 !== 0,
-      facebookStatus: index % 4 === 0 ? "weak" : "none",
-      instagramStatus: "none",
-      googleProfileQuality: index % 5 === 0 ? "fair" : "poor",
-      reviewCountStatus: reviewsCount < 10 ? "few" : reviewsCount < 25 ? "average" : "many",
-      photosStatus: "missing",
-      descriptionQuality: "poor",
-      openingHoursStatus: "missing",
-      contactCompleteness: index % 3 === 0 ? "missing" : "partial"
-    };
-
-    const defs = computeDefaultDeficits(presence);
-    const defCount = Object.values(defs).filter(Boolean).length;
-    const presenceScore = calculatePresenceScore(presence, rating, reviewsCount);
-    const phone = `${phonePrefix} ${p.phoneSuffix}`;
-
-    const oppResult = calculateExplainableOpportunityScore(
-      { ...presence, deficits: defs },
-      rating,
-      reviewsCount,
-      p.name,
-      category,
-      phone
-    );
-
-    const businessEmail = null;
-
-    return {
-      id: `client_biz_${formattedCity.toLowerCase()}_${category.toLowerCase()}_p${page}_${index + 1}`,
-      name: p.name,
-      category: category,
-      address: p.addr,
-      phone,
-      email: businessEmail,
-      reviewsCount,
-      rating,
-      directorySource: "Client Local Sandbox Mode",
-      presence: {
-        ...presence,
-        deficits: defs
-      },
-      isDemo: true,
-      dataType: "demo" as const,
-      verificationState: "DEMO" as const,
-      salesStage: "DISCOVERED" as const,
-      description: p.desc,
-      deficitCount: defCount,
-      presenceScore,
-      businessQualityScore: oppResult.businessQualityScore,
-      digitalDeficitScore: oppResult.digitalDeficitScore,
-      websiteOpportunityScore: oppResult.totalScore,
-      opportunityScore: oppResult.totalScore,
-      prospectStatus: "New",
-      evidence: {
-        checkedAt: new Date().toISOString(),
-        source: "Client Demo Data Sample",
-        httpStatus: "Demo Sandbox",
-        websiteVerified: false,
-        verificationStatus: "sample_demo",
-        notes: "Demo sample prospect for testing - Not verified through live web search."
-      }
-    };
-  });
+export function getClientMockBusinesses(_city: string, _category: string, _country: string = "Eswatini", _searchKeywords: string = "", _page: number = 1): Business[] {
+  // Synthetic data is strictly disabled across SiteScout AI.
+  // All prospect discovery must originate from live verified directory sources.
+  return [];
 }
 
 export function getIndustryDetails(category: string, city: string) {

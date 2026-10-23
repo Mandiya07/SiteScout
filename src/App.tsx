@@ -8,6 +8,7 @@ import Auth from "./components/Auth";
 import Navbar from "./components/Navbar";
 import Onboarding from "./components/Onboarding";
 import BusinessFinder from "./components/BusinessFinder";
+import { addSearchHistoryItem } from "./components/SearchHistorySidebar";
 import OpportunityAnalysis from "./components/OpportunityAnalysis";
 import WebsiteGenerator from "./components/WebsiteGenerator";
 import WebsiteEditor from "./components/WebsiteEditor";
@@ -25,7 +26,7 @@ import ProspectPipeline from "./components/ProspectPipeline";
 import ProspectReviewQueue from "./components/ProspectReviewQueue";
 import MyWebsites from "./components/MyWebsites";
 import ThreeStepRevenueEngine from "./components/ThreeStepRevenueEngine";
-import { getClientMockBusinesses, generateClientMockSite } from "./lib/clientFallback";
+import { generateClientMockSite, resolveEffectiveCategory } from "./lib/clientFallback";
 import { generateSecurePreviewToken, sanitizePublicPreview } from "./lib/security";
 import { toCanonicalStage } from "./lib/prospectCrm";
 import { deduplicateAndIngestBusinesses } from "./lib/businessIdentity";
@@ -279,9 +280,8 @@ export default function App() {
       const loadUserBusinesses = async () => {
         try {
           const bizList = await fetchUserBusinesses(session.uid);
-          if (bizList && bizList.length > 0) {
-            setBusinesses(bizList);
-          }
+          const realList = (bizList || []).filter(b => !b.isDemo && b.dataType !== "demo" && !b.id?.startsWith("demo-"));
+          setBusinesses(realList);
         } catch (err) {
           console.error("Error loading user businesses:", err);
         }
@@ -347,6 +347,36 @@ export default function App() {
     }
   };
 
+  const handleImportLeads = async (incomingLeads: Business[]) => {
+    try {
+      const result = await ingestAndPersistBusinesses(incomingLeads, session?.uid);
+      setBusinesses(result.consolidated);
+      setStats(prev => ({
+        ...prev,
+        found: result.consolidated.length
+      }));
+      return {
+        addedCount: result.added.length,
+        updatedCount: result.updated.length
+      };
+    } catch (err) {
+      console.error("Error persisting imported CSV leads:", err);
+      let added = 0;
+      let updated = 0;
+      setBusinesses(prev => {
+        const existingIds = new Set(prev.map(b => b.id));
+        const unique = incomingLeads.filter(b => !existingIds.has(b.id));
+        added = unique.length;
+        updated = incomingLeads.length - added;
+        return [...prev, ...unique];
+      });
+      return {
+        addedCount: added,
+        updatedCount: updated
+      };
+    }
+  };
+
   // Sync dark theme with HTML tags
   useEffect(() => {
     if (darkMode) {
@@ -376,50 +406,55 @@ export default function App() {
       }
 
       const data = await response.json();
-      const newBizs: Business[] = data.businesses || [];
-      
-      // Ingest and persist through canonical persistence service
-      const ingestionResult = await ingestAndPersistBusinesses(newBizs, session?.uid);
-      setBusinesses(ingestionResult.consolidated);
-      
-      if (data.source === "error_fallback") {
-        setApiNotice("sandbox_simulated");
-      } else if (data.source === "mock_fallback") {
-        setApiNotice("mock_simulated");
+      console.log("[TriggerSearch Network Response] Raw server response payload:", {
+        source: data.source,
+        success: data.success,
+        totalResults: data.totalResults,
+        businessesCount: data.businesses?.length,
+        firstBusiness: data.businesses?.[0],
+        correlationId: data.correlationId
+      });
+      const newBizs: Business[] = (data.businesses || []).filter((b: any) => !b.isDemo && b.dataType !== "demo" && !b.id?.startsWith("demo-"));
+      const pageNum = filters.page || 1;
+      const isAppend = pageNum > 1;
+
+      // Ingest and persist through canonical persistence service in background
+      ingestAndPersistBusinesses(newBizs, session?.uid).catch(err => {
+        console.warn("[Ingestion] Background persistence notice:", err);
+      });
+
+      // Update the active search directory view
+      if (isAppend) {
+        setBusinesses(prev => {
+          const cleanPrev = prev.filter(b => !b.isDemo && b.dataType !== "demo" && !b.id?.startsWith("demo-"));
+          const existingIds = new Set(cleanPrev.map(b => b.id));
+          const uniqueNew = newBizs.filter(b => !existingIds.has(b.id));
+          return [...cleanPrev, ...uniqueNew];
+        });
       } else {
-        setApiNotice(null);
+        setBusinesses(newBizs);
       }
+      
+      setApiNotice(null);
 
       if (!isInitial) {
         setStats(prev => ({ ...prev, found: prev.found + (newBizs.length || 0) }));
+        if (newBizs.length > 0) {
+          addSearchHistoryItem({
+            category: filters.category || 'General',
+            city: filters.city || 'Mbabane',
+            country: filters.country || 'Eswatini',
+            keywords: filters.keywords,
+            resultCount: newBizs.length,
+            source: data.source || 'Live Search Grounding'
+          });
+        }
       }
     } catch (error) {
-      console.warn("Search API fallback active:", error);
-      
-      const pageNum = filters.page || 1;
-      // Fallback directly to generating high-quality localized client-side mock businesses
-      const mockBizs = getClientMockBusinesses(
-        filters.city || "Mbabane", 
-        filters.category || "Construction", 
-        filters.country || "Eswatini",
-        filters.keywords || "",
-        pageNum
-      );
-      
-      const isAppend = pageNum > 1;
-      if (isAppend) {
-        const ingestion = await ingestAndPersistBusinesses(mockBizs, session?.uid);
-        setBusinesses(ingestion.consolidated);
-      } else {
-        const ingestion = await ingestAndPersistBusinesses(mockBizs, session?.uid);
-        setBusinesses(ingestion.consolidated);
-      }
-      
-      setApiNotice("sandbox_simulated");
-      
-      if (!isInitial) {
-        setStats(prev => ({ ...prev, found: prev.found + mockBizs.length }));
-      }
+      console.warn("Search API error:", error);
+      // Under no circumstances generate or inject synthetic/mock data.
+      // Leave state clean and reflect actual directory results.
+      setApiNotice(null);
     } finally {
       if (!isInitial) setLoading(false);
     }
@@ -1329,25 +1364,7 @@ export default function App() {
                 </div>
               </div>
 
-              {apiNotice && (
-                <div className={`p-4 rounded-xl border flex items-start gap-3 transition-all text-left ${
-                  apiNotice === "sandbox_simulated" 
-                    ? "bg-amber-50/50 border-amber-200 text-amber-900 dark:bg-amber-950/20 dark:border-amber-900/40 dark:text-amber-200"
-                    : "bg-blue-50/50 border-blue-200 text-blue-900 dark:bg-blue-950/20 dark:border-blue-900/40 dark:text-blue-200"
-                }`}>
-                  <AlertTriangle className={`h-5 w-5 shrink-0 mt-0.5 ${apiNotice === "sandbox_simulated" ? "text-amber-500" : "text-blue-500"}`} />
-                  <div>
-                    <h4 className="text-xs font-extrabold uppercase tracking-wider">
-                      {apiNotice === "sandbox_simulated" ? "Live Directory Search Offline (Demo Mode Active)" : "Mock Demo Environment Active"}
-                    </h4>
-                    <p className="text-xs mt-1 leading-relaxed opacity-90">
-                      {apiNotice === "sandbox_simulated" 
-                        ? "Live web directory search is currently unavailable or timed out. SiteScout has loaded demo sample prospects for interface testing. Note: Sample records are unverified test data and should not be contacted."
-                        : "GEMINI_API_KEY is not configured in your workspace secrets. SiteScout AI is running with our pre-loaded localized business samples to demonstrate prospecting workflows."}
-                    </p>
-                  </div>
-                </div>
-              )}
+
 
               {firestorePermissionNotice && (
                 <div className="p-4 rounded-xl border border-amber-200 bg-amber-50 text-amber-950 dark:bg-amber-950/20 dark:border-amber-900/40 dark:text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left">
@@ -1415,13 +1432,13 @@ export default function App() {
                   </div>
                 ) : (
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {businesses.slice(0, 6).map((biz) => {
+                    {businesses.slice(0, 6).map((biz, idx) => {
                       const matchedSite = userSites.find(s => s.businessName.toLowerCase() === biz.name.toLowerCase());
                       const oppScore = biz.opportunityScore ?? 65;
 
                       return (
                         <div 
-                          key={biz.id} 
+                          key={`${biz.id}-${idx}`} 
                           className="rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 bg-slate-50/50 dark:bg-slate-950/40 hover:border-blue-300 dark:hover:border-blue-800 transition-all flex flex-col justify-between"
                         >
                           <div>
@@ -1626,6 +1643,7 @@ export default function App() {
               userId={session?.uid}
               userName={session?.displayName || session?.email || "Agent"}
               onUpdateProspect={handleUpdateProspect}
+              onImportLeads={handleImportLeads}
               onOpenReviewQueue={() => setActiveTab("review_queue")}
               onViewAudit={(biz) => {
                 setSelectedBusiness(biz);
@@ -1802,6 +1820,8 @@ export default function App() {
               businesses={businesses}
               sites={userSites}
               onBack={() => setActiveTab("dashboard")}
+              onImportLeads={handleImportLeads}
+              userId={session?.uid}
             />
           )}
 

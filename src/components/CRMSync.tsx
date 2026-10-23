@@ -1,22 +1,27 @@
 import { useState, FormEvent } from "react";
 import { Business, GeneratedSite } from "../types";
 import { 
-  Users, Briefcase, RefreshCw, CheckCircle2, ArrowRight, ShieldCheck, Database, Sliders, Globe, X
+  Users, Briefcase, RefreshCw, CheckCircle2, ArrowRight, ShieldCheck, Database, Sliders, Globe, X,
+  Upload, FileSpreadsheet
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import CsvLeadImportModal from "./CsvLeadImportModal";
 
 interface CRMSyncProps {
   businesses: Business[];
   sites: GeneratedSite[];
   onBack: () => void;
+  onImportLeads?: (leads: Business[]) => Promise<{ addedCount: number; updatedCount: number } | void> | void;
+  userId?: string;
 }
 
-export default function CRMSync({ businesses, sites, onBack }: CRMSyncProps) {
+export default function CRMSync({ businesses, sites, onBack, onImportLeads, userId }: CRMSyncProps) {
   const [selectedCRM, setSelectedCRM] = useState<string>("hubspot");
   const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "success" | "error">("idle");
   const [apiKey, setApiKey] = useState("");
   const [showConfig, setShowConfig] = useState(false);
   const [lastSync, setLastSync] = useState<string>("Never");
+  const [showCsvModal, setShowCsvModal] = useState<boolean>(false);
 
   const crmOptions = [
     { id: "hubspot", name: "HubSpot", icon: "🔥", color: "border-orange-500 text-orange-600 bg-orange-50 dark:bg-orange-950/20" },
@@ -45,17 +50,16 @@ export default function CRMSync({ businesses, sites, onBack }: CRMSyncProps) {
 
   const realBusinesses = businesses.filter(b => b.dataType !== "demo" && !b.isDemo && b.evidence?.verificationStatus !== "sample_demo");
   const leadsCount = realBusinesses.length;
-  const demoCount = businesses.length - realBusinesses.length;
   const clientsCount = sites.filter(s => s.clientApproved).length;
   const activeProjectsCount = sites.length;
 
   return (
     <div className="space-y-6 text-left">
-      <div className="flex items-start justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-4 dark:border-slate-800">
         <div>
           <button
             onClick={onBack}
-            className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white mb-2 transition-colors"
+            className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white mb-2 transition-colors cursor-pointer"
           >
             ← Back to Dashboard
           </button>
@@ -64,20 +68,23 @@ export default function CRMSync({ businesses, sites, onBack }: CRMSyncProps) {
               <Database className="h-5 w-5" />
             </div>
             <h2 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-              CRM Integration & Sync
+              CRM Integration &amp; Sync
             </h2>
           </div>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             Keep your prospect data and client pipeline synchronized securely across platforms.
           </p>
         </div>
-      </div>
 
-      <div className="p-3.5 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 flex items-center justify-between text-xs text-amber-800 dark:text-amber-300 animate-fade-in">
-        <div className="flex items-center gap-2">
-          <Database className="h-4 w-4 text-amber-500 shrink-0" />
-          <span><strong>Simulated Sandbox Mode:</strong> Real OAuth connections for HubSpot, Salesforce, Pipedrive, and Zoho are planned for Phase 2. This is currently non-priority; explore mapping rules and test simulated synchronization flow below.</span>
-        </div>
+        <button
+          type="button"
+          onClick={() => setShowCsvModal(true)}
+          className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/10 flex items-center gap-2 transition-all cursor-pointer shrink-0 self-start sm:self-center"
+          title="Upload CSV of existing leads into local business state"
+        >
+          <Upload className="h-4 w-4" />
+          <span>Upload Leads CSV</span>
+        </button>
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
@@ -260,7 +267,7 @@ export default function CRMSync({ businesses, sites, onBack }: CRMSyncProps) {
                 </div>
                 <div className="flex items-center justify-between text-[10px] text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">
                   <span>✨ Live Verified Scope</span>
-                  <span>100% Exclude Synthetic</span>
+                  <span>100% Genuine Leads</span>
                 </div>
               </div>
               <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800/50">
@@ -277,13 +284,6 @@ export default function CRMSync({ businesses, sites, onBack }: CRMSyncProps) {
                 </div>
                 <span className="text-sm font-mono font-bold text-emerald-600 dark:text-emerald-500">{clientsCount}</span>
               </div>
-
-              {demoCount > 0 && (
-                <div className="p-3 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/30 text-[11px] text-amber-800 dark:text-amber-300">
-                  <span className="font-bold block mb-0.5">⚠️ Data Export Guardrail:</span>
-                  {demoCount} synthetic demo records were automatically filtered out to prevent directory contamination.
-                </div>
-              )}
             </div>
 
             <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
@@ -304,6 +304,20 @@ export default function CRMSync({ businesses, sites, onBack }: CRMSyncProps) {
           </div>
         </div>
       </div>
+
+      {/* CSV Lead Import Modal */}
+      {showCsvModal && (
+        <CsvLeadImportModal
+          isOpen={showCsvModal}
+          onClose={() => setShowCsvModal(false)}
+          onImportLeads={async (leads) => {
+            if (onImportLeads) {
+              return await onImportLeads(leads);
+            }
+          }}
+          userId={userId}
+        />
+      )}
     </div>
   );
 }

@@ -35,7 +35,7 @@ import { applyWebsiteUpdate } from "./lib/websiteVersioning";
 import { 
   Search, Globe, Award, Trophy, User, MessageSquare, Phone, MapPin, 
   CheckCircle2, AlertTriangle, ShieldCheck, HeartCrack, Flame, TrendingUp, Users, ArrowRight, BookOpen, Database, Handshake, Sparkles, Clock, Calendar,
-  ShieldAlert, Copy, Check, ExternalLink, X, ChevronDown
+  ShieldAlert, Copy, Check, ExternalLink, X, ChevronDown, History, RefreshCw, Trash2
 } from "lucide-react";
 
 const placeholderSite: GeneratedSite = {
@@ -93,6 +93,211 @@ const placeholderSite: GeneratedSite = {
     message: "The requested layout section is currently being compiled."
   }
 };
+
+export interface SearchHistoryEntry {
+  id: string;
+  category: string;
+  city: string;
+  country: string;
+  keywords?: string;
+  resultCount: number;
+  timestamp: string;
+  source: string;
+}
+
+const SEARCH_HISTORY_STORAGE_KEY = 'sitescout_search_history_v1';
+const MAX_SEARCH_HISTORY = 5;
+
+export function loadSearchHistoryFromStorage(): SearchHistoryEntry[] {
+  try {
+    if (typeof window === 'undefined') return [];
+    const raw = localStorage.getItem(SEARCH_HISTORY_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((item: any) => 
+        item && 
+        typeof item.category === 'string' &&
+        !item.category.toLowerCase().includes('demo') &&
+        !item.city?.toLowerCase().includes('demo') &&
+        typeof item.resultCount === 'number' &&
+        item.resultCount > 0
+      )
+      .slice(0, MAX_SEARCH_HISTORY);
+  } catch (err) {
+    console.warn("Failed to load search history:", err);
+    return [];
+  }
+}
+
+export function saveSearchHistoryEntry(entry: Omit<SearchHistoryEntry, 'id' | 'timestamp'>) {
+  try {
+    if (typeof window === 'undefined') return;
+    if (entry.category?.toLowerCase().includes('demo') || entry.city?.toLowerCase().includes('demo')) {
+      return;
+    }
+    const current = loadSearchHistoryFromStorage();
+    const newEntry: SearchHistoryEntry = {
+      id: `hist_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      ...entry,
+      timestamp: new Date().toISOString()
+    };
+    const filtered = current.filter(h => 
+      !(h.category.toLowerCase() === newEntry.category.toLowerCase() &&
+        h.city.toLowerCase() === newEntry.city.toLowerCase() &&
+        (h.country || '').toLowerCase() === (newEntry.country || '').toLowerCase())
+    );
+    const updated = [newEntry, ...filtered].slice(0, MAX_SEARCH_HISTORY);
+    localStorage.setItem(SEARCH_HISTORY_STORAGE_KEY, JSON.stringify(updated));
+  } catch (err) {
+    console.warn("Failed to save search history:", err);
+  }
+}
+
+interface PersistentSearchHistorySidebarProps {
+  history: SearchHistoryEntry[];
+  onReRunSearch: (entry: SearchHistoryEntry) => void;
+  onClearHistory: () => void;
+  isOpen: boolean;
+  onToggle: () => void;
+}
+
+export function PersistentSearchHistorySidebar({
+  history,
+  onReRunSearch,
+  onClearHistory,
+  isOpen,
+  onToggle
+}: PersistentSearchHistorySidebarProps) {
+  if (!isOpen) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-xs dark:border-slate-800 dark:bg-slate-900 transition-colors">
+        <button
+          onClick={onToggle}
+          className="w-full flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-blue-600 transition-colors cursor-pointer"
+        >
+          <span className="flex items-center gap-2">
+            <History className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <span>Past Searches ({history.length})</span>
+          </span>
+          <ChevronDown className="h-4 w-4 text-slate-400" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900 transition-colors text-left space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400 border border-blue-100 dark:border-blue-800/40">
+            <History className="h-4 w-4" />
+          </div>
+          <div>
+            <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
+              Recent Searches
+            </h3>
+            <span className="text-[10px] text-slate-400 font-semibold block">
+              Last {history.length} Live Queries (1-Click Re-run)
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          {history.length > 0 && (
+            <button
+              onClick={onClearHistory}
+              className="text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+              title="Clear search history"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <button
+            onClick={onToggle}
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            title="Minimize sidebar"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Verified Grounding Shield */}
+      <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/60 text-[10px] font-bold text-emerald-800 dark:text-emerald-300">
+        <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+        <span className="leading-tight text-[10px]">Verified Live Searches Only • Zero Synthetic Data</span>
+      </div>
+
+      {/* List of queries */}
+      {history.length === 0 ? (
+        <div className="py-8 text-center text-slate-400 dark:text-slate-500 border border-dashed border-slate-100 dark:border-slate-800/80 rounded-2xl p-4">
+          <Search className="h-7 w-7 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
+          <p className="text-xs font-bold text-slate-700 dark:text-slate-300">No search history recorded yet</p>
+          <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
+            Execute a live search in Directory Finder to automatically save quick re-run queries here.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2.5">
+          {history.map((item) => {
+            const timeAgo = (() => {
+              try {
+                const diffMin = Math.floor((Date.now() - new Date(item.timestamp).getTime()) / 60000);
+                if (diffMin < 1) return 'Just now';
+                if (diffMin < 60) return `${diffMin}m ago`;
+                const diffHr = Math.floor(diffMin / 60);
+                if (diffHr < 24) return `${diffHr}h ago`;
+                return `${Math.floor(diffHr / 24)}d ago`;
+              } catch {
+                return 'Recently';
+              }
+            })();
+
+            return (
+              <div
+                key={item.id}
+                className="p-3.5 rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 hover:border-blue-300 dark:hover:border-blue-700 transition-all flex flex-col gap-2.5 shadow-2xs"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <h4 className="text-xs font-extrabold text-slate-900 dark:text-white truncate" title={item.category}>
+                      {item.category}
+                    </h4>
+                    <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                      <MapPin className="h-3 w-3 text-slate-400 shrink-0" />
+                      <span className="truncate">{item.city}, {item.country || 'Eswatini'}</span>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 shrink-0">
+                    {item.resultCount} found
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 dark:border-slate-800/80 text-[10px] text-slate-400">
+                  <span className="flex items-center gap-1 font-medium">
+                    <Clock className="h-3 w-3" />
+                    {timeAgo}
+                  </span>
+
+                  <button
+                    onClick={() => onReRunSearch(item)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-extrabold shadow-xs transition-all cursor-pointer"
+                    title="Click to instantly re-execute this search query"
+                  >
+                    <RefreshCw className="h-3 w-3" /> Re-run Search
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function App() {
   const { user: session, loading: authLoading, logout } = useAuth();
@@ -208,6 +413,34 @@ export default function App() {
   const [firestorePermissionNotice, setFirestorePermissionNotice] = useState<boolean>(false);
   const [showRulesModal, setShowRulesModal] = useState<boolean>(false);
   const [copiedRules, setCopiedRules] = useState<boolean>(false);
+
+  // Persistent Search History State (Last 5 successful live queries)
+  const [searchHistory, setSearchHistory] = useState<SearchHistoryEntry[]>(() => loadSearchHistoryFromStorage());
+  const [showHistorySidebar, setShowHistorySidebar] = useState<boolean>(true);
+
+  // Quick 1-click re-execution of past search queries
+  const handleReRunSearch = (entry: SearchHistoryEntry) => {
+    setActiveTab("finder");
+    triggerSearch({
+      category: entry.category,
+      city: entry.city,
+      town: "",
+      country: entry.country || "Eswatini",
+      keywords: entry.keywords || "",
+      radius: "15",
+      directorySource: "National Business Directory / Yellow Pages"
+    }, false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleClearSearchHistory = () => {
+    try {
+      localStorage.removeItem(SEARCH_HISTORY_STORAGE_KEY);
+      setSearchHistory([]);
+    } catch (err) {
+      console.warn("Failed to clear search history:", err);
+    }
+  };
 
   // Load user's saved sites from Firestore
   useEffect(() => {
@@ -440,14 +673,15 @@ export default function App() {
       if (!isInitial) {
         setStats(prev => ({ ...prev, found: prev.found + (newBizs.length || 0) }));
         if (newBizs.length > 0) {
-          addSearchHistoryItem({
-            category: filters.category || 'General',
+          saveSearchHistoryEntry({
+            category: filters.category || 'General Services',
             city: filters.city || 'Mbabane',
             country: filters.country || 'Eswatini',
             keywords: filters.keywords,
             resultCount: newBizs.length,
             source: data.source || 'Live Search Grounding'
           });
+          setSearchHistory(loadSearchHistoryFromStorage());
         }
       }
     } catch (error) {
@@ -510,7 +744,7 @@ export default function App() {
       setBusinesses(prev => prev.map(b => b.id === biz.id ? updatedBusiness : b));
       setActiveTab("analysis");
     } catch (error) {
-      console.error("Analysis API Error, running high-fidelity client-side fallback:", error);
+      console.warn("Analysis API notice, running high-fidelity client-side fallback:", error);
       
       // High-fidelity fallback logic matching business specifics
       const updatedBusiness = {
@@ -589,7 +823,7 @@ export default function App() {
         setActiveTab("generator");
       }
     } catch (error) {
-      console.error("Direct build website error:", error);
+      console.warn("Direct build website notice:", error);
       setActiveTab("generator");
     } finally {
       setLoading(false);
@@ -849,7 +1083,7 @@ export default function App() {
                   <div className="w-12" />
                 </div>
                 <div className="flex-grow flex flex-col overflow-hidden">
-                  <WebsiteView site={publicPreviewSite} />
+                  <WebsiteView site={publicPreviewSite} forcedViewport={clientViewport} />
                 </div>
               </div>
             </div>
@@ -859,7 +1093,7 @@ export default function App() {
                 {/* Phone Notch */}
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 h-4 w-28 bg-slate-900 rounded-b-xl z-20" />
                 <div className="flex-1 pt-4 overflow-hidden flex flex-col">
-                  <WebsiteView site={publicPreviewSite} />
+                  <WebsiteView site={publicPreviewSite} forcedViewport={clientViewport} />
                 </div>
               </div>
             </div>
@@ -1118,7 +1352,7 @@ export default function App() {
       setStats(prev => ({ ...prev, generated: prev.generated + 1 }));
       setActiveTab("editor");
     } catch (error) {
-      console.error("Site Generation API Error, applying high-fidelity client fallback:", error);
+      console.warn("Site Generation API notice, applying high-fidelity client fallback:", error);
       
       // Standalone high-fidelity client-side layout generator
       const mockSite = generateClientMockSite(selectedBusiness);
@@ -1293,8 +1527,9 @@ export default function App() {
           </div>
         )}
 
-        {/* Dynamic Section router */}
-        <div className="space-y-6">
+        {/* Dynamic Section router with Persistent Search History Sidebar */}
+        <div className="flex flex-col lg:flex-row gap-6 items-start">
+          <div className="flex-1 min-w-0 w-full space-y-6">
           
           {/* View: Dashboard Overview */}
           {activeTab === "dashboard" && (() => {
@@ -1853,7 +2088,20 @@ export default function App() {
               onBack={() => setActiveTab("dashboard")}
             />
           )}
+          </div>
 
+          {/* Persistent Search History Sidebar in App.tsx (Last 5 Successful Queries) */}
+          {activeTab !== "editor" && activeTab !== "preview" && (
+            <div className="w-full lg:w-80 shrink-0 lg:sticky lg:top-24">
+              <PersistentSearchHistorySidebar
+                history={searchHistory}
+                onReRunSearch={handleReRunSearch}
+                onClearHistory={handleClearSearchHistory}
+                isOpen={showHistorySidebar}
+                onToggle={() => setShowHistorySidebar(!showHistorySidebar)}
+              />
+            </div>
+          )}
         </div>
       </main>
 

@@ -98,14 +98,14 @@ export function generateStaticHtml(rawSite: any): string {
   const fontClass = getFontFamilyClass(fontStyle);
 
   // Logo Rendering
-  let logoHtml = `<span class="text-sm font-bold ${fontClass}" style="color: ${primaryColor}">${businessName}</span>`;
+  let logoHtml = `<span class="text-sm font-bold truncate block min-w-0 ${fontClass}" style="color: ${primaryColor}" title="${businessName}">${businessName}</span>`;
   if (site.logoType === "image" && site.logoUrl) {
     logoHtml = `<img src="${sanitizeUrl(site.logoUrl)}" alt="${businessName}" class="h-8 w-auto object-contain max-w-[150px]" referrerpolicy="no-referrer" />`;
   } else if (site.logoType === "icon") {
     logoHtml = `
-      <div class="text-sm font-bold flex items-center gap-2 ${fontClass}" style="color: ${primaryColor}">
+      <div class="text-sm font-bold flex items-center gap-2 min-w-0 ${fontClass}" style="color: ${primaryColor}" title="${businessName}">
         ${getLogoIconSvg(site.logoIcon, primaryColor)}
-        <span>${businessName}</span>
+        <span class="truncate block min-w-0">${businessName}</span>
       </div>
     `;
   }
@@ -122,8 +122,6 @@ export function generateStaticHtml(rawSite: any): string {
       <div class="relative z-10 max-w-3xl mx-auto space-y-4 sm:space-y-6 px-4">
         <div class="flex items-center justify-center gap-2 text-xs sm:text-sm font-semibold tracking-wider text-slate-200/90 uppercase">
           <span>${category}</span>
-          <span aria-hidden="true" class="opacity-50">·</span>
-          <span>${escapeHtml(address ? address.split(",")[0] : "Local Service")}</span>
         </div>
 
         <h1 class="text-2xl sm:text-4xl md:text-5xl font-extrabold text-white leading-tight sm:leading-tight tracking-tight drop-shadow-md ${fontClass}">
@@ -553,33 +551,91 @@ export function generateStaticHtml(rawSite: any): string {
       background-color: var(--bg);
       color: var(--text);
     }
+    @media (max-width: 767.98px) {
+      .site-desktop-nav {
+        display: none !important;
+      }
+      .site-hamburger-toggle {
+        display: flex !important;
+      }
+    }
+    @media (min-width: 768px) {
+      .site-desktop-nav {
+        display: flex !important;
+      }
+      .site-hamburger-toggle {
+        display: none !important;
+      }
+      #mobile-menu-drawer {
+        display: none !important;
+      }
+    }
+    #mobile-menu-drawer {
+      max-height: min(70vh, 460px);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+    }
+    #mobile-menu-drawer::-webkit-scrollbar {
+      width: 5px;
+    }
+    #mobile-menu-drawer::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    #mobile-menu-drawer::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.4);
+      border-radius: 9999px;
+    }
   </style>
 </head>
 <body class="antialiased min-h-screen flex flex-col font-sans" style="background-color: ${backgroundColor}; color: ${textColor};">
   <!-- Sticky Header Nav -->
-  <header class="sticky top-0 z-30 border-b border-slate-100 bg-white/95 backdrop-blur-sm p-4 flex items-center justify-between shrink-0" style="border-bottom-color: ${primaryColor}10;">
-    <a href="#hero" class="cursor-pointer">
-      ${logoHtml}
-    </a>
-    <nav class="flex items-center space-x-4 text-[10px] font-bold text-slate-500 overflow-x-auto whitespace-nowrap scrollbar-none max-w-[60%] sm:max-w-full">
-      <a href="#hero" class="hover:text-slate-900 cursor-pointer">Home</a>
-      ${sectionsOrder.includes("about") ? `<a href="#about" class="hover:text-slate-900 cursor-pointer">About</a>` : ""}
-      ${sectionsOrder.includes("services") ? `<a href="#services" class="hover:text-slate-900 cursor-pointer">Services</a>` : ""}
-      ${sectionsOrder.includes("gallery") ? `<a href="#gallery" class="hover:text-slate-900 cursor-pointer">Gallery</a>` : ""}
-      ${sectionsOrder.includes("blog") ? `<a href="#blog" class="hover:text-slate-900 cursor-pointer">Blog</a>` : ""}
-      ${sectionsOrder.includes("contact") ? `<a href="#contact" class="hover:text-slate-900 cursor-pointer">Contact</a>` : ""}
-    </nav>
-    <div class="flex items-center space-x-2.5 shrink-0">
-      ${phone ? `
-        <a href="tel:${phone}" class="flex h-7 w-7 items-center justify-center rounded-lg text-white shadow-xs transition-transform hover:scale-105" style="background-color: ${accentColor}">
-          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
-        </a>
-      ` : ""}
-      ${cleanPhone ? `
-        <a href="${waLink}" target="_blank" rel="noopener noreferrer" class="flex h-7 w-7 items-center justify-center rounded-lg text-white bg-emerald-500 shadow-xs transition-transform hover:scale-105">
-          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-        </a>
-      ` : ""}
+  <header class="sticky top-0 z-30 border-b border-slate-100 bg-white/95 backdrop-blur-sm px-4 py-3 shrink-0 shadow-2xs" style="border-bottom-color: ${primaryColor}15;">
+    <div class="flex items-center justify-between gap-3 w-full">
+      <a href="#hero" class="cursor-pointer min-w-0 flex-1 max-w-[55%] sm:max-w-[45%] md:max-w-[40%]">
+        ${logoHtml}
+      </a>
+
+      <!-- Desktop Nav (Hidden when screen width < 768px) -->
+      <nav class="site-desktop-nav hidden md:flex items-center space-x-6 text-xs font-bold text-slate-600" aria-label="Main Navigation">
+        <a href="#hero" class="hover:text-slate-900 transition-colors cursor-pointer">Home</a>
+        ${sectionsOrder.includes("about") ? `<a href="#about" class="hover:text-slate-900 transition-colors cursor-pointer">About</a>` : ""}
+        ${sectionsOrder.includes("services") ? `<a href="#services" class="hover:text-slate-900 transition-colors cursor-pointer">Services</a>` : ""}
+        ${sectionsOrder.includes("gallery") ? `<a href="#gallery" class="hover:text-slate-900 transition-colors cursor-pointer">Gallery</a>` : ""}
+        ${sectionsOrder.includes("blog") ? `<a href="#blog" class="hover:text-slate-900 transition-colors cursor-pointer">Blog</a>` : ""}
+        ${sectionsOrder.includes("contact") ? `<a href="#contact" class="hover:text-slate-900 transition-colors cursor-pointer">Contact</a>` : ""}
+      </nav>
+
+      <!-- Actions & Mobile Hamburger Button -->
+      <div class="flex items-center space-x-2">
+        ${phone ? `
+          <a href="tel:${phone}" class="flex h-8 w-8 items-center justify-center rounded-lg text-white shadow-xs transition-transform hover:scale-105" style="background-color: ${accentColor}" title="Call now">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+          </a>
+        ` : ""}
+        ${cleanPhone ? `
+          <a href="${waLink}" target="_blank" rel="noopener noreferrer" class="flex h-8 w-8 items-center justify-center rounded-lg text-white bg-emerald-500 shadow-xs transition-transform hover:scale-105" title="WhatsApp">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+          </a>
+        ` : ""}
+        <!-- Hamburger Menu Toggle Button (replaces standard navigation links on small screens < 768px) -->
+        <button id="mobile-menu-toggle" class="site-hamburger-toggle flex md:hidden h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-50 transition-colors cursor-pointer" aria-label="Toggle navigation menu" aria-expanded="false">
+          <svg id="hamburger-icon" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+          <svg id="close-icon" class="h-4 w-4 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Mobile Vertical Dropdown Menu (revealed when hamburger open/close toggle state is open) -->
+    <div id="mobile-menu-drawer" class="hidden md:hidden mt-3 pt-3 border-t border-slate-100 flex flex-col space-y-1 max-h-[min(70vh,460px)] overflow-y-auto overscroll-contain pr-1.5 pb-3">
+      <a href="#hero" class="mobile-nav-link flex items-center px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors">Home</a>
+      ${sectionsOrder.includes("about") ? `<a href="#about" class="mobile-nav-link flex items-center px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors">About</a>` : ""}
+      ${sectionsOrder.includes("services") ? `<a href="#services" class="mobile-nav-link flex items-center px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors">Services</a>` : ""}
+      ${sectionsOrder.includes("gallery") ? `<a href="#gallery" class="mobile-nav-link flex items-center px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors">Gallery</a>` : ""}
+      ${sectionsOrder.includes("blog") ? `<a href="#blog" class="mobile-nav-link flex items-center px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors">Blog</a>` : ""}
+      ${sectionsOrder.includes("contact") ? `<a href="#contact" class="mobile-nav-link flex items-center px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors">Contact</a>` : ""}
+      ${site.privacyPolicy ? `<a href="#privacy" onclick="document.getElementById('privacy').classList.remove('hidden')" class="mobile-nav-link flex items-center px-3.5 py-2 rounded-xl text-[11px] font-semibold text-slate-500 hover:bg-slate-100 transition-colors">Privacy Policy</a>` : ""}
+      ${site.termsOfService ? `<a href="#terms" onclick="document.getElementById('terms').classList.remove('hidden')" class="mobile-nav-link flex items-center px-3.5 py-2 rounded-xl text-[11px] font-semibold text-slate-500 hover:bg-slate-100 transition-colors">Terms of Service</a>` : ""}
     </div>
   </header>
 
@@ -612,6 +668,37 @@ export function generateStaticHtml(rawSite: any): string {
     </div>
     <p class="mt-2 text-[9px] text-slate-400">&copy; ${new Date().getFullYear()}. Website built by SiteScout AI.</p>
   </footer>
+
+  <script>
+    (function() {
+      var menuBtn = document.getElementById('mobile-menu-toggle');
+      var menuDrawer = document.getElementById('mobile-menu-drawer');
+      var hamburgerIcon = document.getElementById('hamburger-icon');
+      var closeIcon = document.getElementById('close-icon');
+      if (menuBtn && menuDrawer) {
+        menuBtn.addEventListener('click', function() {
+          var isClosed = menuDrawer.classList.contains('hidden');
+          if (isClosed) {
+            menuDrawer.classList.remove('hidden');
+            if (hamburgerIcon) hamburgerIcon.classList.add('hidden');
+            if (closeIcon) closeIcon.classList.remove('hidden');
+          } else {
+            menuDrawer.classList.add('hidden');
+            if (hamburgerIcon) hamburgerIcon.classList.remove('hidden');
+            if (closeIcon) closeIcon.classList.add('hidden');
+          }
+        });
+        var links = document.querySelectorAll('.mobile-nav-link');
+        for (var i = 0; i < links.length; i++) {
+          links[i].addEventListener('click', function() {
+            menuDrawer.classList.add('hidden');
+            if (hamburgerIcon) hamburgerIcon.classList.remove('hidden');
+            if (closeIcon) closeIcon.classList.add('hidden');
+          });
+        }
+      }
+    })();
+  </script>
 </body>
 </html>`;
 }

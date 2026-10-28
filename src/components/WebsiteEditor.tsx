@@ -1594,7 +1594,7 @@ export default function WebsiteEditor({
 
               {/* Dynamic scroll view (delegated to WebsiteView) */}
               <div className={`flex-grow flex flex-col overflow-hidden ${viewport === "mobile" ? "pt-4" : ""}`}>
-                <WebsiteView site={site} />
+                <WebsiteView site={site} forcedViewport={viewport} />
               </div>
             </div>
           )}

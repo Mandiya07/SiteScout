@@ -435,7 +435,7 @@ export default function ShareablePreview({
                   <div className="w-12" />
                 </div>
                 <div className="flex-1 overflow-hidden flex flex-col">
-                  <WebsiteView site={site} />
+                  <WebsiteView site={site} forcedViewport={previewDevice} />
                 </div>
               </div>
             )}
@@ -446,7 +446,7 @@ export default function ShareablePreview({
                   {/* Phone Notch */}
                   <div className="absolute top-0 left-1/2 -translate-x-1/2 h-4 w-28 bg-slate-900 rounded-b-xl z-20" />
                   <div className="flex-1 pt-4 overflow-hidden flex flex-col">
-                    <WebsiteView site={site} />
+                    <WebsiteView site={site} forcedViewport={previewDevice} />
                   </div>
                 </div>
               </div>

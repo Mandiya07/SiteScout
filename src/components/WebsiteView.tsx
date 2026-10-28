@@ -1,21 +1,42 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { GeneratedSite } from "../types";
 import { getCategoryHeroImage, resolveHeroImageUrl, CATEGORY_HERO_IMAGES } from "../lib/heroImages";
 import { normalizePhoneNumber, generateWhatsappLink } from "../lib/formatters";
 import { normalizeWebsiteSchema } from "../lib/websiteSchema";
+import WebsiteNavbar, { WebsitePageId } from "./WebsiteNavbar";
 import { 
   Phone, MapPin, MessageSquare, ChevronDown, Check, Sparkles, Wrench, Utensils, HeartPulse, Scale, Briefcase, Home, Camera, Scissors, ShieldCheck,
-  GraduationCap, Church, Building2, Zap, TreePine, Trophy, Flag, HeartHandshake, Dumbbell, ShoppingBag, Users
+  GraduationCap, Church, Building2, Zap, TreePine, Trophy, Flag, HeartHandshake, Dumbbell, ShoppingBag, Users,
+  Menu, X
 } from "lucide-react";
 
 interface WebsiteViewProps {
   site: GeneratedSite;
+  forcedViewport?: "desktop" | "mobile";
 }
 
-export default function WebsiteView({ site: rawSite }: WebsiteViewProps) {
+export default function WebsiteView({ site: rawSite, forcedViewport }: WebsiteViewProps) {
   const site = normalizeWebsiteSchema(rawSite);
-  const [activePage, setActivePage] = useState<"home" | "about" | "services" | "gallery" | "blog" | "contact" | "privacy" | "terms" | "404">("home");
+  const [activePage, setActivePage] = useState<WebsitePageId>("home");
   const [heroImageSrc, setHeroImageSrc] = useState<string>(() => resolveHeroImageUrl(site));
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    if (containerRef.current.clientWidth > 0) {
+      setContainerWidth(containerRef.current.clientWidth);
+    }
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.contentRect.width > 0) {
+          setContainerWidth(entry.contentRect.width);
+        }
+      }
+    });
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   // Form State for Real Lead Capture
   const [formData, setFormData] = useState({
@@ -84,36 +105,6 @@ export default function WebsiteView({ site: rawSite }: WebsiteViewProps) {
     }
   };
 
-  const renderHeaderLogo = () => {
-    const logoType = site.logoType || "text";
-    if (logoType === "icon") {
-      const iconId = site.logoIcon || "Sparkles";
-      const logoIcons: Record<string, any> = {
-        Sparkles, Wrench, Utensils, HeartPulse, Scale, Briefcase, Home, Camera, Scissors, ShieldCheck,
-        GraduationCap, Church, Building2, Zap, TreePine, Trophy, Flag, HeartHandshake, Dumbbell, ShoppingBag, Users
-      };
-      const SelectedIcon = logoIcons[iconId] || Sparkles;
-      return (
-        <div className={`text-sm font-bold flex items-center gap-2 ${getFontFamilyClass(site.fontStyle)} cursor-pointer`} style={{ color: site.primaryColor }} onClick={() => setActivePage('home')}>
-          <SelectedIcon className="h-5 w-5" style={{ color: site.primaryColor }} />
-          <span>{site.businessName}</span>
-        </div>
-      );
-    } else if (logoType === "image" && site.logoUrl) {
-      return (
-        <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActivePage('home')}>
-          <img src={site.logoUrl} alt={site.businessName} className="h-8 w-auto object-contain max-w-[150px]" referrerPolicy="no-referrer" />
-        </div>
-      );
-    } else {
-      return (
-        <div className={`text-sm font-bold ${getFontFamilyClass(site.fontStyle)} cursor-pointer`} style={{ color: site.primaryColor }} onClick={() => setActivePage('home')}>
-          {site.businessName}
-        </div>
-      );
-    }
-  };
-
   const sectionsOrder = site.sectionsOrder || ["hero", "features", "services", "about", "testimonials", "faqs", "gallery", "blog", "contact"];
 
   const renderSection = (sectionId: string) => {
@@ -150,11 +141,9 @@ export default function WebsiteView({ site: rawSite }: WebsiteViewProps) {
 
             {/* Foreground content layer in front of the background image */}
             <div className="relative z-10 max-w-3xl mx-auto space-y-4 sm:space-y-6 px-4">
-              {/* Zero-Pill Domain Kicker with typographic separator */}
+              {/* Zero-Pill Domain Kicker */}
               <div className="flex items-center justify-center gap-2 text-xs sm:text-sm font-semibold tracking-wider text-slate-200/90 uppercase">
                 <span>{site.category || "Professional Services"}</span>
-                <span aria-hidden="true" className="opacity-50">·</span>
-                <span>{site.address ? site.address.split(",")[0] : "Local Service"}</span>
               </div>
 
               {/* Bold Hero Title */}
@@ -602,36 +591,23 @@ export default function WebsiteView({ site: rawSite }: WebsiteViewProps) {
   };
 
   return (
-    <div className="flex-1 w-full flex flex-col h-full overflow-hidden" style={{ backgroundColor: site.backgroundColor, color: site.textColor }}>
-      {/* Header Nav */}
-      <header className="sticky top-0 z-30 border-b border-slate-100 bg-white/95 backdrop-blur-sm p-4 flex items-center justify-between shrink-0" style={{ borderBottomColor: `${site.primaryColor}10` }}>
-        {renderHeaderLogo()}
-        <nav className="flex items-center space-x-4 text-[10px] font-bold text-slate-500 overflow-x-auto whitespace-nowrap scrollbar-none max-w-[60%] sm:max-w-full">
-          <button onClick={() => setActivePage('home')} className={`hover:text-slate-900 ${activePage === 'home' ? 'text-slate-900 font-extrabold' : ''} cursor-pointer`}>Home</button>
-          {sectionsOrder.includes("about") && <button onClick={() => setActivePage('about')} className={`hover:text-slate-900 ${activePage === 'about' ? 'text-slate-900 font-extrabold' : ''} cursor-pointer`}>About</button>}
-          {sectionsOrder.includes("services") && <button onClick={() => setActivePage('services')} className={`hover:text-slate-900 ${activePage === 'services' ? 'text-slate-900 font-extrabold' : ''} cursor-pointer`}>Services</button>}
-          {sectionsOrder.includes("gallery") && <button onClick={() => setActivePage('gallery')} className={`hover:text-slate-900 ${activePage === 'gallery' ? 'text-slate-900 font-extrabold' : ''} cursor-pointer`}>Gallery</button>}
-          {sectionsOrder.includes("blog") && <button onClick={() => setActivePage('blog')} className={`hover:text-slate-900 ${activePage === 'blog' ? 'text-slate-900 font-extrabold' : ''} cursor-pointer`}>Blog</button>}
-          {sectionsOrder.includes("contact") && <button onClick={() => setActivePage('contact')} className={`hover:text-slate-900 ${activePage === 'contact' ? 'text-slate-900 font-extrabold' : ''} cursor-pointer`}>Contact</button>}
-        </nav>
-        <div className="flex items-center space-x-2.5 shrink-0">
-          <a href={`tel:${site.phone}`} onClick={() => logPreviewEvent("phone_clicked")} className="flex h-7 w-7 items-center justify-center rounded-lg text-white shadow-xs transition-transform hover:scale-105" style={{ backgroundColor: site.accentColor }}>
-            <Phone className="h-3.5 w-3.5" />
-          </a>
-          <a 
-            href={generateWhatsappLink(site.phone, site.whatsappMessage, site.address)} 
-            onClick={() => logPreviewEvent("whatsapp_clicked")}
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-white bg-emerald-500 shadow-xs transition-transform hover:scale-105"
-          >
-            <MessageSquare className="h-3.5 w-3.5" />
-          </a>
-        </div>
-      </header>
+    <div 
+      ref={containerRef}
+      className="flex-1 w-full flex flex-col min-h-screen overflow-y-auto" 
+      style={{ backgroundColor: site.backgroundColor, color: site.textColor }}
+    >
+      {/* Responsive Navbar with Hamburger Menu replacing standard navigation links on small screens (< 768px) */}
+      <WebsiteNavbar
+        site={site}
+        activePage={activePage}
+        onNavigate={(page) => setActivePage(page)}
+        onLogEvent={logPreviewEvent}
+        forcedViewport={forcedViewport}
+        containerWidth={containerWidth}
+      />
 
       {/* Main Content Layout */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 w-full overflow-y-auto">
         {activePage === 'home' ? (
           <div className="space-y-0">
             {sectionsOrder.map((sectionId) => renderSection(sectionId))}

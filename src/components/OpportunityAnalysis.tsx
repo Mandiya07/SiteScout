@@ -166,7 +166,8 @@ export default function OpportunityAnalysis({
       });
 
       if (!res.ok) {
-        throw new Error(`Verification failed: ${res.statusText}`);
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || `Verification failed (HTTP ${res.status})`);
       }
 
       const data = await res.json();
@@ -184,7 +185,7 @@ export default function OpportunityAnalysis({
       }
     } catch (err: any) {
       console.error("Verification error:", err);
-      setVerificationError("Failed to verify business details.");
+      setVerificationError(err.message || "Failed to verify business details.");
     } finally {
       setIsVerifying(false);
       setActiveCheckingStep(-1);

@@ -719,7 +719,7 @@ Return ONLY a valid JSON array of 6 to 10 real businesses enclosed in \`\`\`json
             tools: [{ googleSearch: {} }]
           }
         }, 1, 300),
-        60000,
+        90000,
         "Live directory search timed out"
       );
 
@@ -999,7 +999,7 @@ Return ONLY a valid JSON array of 6 to 10 real businesses enclosed in \`\`\`json
       statusCode: classified.statusCode
     });
 
-    console.warn(`[Search Failure] Query for '${category}' in '${city}' failed (${classified.errorCode}):`, error.message || error);
+    console.info(`[Search Directory Notice] Query for '${category}' in '${city}' (${classified.errorCode}):`, error.message || error);
 
     // Return explicit error status response with empty businesses
     res.status(classified.statusCode || 500).json({

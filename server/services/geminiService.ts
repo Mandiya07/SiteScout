@@ -40,7 +40,7 @@ export async function generateContentWithRetry(params: any, maxRetries = 2, init
   let delay = initialDelayMs;
   let lastError: any = null;
   const originalModel = params.model || "gemini-2.5-flash";
-  const candidateModels = ["gemini-2.5-flash", originalModel, "gemini-2.0-flash", "gemini-3.1-flash-lite", "gemini-3.8-flash", "gemini-flash-latest"];
+  const candidateModels = ["gemini-2.5-flash", originalModel, "gemini-3.8-flash", "gemini-3.1-flash-lite", "gemini-flash-latest"];
   const modelsToTry = Array.from(new Set(candidateModels));
 
   for (const modelName of modelsToTry) {

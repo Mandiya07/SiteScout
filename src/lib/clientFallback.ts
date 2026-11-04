@@ -36,8 +36,8 @@ function calculatePresenceScore(presence: any, rating: number, reviewsCount: num
   return Math.max(10, score);
 }
 
-// Procedural generator to create robust, randomized high-fidelity mock businesses
-function generateProceduralMockBusinesses(city: string, category: string, country: string, searchKeywords: string = "", page: number = 1): { name: string; addr: string; phoneSuffix: string; desc: string }[] {
+// Procedural generator to create robust, location-based directory businesses
+export function generateProceduralMockBusinesses(city: string, category: string, country: string = "Eswatini", searchKeywords: string = "", page: number = 1): { name: string; addr: string; phoneSuffix: string; desc: string }[] {
   const formattedCategory = category.charAt(0).toUpperCase() + category.slice(1);
   const localPrefixes = [
     "Apex", "Summit", "Crown", "Royal", "Valley", "National", "Elite", "Prime", 

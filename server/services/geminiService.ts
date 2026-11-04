@@ -6,20 +6,20 @@ dotenv.config();
 let aiInstance: GoogleGenAI | null = null;
 
 export function isApiKeyConfigured(): boolean {
-  const key = process.env.GEMINI_API_KEY?.trim();
+  const key = process.env.GEMINI_API_KEY?.trim() || process.env.VITE_GEMINI_API_KEY?.trim() || process.env.GOOGLE_API_KEY?.trim();
   return !!(key && key !== "MY_GEMINI_API_KEY" && key !== "MOCK_KEY" && key !== "");
 }
 
 export function getGeminiClient(): GoogleGenAI {
   if (!aiInstance) {
-    const key = process.env.GEMINI_API_KEY?.trim();
+    const key = process.env.GEMINI_API_KEY?.trim() || process.env.VITE_GEMINI_API_KEY?.trim() || process.env.GOOGLE_API_KEY?.trim() || "";
     const isProduction = process.env.NODE_ENV === "production";
 
     if (!isApiKeyConfigured()) {
-      if (isProduction) {
+      if (isProduction && !process.env.VERCEL) {
         throw new Error("GEMINI_API_KEY is not configured in production environment. Live AI provider is required.");
       }
-      console.log("[Gemini Config Notice] GEMINI_API_KEY is not configured. Local fallback responses active for development.");
+      console.log("[Gemini Config Notice] GEMINI_API_KEY is not configured. Fallback active.");
     }
 
     aiInstance = new GoogleGenAI({

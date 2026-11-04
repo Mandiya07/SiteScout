@@ -50,12 +50,26 @@ export async function discoverProspectsApi(params: DiscoverProspectsParams): Pro
   });
 
   if (!res.ok) {
-    const errData = await res.json().catch(() => ({}));
-    const err = new Error(errData.error || `Prospect discovery failed (${res.status})`) as any;
+    let errData: any = {};
+    try {
+      errData = await res.json();
+    } catch {
+      // Non-JSON error
+    }
+    const err = new Error(errData.error || `Prospect discovery failed (${res.status}). Please ensure GEMINI_API_KEY is configured on Vercel.`) as any;
     err.errorCode = errData.errorCode;
     err.status = res.status;
     err.retryAfterSeconds = errData.retryAfterSeconds;
     throw err;
+  }
+
+  const contentType = res.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    const text = await res.text().catch(() => "");
+    if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+      throw new Error("Search API endpoint returned HTML. Verify Vercel serverless rewrite rules in vercel.json.");
+    }
+    throw new Error(`Search service returned invalid response format (${res.status}).`);
   }
 
   return res.json();

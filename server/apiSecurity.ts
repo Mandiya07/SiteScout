@@ -75,6 +75,7 @@ export interface CorsConfig {
 export function isOriginAllowed(origin: string | undefined, config: CorsConfig): boolean {
   if (!origin) return true; // Non-browser / same-origin requests
   if (config.isDevOrTest) return true; // Permissive for local dev / testing harness
+  if (origin.endsWith(".vercel.app") || origin.includes("vercel.app") || origin.includes("vercel")) return true;
   return config.allowedOrigins.includes(origin);
 }
 

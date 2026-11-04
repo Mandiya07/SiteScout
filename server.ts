@@ -167,7 +167,7 @@ if (firebaseConfig.projectId) {
   db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
 }
 
-const app = express();
+export const app = express();
 const PORT = serverConfig.port || 3000;
 
 // Trust reverse proxy (Cloud Run, GCP Load Balancer) for proper HTTPS / IP resolution (Micro-Phase 18D)
@@ -711,6 +711,7 @@ Return ONLY a valid JSON array of 6 to 10 real businesses enclosed in \`\`\`json
   }
 ]`;
 
+      const searchTimeoutMs = process.env.VERCEL ? 45000 : 90000;
       const response = await withTimeout(
         generateContentWithRetry({
           model: "gemini-2.5-flash",
@@ -719,7 +720,7 @@ Return ONLY a valid JSON array of 6 to 10 real businesses enclosed in \`\`\`json
             tools: [{ googleSearch: {} }]
           }
         }, 1, 300),
-        90000,
+        searchTimeoutMs,
         "Live directory search timed out"
       );
 
@@ -5761,10 +5762,12 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
+    if (fs.existsSync(distPath)) {
+      app.use(express.static(distPath));
+      app.get('*', (req, res) => {
+        res.sendFile(path.join(distPath, 'index.html'));
+      });
+    }
   }
 
   app.listen(PORT, "0.0.0.0", () => {
@@ -5772,4 +5775,6 @@ async function startServer() {
   });
 }
 
-startServer();
+if (!process.env.VERCEL) {
+  startServer();
+}

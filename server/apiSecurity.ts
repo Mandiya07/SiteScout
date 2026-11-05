@@ -72,10 +72,14 @@ export interface CorsConfig {
   isDevOrTest: boolean;
 }
 
-export function isOriginAllowed(origin: string | undefined, config: CorsConfig): boolean {
+export function isOriginAllowed(origin: string | undefined, config: CorsConfig, req?: express.Request): boolean {
   if (!origin) return true; // Non-browser / same-origin requests
-  if (config.isDevOrTest) return true; // Permissive for local dev / testing harness
+  if (config.isDevOrTest || process.env.VERCEL) return true; // Permissive for local dev, testing, and Vercel deployments
   if (origin.endsWith(".vercel.app") || origin.includes("vercel.app") || origin.includes("vercel")) return true;
+  if (req) {
+    const host = req.headers.host || req.headers["x-forwarded-host"];
+    if (host && (origin === `https://${host}` || origin === `http://${host}`)) return true;
+  }
   return config.allowedOrigins.includes(origin);
 }
 
@@ -84,7 +88,7 @@ export function configureCorsAndCsrf(config: CorsConfig) {
     const origin = req.headers.origin;
 
     if (origin) {
-      if (isOriginAllowed(origin, config)) {
+      if (isOriginAllowed(origin, config, req)) {
         res.setHeader("Access-Control-Allow-Origin", origin);
         res.setHeader("Access-Control-Allow-Credentials", "true");
         res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");

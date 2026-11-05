@@ -176,7 +176,7 @@ app.set("trust proxy", 1);
 
 // Production HTTPS Enforcement (Micro-Phase 18D)
 app.use((req, res, next) => {
-  if (process.env.NODE_ENV === "production") {
+  if (process.env.NODE_ENV === "production" && !process.env.VERCEL) {
     const isHttps = req.secure || req.headers["x-forwarded-proto"] === "https";
     if (!isHttps && !req.path.startsWith("/api/health")) {
       return res.redirect(301, `https://${req.headers.host}${req.url}`);
@@ -193,6 +193,14 @@ app.use(configureCorsAndCsrf({
   allowedOrigins: serverConfig.allowedOrigins,
   isDevOrTest: serverConfig.env === "development" || serverConfig.env === "testing"
 }));
+
+// Vercel serverless compatibility: avoid body-parser hang on already-parsed stream
+app.use((req: any, _res: any, next: any) => {
+  if (req.body && typeof req.body === "object") {
+    req._body = true;
+  }
+  next();
+});
 
 // Strict 2MB payload limit to prevent memory exhaustion and DoS attacks (Rule 39, Micro-Phase 17D)
 app.use(validatePayloadSize(2 * 1024 * 1024));
@@ -706,7 +714,7 @@ Return ONLY a valid JSON array of 6 to 10 real businesses enclosed in \`\`\`json
 
       if (isApiKeyConfigured()) {
         try {
-          const searchTimeoutMs = process.env.VERCEL ? 30000 : 90000;
+          const searchTimeoutMs = process.env.VERCEL ? 8500 : 90000;
           const response = await withTimeout(
             generateContentWithRetry({
               model: "gemini-2.5-flash",
@@ -1032,8 +1040,16 @@ Return ONLY a valid JSON array of 6 to 10 real businesses enclosed in \`\`\`json
   }
 }
 
-app.post(["/api/search", "/search"], optionalAuthToken, searchLimiter, handleSearchAndDiscovery);
+app.post(["/api/search", "/search", "/api", "/"], optionalAuthToken, searchLimiter, handleSearchAndDiscovery);
 app.post(["/api/discover-prospects", "/discover-prospects"], optionalAuthToken, searchLimiter, handleSearchAndDiscovery);
+app.get(["/api/search", "/search"], (_req, res) => {
+  res.json({
+    status: "ok",
+    service: "SiteScout Directory Search API",
+    method: "POST required",
+    timestamp: new Date().toISOString()
+  });
+});
 
 // Admin Route: Search Provider Operational Metrics & Diagnostic Telemetry
 app.get("/api/admin/search-metrics", verifyAuthToken, adminLimiter, (req, res) => {

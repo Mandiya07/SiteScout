@@ -2,8 +2,24 @@
   "version": 2,
   "rewrites": [
     {
+      "source": "/api/search",
+      "destination": "/api/search"
+    },
+    {
+      "source": "/api/search/(.*)",
+      "destination": "/api/search"
+    },
+    {
+      "source": "/api/discover-prospects",
+      "destination": "/api/discover-prospects"
+    },
+    {
+      "source": "/api/discover-prospects/(.*)",
+      "destination": "/api/discover-prospects"
+    },
+    {
       "source": "/api/(.*)",
-      "destination": "/api"
+      "destination": "/api/index"
     },
     {
       "source": "/(.*)",
@@ -11,7 +27,7 @@
     }
   ],
   "functions": {
-    "api/index.ts": {
+    "api/*.ts": {
       "maxDuration": 60,
       "memory": 1024
     }

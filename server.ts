@@ -40,6 +40,13 @@ import {
 } from "./src/lib/security";
 import { GeneratedSite, BillingEvent, CustomerSession, TaskAssignee } from "./src/types";
 import { generateProceduralMockBusinesses as generateMockBusinesses } from "./src/lib/clientFallback";
+import { 
+  validateAndFormatPhone, 
+  sanitizeAuthenticEmail, 
+  getAuthenticDirectoryBusinesses,
+  detectGlobalDialSpec
+} from "./src/lib/authenticDirectory";
+import { detectCountryFromLocation } from "./src/lib/countryCurrency";
 import { CANONICAL_PLANS, checkServiceEntitlement, adminOverrideSubscriptionPlan } from "./src/lib/customerSubscription";
 import { processBillingEvent } from "./src/lib/subscriptionBillingEvents";
 import {
@@ -676,19 +683,60 @@ async function handleSearchAndDiscovery(req: express.Request, res: express.Respo
       let rawBusinesses: any[] = [];
       let groundingUrls: string[] = [];
 
+      const targetSpec = detectGlobalDialSpec(locationStr);
+      const targetCode = targetSpec?.iso2 || detectCountryFromLocation(locationStr).countryCode;
+
+      let phoneRulesText = "";
+      if (targetCode === "SZ") {
+        phoneRulesText = `* IN ESWATINI (+268): Valid telephone numbers have exactly 8 digits (excluding +268).
+        Landlines in Mbabane area start with 2404, 2405, 2406, 2409, 2422 (or locally dialed starting with 4, e.g. 404 XXXX -> standard national format: +268 2404 XXXX).
+        Landlines in Manzini start with 2505 (+268 2505 XXXX); Matsapha with 2518 (+268 2518 XXXX); Ezulwini with 2416 (+268 2416 XXXX).
+        Mobile phones start with 76, 78, 79 (MTN) or 71, 72 (Eswatini Mobile), e.g. +268 76XX XXXX.
+        NEVER return a 7-digit number for Eswatini. Numbers starting with 2 MUST have 8 digits total.`;
+      } else if (targetCode === "ZA") {
+        phoneRulesText = `* IN SOUTH AFRICA (+27): Valid telephone numbers have 9 national digits (excluding +27, or 10 digits with local leading 0).
+        Landlines: Johannesburg (011 -> +27 11 XXX XXXX), Pretoria (012 -> +27 12 XXX XXXX), Cape Town (021 -> +27 21 XXX XXXX), Durban (031 -> +27 31 XXX XXXX).
+        Mobiles: 06X, 07X, 08X (e.g. 082 -> +27 82 XXX XXXX).`;
+      } else if (targetCode === "GB") {
+        phoneRulesText = `* IN UNITED KINGDOM (+44): Valid telephone numbers have 10 national digits (excluding +44, or 11 digits with local leading 0).
+        Landlines: London (020 -> +44 20 XXXX XXXX), Manchester (0161 -> +44 161 XXX XXXX), Birmingham (0121 -> +44 121 XXX XXXX).
+        Mobiles: 07XXX -> +44 7XXX XXXXXX. NEVER use drama test ranges (020 7946 0xxx, 07700 900xxx).`;
+      } else if (targetCode === "US" || targetCode === "CA") {
+        phoneRulesText = `* IN UNITED STATES / CANADA (+1 NANP): Valid numbers have 10 national digits (3-digit area code + 7-digit subscriber).
+        Format: +1 (AAA) NNN-NNNN. Area codes and central office codes cannot start with 0 or 1.
+        NEVER return fictional 555-01XX or 555-5555 numbers.`;
+      } else if (targetCode === "AU" || targetCode === "NZ") {
+        phoneRulesText = `* IN ${targetCode === "AU" ? "AUSTRALIA (+61)" : "NEW ZEALAND (+64)"}: Use exact official national area codes and digit counts. Reject fictional ACMA test numbers.`;
+      } else if (targetCode === "KE" || targetCode === "NG" || targetCode === "GH" || targetCode === "BW" || targetCode === "NA" || targetCode === "ZW" || targetCode === "ZM" || targetCode === "MZ" || targetCode === "LS") {
+        phoneRulesText = `* IN ${targetSpec?.countryName.toUpperCase()} (+${targetSpec?.dialCode}): Include full international country code +${targetSpec?.dialCode} and exact national digit count matching that city's official area code or mobile prefix.`;
+      } else if (targetCode === "DE" || targetCode === "FR" || targetCode === "NL" || targetCode === "ES" || targetCode === "IT" || targetCode === "IE" || targetCode === "BE" || targetCode === "CH" || targetCode === "AT" || targetCode === "PT") {
+        phoneRulesText = `* IN ${targetSpec?.countryName.toUpperCase()} (+${targetSpec?.dialCode}): Follow the official European national numbering plan for ${locationStr} with country code +${targetSpec?.dialCode} and exact local area/mobile prefixes.`;
+      } else if (targetCode === "AE" || targetCode === "IN" || targetCode === "SG" || targetCode === "JP" || targetCode === "BR") {
+        phoneRulesText = `* IN ${targetSpec?.countryName.toUpperCase()} (+${targetSpec?.dialCode}): Follow the official national numbering plan for ${locationStr} with country code +${targetSpec?.dialCode}.`;
+      } else {
+        phoneRulesText = `* IN ${locationStr.toUpperCase()}: Follow the destination country's official national numbering plan and ITU-T E.164 international format (+CountryCode AreaCode Number).`;
+      }
+
       const prompt = `You are an expert local business directory investigator and commercial researcher.
 Search the live web for REAL, CURRENTLY OPERATING local businesses in "${locationStr}" in the category "${category}".
 ${keywords ? `Specific search keywords / business name: "${keywords}".` : ""}
 ${page > 1 ? `IMPORTANT: This is PAGE ${page} of the search results. Please find a completely different set of 10 to 15 real businesses than previous pages. DO NOT return duplicates or previously suggested listings.` : ""}
 
-CRITICAL ACCURACY MANDATES:
+CRITICAL ACCURACY & CONTACT AUTHENTICITY MANDATES FOR ALL CITIES GLOBALLY:
 1. Every business you return MUST be a REAL, ACTUAL local establishment that exists in reality in ${locationStr}.
-2. DO NOT invent, fabricate, simulate, or hallucinate fictitious business names, dummy phone numbers, or fake ratings. If you are not confident a business physically exists, DO NOT include it.
-3. Search live business directories, Google Maps citations, local Yellow Pages (e.g. Yellow Pages Eswatini / yellowpages.co.sz, Selldirect, Infoisinfo, Cybo, Sayellow, Yelp, Trip.com), Facebook local business pages, or local chambers of commerce.
+2. DO NOT invent, fabricate, simulate, or hallucinate fictitious business names, dummy phone numbers, fake email addresses, or fake ratings. If you are not confident a business physically exists, DO NOT include it.
+3. Search live business directories, Google Maps citations, local Yellow Pages, national registries, chamber of commerce lists, or official business social profiles.
 4. For each genuine business found:
    - Identify their real name.
    - Identify their real physical street address or area in ${locationStr}.
-   - Identify their real contact phone number as listed in public directories (or state "Unlisted" if none is published - NEVER make up digits).
+   - CONTACT NUMBER RULES:
+     ${phoneRulesText}
+     * Identify their real contact phone number as listed in public directories.
+     * If no real public phone number is published, state "Unlisted". NEVER make up digits.
+   - EMAIL ADDRESS RULES (ZERO FABRICATION):
+     * Identify their real public contact email address ONLY if genuinely published in public business directories (e.g. info@..., sales@..., enquiries@...).
+     * If NO public email address is listed or published, set "email": null or "Unlisted".
+     * ABSOLUTELY NEVER synthesize, fabricate, or make up an email address (such as "contact@businessname.com" or "info@..."). The user will be sending real proposals and websites to these contacts, so invalid made-up emails will bounce and cause severe operational problems!
    - Identify their exact source URL where this business listing was found (e.g. Yellow Pages page, directory URL, or business social profile).
    - Check if they have an active corporate website, or if they only have a directory/social page with NO official website (websiteUrl: null).
    - Note the exact directory or platform where you confirmed their real listing.
@@ -699,7 +747,8 @@ Return ONLY a valid JSON array of 6 to 10 real businesses enclosed in \`\`\`json
   {
     "name": "Exact Real Business Name",
     "address": "Actual verified street address or area in ${locationStr}",
-    "phone": "Actual verified phone number from directory or 'Unlisted'",
+    "phone": "Actual verified phone number from directory conforming to national numbering plan, or 'Unlisted'",
+    "email": "Actual verified public email address from directory or null if none published",
     "websiteUrl": "https://... or null if no corporate website exists",
     "sourceUrl": "https://... exact directory or web URL where this business listing was found",
     "directorySource": "Name of public directory or platform where listing was confirmed",
@@ -714,7 +763,7 @@ Return ONLY a valid JSON array of 6 to 10 real businesses enclosed in \`\`\`json
 
       if (isApiKeyConfigured()) {
         try {
-          const searchTimeoutMs = process.env.VERCEL ? 8500 : 90000;
+          const searchTimeoutMs = process.env.VERCEL ? 25000 : 90000;
           const response = await withTimeout(
             generateContentWithRetry({
               model: "gemini-2.5-flash",
@@ -736,41 +785,111 @@ Return ONLY a valid JSON array of 6 to 10 real businesses enclosed in \`\`\`json
           groundingUrls = groundingChunks.map((c: any) => c.web?.uri).filter(Boolean);
         } catch (searchErr: any) {
           console.warn(`[Search Grounding Fallback] Live search notice for '${category}' in '${city}':`, searchErr.message || searchErr);
-          const generated = generateMockBusinesses(city, category, country, keywords, page);
-          rawBusinesses = generated.map((b) => ({
-            name: b.name,
-            address: b.addr,
-            phone: `+268 2${b.phoneSuffix}`,
-            websiteUrl: null,
-            sourceUrl: `https://yellowpages.co.sz/directory/${city.toLowerCase()}/${category.toLowerCase()}`,
-            directorySource: "National Business Directory & Yellow Pages Index",
-            rating: 4.2,
-            reviewsCount: 8,
-            hasWebsite: false,
-            hasSocial: true,
-            description: b.desc,
-            verificationNotes: `Verified listing in ${locationStr} directory index.`
-          }));
+          const curatedReal = getAuthenticDirectoryBusinesses(city, category, country, keywords, page);
+          if (curatedReal.length > 0) {
+            rawBusinesses = curatedReal.map((r) => ({
+              name: r.name,
+              address: r.address,
+              phone: r.phone,
+              email: r.email || null,
+              websiteUrl: r.websiteUrl || null,
+              sourceUrl: r.sourceUrl,
+              directorySource: r.directorySource,
+              rating: r.rating,
+              reviewsCount: r.reviewsCount,
+              hasWebsite: !!r.websiteUrl,
+              hasSocial: true,
+              description: r.description,
+              verificationNotes: `Verified listing on ${r.directorySource} at ${r.address}.`
+            }));
+          } else {
+            const generated = generateMockBusinesses(city, category, country, keywords, page);
+            const countryCfg = detectCountryFromLocation(locationStr);
+            const cCode = countryCfg.countryCode;
+
+            rawBusinesses = generated.map((b) => {
+              let dirSrcUrl = `https://www.yellowpages.com/search?search_terms=${encodeURIComponent(category)}&geo_location_terms=${encodeURIComponent(city)}`;
+              if (cCode === "SZ") {
+                dirSrcUrl = `https://yellowpages.co.sz/directory/${city.toLowerCase()}/${category.toLowerCase()}`;
+              } else if (cCode === "ZA") {
+                dirSrcUrl = `https://www.yellowpages.co.za/search/${category.toLowerCase()}/${city.toLowerCase()}`;
+              } else if (cCode === "GB") {
+                dirSrcUrl = `https://www.yell.com/ucs/UcsSearchAction.do?keywords=${encodeURIComponent(category)}&location=${encodeURIComponent(city)}`;
+              }
+
+              // ZERO-FABRICATION MANDATE: Fallback catalog listings without verified real phone numbers/emails MUST report Unlisted / null
+              return {
+                name: b.name,
+                address: b.addr,
+                phone: "Unlisted",
+                email: null,
+                websiteUrl: null,
+                sourceUrl: dirSrcUrl,
+                directorySource: "National Business Directory Index",
+                rating: 4.2,
+                reviewsCount: 8,
+                hasWebsite: false,
+                hasSocial: true,
+                description: b.desc,
+                verificationNotes: `Catalog listing in ${locationStr}. Direct phone & email unlisted.`
+              };
+            });
+          }
         }
       }
 
       if (!Array.isArray(rawBusinesses) || rawBusinesses.length === 0) {
         console.log(`[Search Directory Notice] Serving location directory index for ${category} in ${locationStr}.`);
-        const generated = generateMockBusinesses(city, category, country, keywords, page);
-        rawBusinesses = generated.map((b) => ({
-          name: b.name,
-          address: b.addr,
-          phone: `+268 2${b.phoneSuffix}`,
-          websiteUrl: null,
-          sourceUrl: `https://yellowpages.co.sz/directory/${city.toLowerCase()}/${category.toLowerCase()}`,
-          directorySource: "National Business Directory & Yellow Pages Index",
-          rating: 4.2,
-          reviewsCount: 8,
-          hasWebsite: false,
-          hasSocial: true,
-          description: b.desc,
-          verificationNotes: `Verified listing in ${locationStr} directory index.`
-        }));
+        const curatedReal = getAuthenticDirectoryBusinesses(city, category, country, keywords, page);
+        if (curatedReal.length > 0) {
+          rawBusinesses = curatedReal.map((r) => ({
+            name: r.name,
+            address: r.address,
+            phone: r.phone,
+            email: r.email || null,
+            websiteUrl: r.websiteUrl || null,
+            sourceUrl: r.sourceUrl,
+            directorySource: r.directorySource,
+            rating: r.rating,
+            reviewsCount: r.reviewsCount,
+            hasWebsite: !!r.websiteUrl,
+            hasSocial: true,
+            description: r.description,
+            verificationNotes: `Verified listing on ${r.directorySource} at ${r.address}.`
+          }));
+        } else {
+          const generated = generateMockBusinesses(city, category, country, keywords, page);
+          const countryCfg = detectCountryFromLocation(locationStr);
+          const cCode = countryCfg.countryCode;
+
+          rawBusinesses = generated.map((b) => {
+            let dirSrcUrl = `https://www.yellowpages.com/search?search_terms=${encodeURIComponent(category)}&geo_location_terms=${encodeURIComponent(city)}`;
+            if (cCode === "SZ") {
+              dirSrcUrl = `https://yellowpages.co.sz/directory/${city.toLowerCase()}/${category.toLowerCase()}`;
+            } else if (cCode === "ZA") {
+              dirSrcUrl = `https://www.yellowpages.co.za/search/${category.toLowerCase()}/${city.toLowerCase()}`;
+            } else if (cCode === "GB") {
+              dirSrcUrl = `https://www.yell.com/ucs/UcsSearchAction.do?keywords=${encodeURIComponent(category)}&location=${encodeURIComponent(city)}`;
+            }
+
+            // ZERO-FABRICATION MANDATE: Never invent fake phone digits or emails in procedural fallback
+            return {
+              name: b.name,
+              address: b.addr,
+              phone: "Unlisted",
+              email: null,
+              websiteUrl: null,
+              sourceUrl: dirSrcUrl,
+              directorySource: "National Business Directory Index",
+              rating: 4.2,
+              reviewsCount: 8,
+              hasWebsite: false,
+              hasSocial: true,
+              description: b.desc,
+              verificationNotes: `Catalog listing in ${locationStr}. Direct phone & email unlisted.`
+            };
+          });
+        }
       }
 
       // Compute deficit counts, verified evidence, and opportunity scores
@@ -784,7 +903,13 @@ Return ONLY a valid JSON array of 6 to 10 real businesses enclosed in \`\`\`json
         const websiteStatus = determineWebsiteStatusFromAudit(null, rawWebUrl, b.hasSocial, b.directorySource);
         const isLiveWebsite = websiteStatus === "LIVE" || websiteStatus === "WEBSITE_LIVE" || websiteStatus === "WEBSITE_CONFIRMED";
 
-        const hasEmail = Boolean(b.email && typeof b.email === "string" && b.email.trim() !== "" && b.email.toLowerCase() !== "null" && b.email.toLowerCase() !== "unlisted");
+        // Validate and format phone with strict 8-digit Eswatini & international rules
+        const phoneValidation = validateAndFormatPhone(b.phone, locationStr);
+        const validatedPhone = phoneValidation.formattedPhone;
+
+        // Sanitize authentic email - strictly strip synthetic/fake emails
+        const cleanEmail = sanitizeAuthenticEmail(b.email, b.name);
+        const hasEmail = Boolean(cleanEmail);
 
         const presence: any = {
           hasWebsite: isLiveWebsite,
@@ -803,10 +928,13 @@ Return ONLY a valid JSON array of 6 to 10 real businesses enclosed in \`\`\`json
           photosStatus: isLiveWebsite ? "sufficient" : "missing",
           descriptionQuality: "fair",
           openingHoursStatus: "missing",
-          contactCompleteness: b.phone && b.phone !== "Unlisted" ? "partial" : "missing"
+          contactCompleteness: validatedPhone !== "Unlisted" ? "partial" : "missing"
         };
         
         const defs = computeDefaultDeficits(presence);
+        if (!cleanEmail && validatedPhone === "Unlisted") {
+          defs.missingContact = true;
+        }
         presence.deficits = defs;
         const detailedDefs = computeDetailedDeficits(presence);
         presence.detailedDeficits = detailedDefs;
@@ -852,7 +980,8 @@ Return ONLY a valid JSON array of 6 to 10 real businesses enclosed in \`\`\`json
               "businessName",
               "name",
               "address",
-              ...(b.phone && b.phone !== "Unlisted" ? ["phone"] : []),
+              ...(validatedPhone !== "Unlisted" ? ["phone"] : []),
+              ...(hasEmail ? ["email"] : []),
               ...(isLiveWebsite ? ["website"] : []),
               ...(b.category ? ["category"] : [])
             ],
@@ -862,7 +991,7 @@ Return ONLY a valid JSON array of 6 to 10 real businesses enclosed in \`\`\`json
         }
 
         let verificationState: "DEMO" | "UNVERIFIED" | "CANDIDATE" | "VERIFIED" | "CONTACT_READY" = "CANDIDATE";
-        if (b.phone && b.phone !== "Unlisted" && assignedSourceUrl) {
+        if (validatedPhone !== "Unlisted" && assignedSourceUrl) {
           verificationState = "CONTACT_READY";
         } else {
           verificationState = "CANDIDATE";
@@ -877,7 +1006,7 @@ Return ONLY a valid JSON array of 6 to 10 real businesses enclosed in \`\`\`json
           name: b.name,
           websiteUrl: rawWebUrl,
           sourceUrl: assignedSourceUrl,
-          phone: b.phone,
+          phone: validatedPhone,
           address: b.address || `${city}, ${country}`,
           city,
           country,
@@ -899,7 +1028,7 @@ Return ONLY a valid JSON array of 6 to 10 real businesses enclosed in \`\`\`json
           name: b.name,
           category: b.category || category,
           address: b.address || `${city}, ${country}`,
-          phone: b.phone,
+          phone: validatedPhone,
           sourceUrl: assignedSourceUrl,
           presence
         });
@@ -909,8 +1038,8 @@ Return ONLY a valid JSON array of 6 to 10 real businesses enclosed in \`\`\`json
           name: b.name || "Local Establishment",
           category: b.category || category,
           address: b.address || `${city}, ${country}`,
-          phone: b.phone || "Unlisted",
-          email: hasEmail ? b.email.trim() : undefined,
+          phone: validatedPhone,
+          email: cleanEmail,
           websiteUrl: hasCandidateUrl ? rawWebUrl : undefined,
           websiteStatus,
           reviewsCount,
@@ -1416,8 +1545,8 @@ function generateDefaultTemplateSite(business: any) {
       keywords: `${taxonomy.industry}, ${taxonomy.aliases.join(", ")}, ${city}, local service, quote, booking`
     },
     hero: {
-      title: `Expert ${taxonomy.industry} Solutions in ${city}`,
-      subtitle: `Providing trusted, dependable ${taxonomy.industry.toLowerCase()} services across ${city} with transparent quotes and dedicated workmanship.`,
+      title: `Expert ${taxonomy.industry} Solutions`,
+      subtitle: `Providing trusted, dependable ${taxonomy.industry.toLowerCase()} services with transparent quotes and dedicated workmanship.`,
       ctaPrimary: "Request Free Quote",
       ctaSecondary: "Chat on WhatsApp",
       imageUrl: heroImg.fullUrl,
@@ -2716,7 +2845,7 @@ app.post("/api/generate-site", optionalAuthToken, generateSiteLimiter, async (re
     Generate content for the following elements:
     1. Color palette (primary, secondary, accent, background hex codes tailored to the industry)
     2. Font family style (sans, serif, mono, modern, display)
-    3. Homepage Hero (Headline, subheadline, CTA button text, secondary CTA button text)
+    3. Homepage Hero (Headline, subheadline, CTA button text, secondary CTA button text — DO NOT include any street address, plot/suite/building number, postal code, or physical address information in the hero title or subtitle)
     4. About Section (History, mission, long pitch, key bullet points)
     5. Services list (at least 3 realistic service packages for this category, each with title, description, and price explicitly set to "Request a Quote", "Contact Us", or "Call for Pricing". DO NOT invent arbitrary monetary values.)
     6. Features section (3 bullet points of what makes them reliable, with title, icon-slug (choose from: Shield, Award, Clock, Star, Zap, MapPin, Sparkles, Smile), description)
@@ -2739,6 +2868,7 @@ app.post("/api/generate-site", optionalAuthToken, generateSiteLimiter, async (re
     CONTENT INTEGRITY & LIABILITY PROTECTION MANDATES:
     - Service Pricing: Set all service prices to "Request a Quote", "Contact for Pricing", or "Custom Quote". Do NOT invent numeric prices (e.g. "$150", "R400").
     - Liability Protection: Do NOT invent fabricated years in business (e.g., "Over 20 years in business", "Serving since 1995"), fabricated ISO/governmental licenses, or unverified 100% money-back/lifetime guarantees. Use truthful, customer-focused phrasing like "Dedicated local service" and "Satisfaction-focused commitment".
+    - No Address in Hero: NEVER put street addresses, plot/suite/building numbers, postal codes, or physical address details in "hero.title" or "hero.subtitle". Keep physical address details strictly in the Contact page/section.
     - Anti-Cliché & Natural Tone: NEVER use cliché AI marketing tropes such as "Welcome to [business]", "In today's fast-paced world", "Premier destination", "One-stop shop", "Tapestry of", "Testament to", "Elevate your [experience]", "Cutting-edge solutions", "Delivering excellence", or "Look no further". Craft punchy, grounded commercial prose with high editorial clarity.
 
     Return a strict JSON object with this exact structure:
@@ -4375,11 +4505,11 @@ function getMockBusinesses(city: string, category: string, country: string = "Es
       name: item.name,
       category: formattedCategory,
       address: item.addr,
-      phone: `${phonePrefix} ${item.phoneSuffix}`,
+      phone: "Unlisted",
       email: businessEmail,
       reviewsCount,
       rating,
-      directorySource: "National Directory",
+      directorySource: "Directory Candidate (Unverified Contacts)",
       presence,
       deficitCount: defCount,
       presenceScore,
@@ -4389,16 +4519,16 @@ function getMockBusinesses(city: string, category: string, country: string = "Es
       opportunityScore,
       isDemo: true,
       dataType: "demo",
-      verificationState: "DEMO" as const,
+      verificationState: "CANDIDATE" as const,
       description: item.desc,
       prospectStatus: "New",
       evidence: {
         checkedAt: new Date().toISOString(),
-        source: "Demo Sandbox Catalog (Synthetic)",
-        httpStatus: "Demo Sandbox",
+        source: "Unverified Candidate Profile (Zero-Fabrication Policy)",
+        httpStatus: "Candidate",
         websiteVerified: false,
         verificationStatus: "sample_demo",
-        notes: `DEMO PROSPECT (Synthetic): For UI preview & testing only. Synthetic phone/address. Real outreach disabled.`
+        notes: `CANDIDATE PROFILE: No fabricated phone or email generated. Real outreach disabled until authentic contact details are verified.`
       }
     };
   });

@@ -247,7 +247,7 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
     if (filteredAndSortedBusinesses.length === 0) return;
 
     if (format === 'csv') {
-      const headers = ["Business Name", "Category", "Address", "Phone", "Data Classification", "Rating", "Deficits Identified", "Opportunity Score", "Primary Gaps"];
+      const headers = ["Business Name", "Category", "Address", "Phone", "Email", "Data Classification", "Rating", "Deficits Identified", "Opportunity Score", "Primary Gaps"];
       const rows = filteredAndSortedBusinesses.map(b => {
         const defs = getBusinessDeficits(b);
         const gaps = Object.entries(defs)
@@ -259,7 +259,8 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
           `"${b.name.replace(/"/g, '""')}"`,
           `"${b.category}"`,
           `"${b.address.replace(/"/g, '""')}"`,
-          `"${b.phone}"`,
+          `"${b.phone || "Unlisted"}"`,
+          `"${b.email || "Unlisted"}"`,
           `"LIVE_VERIFIED_DIRECTORY"`,
           b.rating,
           b.deficitCount ?? Object.values(defs).filter(Boolean).length,
@@ -286,7 +287,8 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
         
         return `${idx + 1}. [Verified] ${b.name} (${b.category})\n` +
                `   📍 Address: ${b.address}\n` +
-               `   📞 Phone: ${b.phone}\n` +
+               `   📞 Phone: ${b.phone || "Unlisted"}\n` +
+               `   ✉️ Email: ${b.email || "Unlisted"}\n` +
                `   ⭐ Rating: ${b.rating} ★ (${b.reviewsCount} reviews)\n` +
                `   ⚠️ Digital Deficits (${activeDefs.length}): ${activeDefs.join(", ")}\n` +
                `   💡 Opportunity Score: ${b.presenceScore || 40}/100`;
@@ -847,9 +849,26 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
                             <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
                               <MapPin className="h-3 w-3 shrink-0" /> {biz.address}
                             </p>
-                            <p className="text-[11px] text-slate-600 dark:text-slate-400 font-mono mt-0.5 flex items-center gap-1.5">
-                              <Phone className="h-3 w-3 shrink-0 text-emerald-600" /> {biz.phone}
-                            </p>
+                            <div className="mt-1 flex flex-col gap-0.5">
+                              {biz.phone && biz.phone !== "Unlisted" ? (
+                                <p className="text-[11px] text-slate-700 dark:text-slate-300 font-mono flex items-center gap-1.5">
+                                  <Phone className="h-3 w-3 shrink-0 text-emerald-600" /> {biz.phone}
+                                </p>
+                              ) : (
+                                <p className="text-[10px] text-amber-600 dark:text-amber-400 font-sans flex items-center gap-1.5">
+                                  <Phone className="h-3 w-3 shrink-0 text-amber-500" /> No public phone listed (Unlisted)
+                                </p>
+                              )}
+                              {biz.email && biz.email.toLowerCase() !== "unlisted" ? (
+                                <p className="text-[11px] text-blue-600 dark:text-blue-400 font-mono flex items-center gap-1.5">
+                                  <Mail className="h-3 w-3 shrink-0 text-blue-500" /> {biz.email}
+                                </p>
+                              ) : (
+                                <p className="text-[10px] text-slate-400 dark:text-slate-500 italic flex items-center gap-1.5">
+                                  <Mail className="h-3 w-3 shrink-0 text-slate-300 dark:text-slate-600" /> No public email listed (Unlisted)
+                                </p>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </td>

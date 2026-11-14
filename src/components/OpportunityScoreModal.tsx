@@ -430,12 +430,12 @@ export default function OpportunityScoreModal({
                       Direct Contactability
                     </div>
                     <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                      {business.phone ? `Direct phone line verified: ${business.phone}` : "No phone record listed."}
+                      {business.phone && business.phone.trim().toLowerCase() !== "unlisted" ? `Direct phone line listed: ${business.phone}` : "No public phone record listed."}
                     </div>
                   </div>
                   <div className="text-right shrink-0">
                     <div className="text-base font-bold text-blue-600 dark:text-blue-400 font-mono">
-                      {business.phone ? "Phone Reachable" : "Unlisted"}
+                      {business.phone && business.phone.trim().toLowerCase() !== "unlisted" ? "Phone Listed" : "Unlisted"}
                     </div>
                     <div className="text-[10px] text-slate-500 font-mono">
                       {explanation.contactabilityScore || 60} Pts

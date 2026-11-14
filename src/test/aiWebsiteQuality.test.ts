@@ -273,8 +273,10 @@ describe("MICRO-PHASE 19C: AI Website Generation & Visual Quality Validation", (
 
       // 1. Zero-Pill check: No rounded-full pill boxes in hero metadata
       assert.ok(!html.includes("rounded-full bg-white/10"), "Hero category must not be enclosed in a rounded pill badge");
-      // 2. Clean typographic separator check
+      // 2. Clean typographic separator check & No-Address-in-Hero enforcement
       assert.ok(html.includes("aria-hidden=\"true\""), "Typographic separator must have aria-hidden for accessibility");
+      const heroSection = html.match(/<section id="hero"[\s\S]*?<\/section>/)?.[0] || "";
+      assert.ok(!heroSection.includes("Mbabane, Eswatini"), "Hero section must refrain from displaying address information");
       // 3. Container width check: must use max-w-5xl, not cramped max-w-2xl
       assert.ok(html.includes("max-w-5xl"), "Static HTML must use expansive max-w-5xl container width");
       // 4. Contact form with honeypot bot prevention

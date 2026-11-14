@@ -263,7 +263,7 @@ export default function WebsiteNavbar({
         {/* Right Section: Contact CTAs & Hamburger Menu Toggle Button */}
         <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
           {/* Quick Call Action */}
-          {site.phone && (
+          {site.phone && site.phone.trim().toLowerCase() !== "unlisted" && (
             <a 
               href={`tel:${normalizePhoneNumber(site.phone)}`} 
               onClick={() => onLogEvent?.("phone_clicked")} 
@@ -277,7 +277,7 @@ export default function WebsiteNavbar({
           )}
 
           {/* Quick WhatsApp Action */}
-          {site.phone && (
+          {site.phone && site.phone.trim().toLowerCase() !== "unlisted" && (
             <a 
               href={generateWhatsappLink(site.phone, site.whatsappMessage, site.address)} 
               onClick={() => onLogEvent?.("whatsapp_clicked")}
@@ -390,7 +390,7 @@ export default function WebsiteNavbar({
           </div>
 
           {/* Direct Call shortcut inside mobile dropdown */}
-          {site.phone && (
+          {site.phone && site.phone.trim().toLowerCase() !== "unlisted" && (
             <div className="pt-2 mt-1">
               <a
                 href={`tel:${normalizePhoneNumber(site.phone)}`}

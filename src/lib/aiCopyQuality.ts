@@ -324,8 +324,8 @@ export const INDUSTRY_ARCHETYPES: Record<string, IndustryArchetype> = {
     fontStyle: "sans",
     sectionsOrder: ["hero", "services", "contact", "features", "about", "faqs", "testimonials", "gallery", "blog"],
     heroLayout: "split-quote",
-    defaultHeroHeadline: (city) => `Fast, Dependable Plumbing & Repair Across ${city}`,
-    defaultHeroSubtitle: (city) => `Upfront itemized quotes, clean workmanship, and rapid response for homeowners and businesses in ${city}.`,
+    defaultHeroHeadline: (_city?: string) => `Fast, Dependable Plumbing & Repair Solutions`,
+    defaultHeroSubtitle: (_city?: string) => `Upfront itemized quotes, clean workmanship, and rapid response for residential and commercial properties.`,
     primaryCta: "Request Immediate Quote",
     secondaryCta: "Call Dispatch",
     typicalServices: ["Emergency Leak Repair", "Pipe Installation & Geysers", "Drain Clearing & Inspection", "Preventative Maintenance"]
@@ -344,8 +344,8 @@ export const INDUSTRY_ARCHETYPES: Record<string, IndustryArchetype> = {
     fontStyle: "sans",
     sectionsOrder: ["hero", "services", "about", "features", "faqs", "testimonials", "gallery", "blog", "contact"],
     heroLayout: "reassurance-split",
-    defaultHeroHeadline: (city) => `Gentle, Comprehensive Dental Care in ${city}`,
-    defaultHeroSubtitle: (city) => `Patient-centered dentistry delivering modern oral health care in a calm, welcoming environment.`,
+    defaultHeroHeadline: (_city?: string) => `Gentle, Comprehensive Dental Care`,
+    defaultHeroSubtitle: (_city?: string) => `Patient-centered dentistry delivering modern oral health care in a calm, welcoming environment.`,
     primaryCta: "Book Consultation",
     secondaryCta: "View Services",
     typicalServices: ["Routine Hygiene & Exams", "Restorative Dental Care", "Teeth Whitening & Aesthetics", "Emergency Toothache Relief"]
@@ -364,8 +364,8 @@ export const INDUSTRY_ARCHETYPES: Record<string, IndustryArchetype> = {
     fontStyle: "serif",
     sectionsOrder: ["hero", "about", "features", "services", "faqs", "testimonials", "gallery", "blog", "contact"],
     heroLayout: "authoritative-centered",
-    defaultHeroHeadline: (city) => `Strategic Legal Counsel & Advocacy in ${city}`,
-    defaultHeroSubtitle: (city) => `Protecting your commercial interests, family assets, and regulatory compliance with rigorous integrity.`,
+    defaultHeroHeadline: (_city?: string) => `Strategic Legal Counsel & Advocacy`,
+    defaultHeroSubtitle: (_city?: string) => `Protecting your commercial interests, family assets, and regulatory compliance with rigorous integrity.`,
     primaryCta: "Request Confidential Case Review",
     secondaryCta: "Explore Practice Areas",
     typicalServices: ["Commercial & Contract Law", "Property & Conveyancing", "Estate Planning & Probate", "Dispute Resolution & Litigation"]
@@ -384,10 +384,10 @@ export const INDUSTRY_ARCHETYPES: Record<string, IndustryArchetype> = {
     fontStyle: "modern",
     sectionsOrder: ["hero", "gallery", "services", "about", "features", "testimonials", "faqs", "blog", "contact"],
     heroLayout: "sensory-immersive",
-    defaultHeroHeadline: (city) => `Handcrafted Daily Baking & Specialty Coffee in ${city}`,
-    defaultHeroSubtitle: (city) => `Slow-fermented sourdough, fresh morning viennoiserie, and seasonal local ingredients baked fresh every sunrise.`,
+    defaultHeroHeadline: (_city?: string) => `Handcrafted Daily Baking & Specialty Coffee`,
+    defaultHeroSubtitle: (_city?: string) => `Slow-fermented sourdough, fresh morning viennoiserie, and seasonal ingredients baked fresh every sunrise.`,
     primaryCta: "View Daily Bake Menu",
-    secondaryCta: "Find Our Shop",
+    secondaryCta: "Explore Our Menu",
     typicalServices: ["Daily Sourdough Loaves", "Viennoiserie & Pastries", "Custom Celebration Cakes", "Catering & Event Platters"]
   },
   boutique_hotel: {
@@ -404,11 +404,11 @@ export const INDUSTRY_ARCHETYPES: Record<string, IndustryArchetype> = {
     fontStyle: "serif",
     sectionsOrder: ["hero", "gallery", "services", "about", "testimonials", "faqs", "features", "blog", "contact"],
     heroLayout: "fullwidth-editorial",
-    defaultHeroHeadline: (city) => `Distinctive Stays & Quiet Elegance in ${city}`,
-    defaultHeroSubtitle: (city) => `Thoughtfully curated rooms, local gastronomy, and intimate hospitality in the heart of the region.`,
+    defaultHeroHeadline: (_city?: string) => `Distinctive Stays & Quiet Elegance`,
+    defaultHeroSubtitle: (_city?: string) => `Thoughtfully curated rooms, fine gastronomy, and intimate hospitality crafted for memorable stays.`,
     primaryCta: "Check Room Availability",
     secondaryCta: "View The Property",
-    typicalServices: ["Heritage Suites & Rooms", "Private Garden Dining", "Conferencing & Retreats", "Curated Regional Excursions"]
+    typicalServices: ["Heritage Suites & Rooms", "Private Garden Dining", "Conferencing & Retreats", "Curated Excursions"]
   },
   construction_engineering: {
     id: "construction_engineering",
@@ -424,8 +424,8 @@ export const INDUSTRY_ARCHETYPES: Record<string, IndustryArchetype> = {
     fontStyle: "display",
     sectionsOrder: ["hero", "gallery", "services", "features", "about", "testimonials", "faqs", "blog", "contact"],
     heroLayout: "split-quote",
-    defaultHeroHeadline: (city) => `Precision Construction & Contracting in ${city}`,
-    defaultHeroSubtitle: (city) => `Delivering structural integrity, accurate cost estimating, and disciplined project timelines from concept to handover.`,
+    defaultHeroHeadline: (_city?: string) => `Precision Construction & General Contracting`,
+    defaultHeroSubtitle: (_city?: string) => `Delivering structural integrity, accurate cost estimating, and disciplined project timelines from concept to handover.`,
     primaryCta: "Request Tender Evaluation",
     secondaryCta: "Review Completed Projects",
     typicalServices: ["Residential Contracting", "Commercial Turnkey Builds", "Structural Renovation", "Architectural Project Management"]
@@ -444,8 +444,8 @@ export const INDUSTRY_ARCHETYPES: Record<string, IndustryArchetype> = {
     fontStyle: "serif",
     sectionsOrder: ["hero", "gallery", "services", "about", "testimonials", "faqs", "features", "blog", "contact"],
     heroLayout: "sensory-immersive",
-    defaultHeroHeadline: (city) => `Artisan Hair Styling & Beauty Sanctuary in ${city}`,
-    defaultHeroSubtitle: (city) => `Dedicated to hair health, bridal aesthetics, and rejuvenating skin rituals in a tranquil studio environment.`,
+    defaultHeroHeadline: (_city?: string) => `Artisan Hair Styling & Beauty Sanctuary`,
+    defaultHeroSubtitle: (_city?: string) => `Dedicated to hair health, bridal aesthetics, and rejuvenating skin rituals in a tranquil studio environment.`,
     primaryCta: "Book Your Appointment",
     secondaryCta: "View Style Portfolio",
     typicalServices: ["Precision Haircut & Styling", "Balayage & Color Formulation", "Bridal & Event Glamour", "Restorative Scalp Rituals"]
@@ -464,8 +464,8 @@ export const INDUSTRY_ARCHETYPES: Record<string, IndustryArchetype> = {
     fontStyle: "display",
     sectionsOrder: ["hero", "services", "contact", "features", "about", "faqs", "testimonials", "gallery", "blog"],
     heroLayout: "split-quote",
-    defaultHeroHeadline: (city) => `Master Automotive Diagnostics & Repair in ${city}`,
-    defaultHeroSubtitle: (city) => `Dealer-grade computerized scanning, transparent estimates, and certified mechanical repairs with zero surprise charges.`,
+    defaultHeroHeadline: (_city?: string) => `Master Automotive Diagnostics & Repair`,
+    defaultHeroSubtitle: (_city?: string) => `Dealer-grade computerized scanning, transparent estimates, and skilled mechanical repairs with zero surprise charges.`,
     primaryCta: "Schedule Diagnostic Service",
     secondaryCta: "Call Mechanic Directly",
     typicalServices: ["Computerized Engine Diagnostics", "Brake & Suspension Replacement", "Scheduled Preventive Maintenance", "Air Conditioning & Electrical Repair"]
@@ -484,8 +484,8 @@ export const INDUSTRY_ARCHETYPES: Record<string, IndustryArchetype> = {
     fontStyle: "serif",
     sectionsOrder: ["hero", "gallery", "services", "about", "testimonials", "faqs", "features", "blog", "contact"],
     heroLayout: "sensory-immersive",
-    defaultHeroHeadline: (city) => `Distinctive Culinary Dining & Authentic Flavors in ${city}`,
-    defaultHeroSubtitle: (city) => `Farm-fresh local ingredients, heritage recipes, and warm hospitality served daily in a memorable setting.`,
+    defaultHeroHeadline: (_city?: string) => `Distinctive Culinary Dining & Authentic Flavors`,
+    defaultHeroSubtitle: (_city?: string) => `Fresh seasonal ingredients, heritage recipes, and warm hospitality served daily in a memorable setting.`,
     primaryCta: "Reserve a Table",
     secondaryCta: "Explore Dinner Menu",
     typicalServices: ["A La Carte Dining", "Chef's Tasting Experience", "Private Events & Celebrations", "Weekend Brunch & Cocktails"]

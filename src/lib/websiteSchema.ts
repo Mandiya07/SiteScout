@@ -464,10 +464,43 @@ export function normalizeWebsiteSchema(
     ogImage: site.seo?.ogImage
   };
 
-  // 3. Ensure Hero section
+  // 3. Ensure Hero section (strictly refrain from using physical address details in the hero section)
+  const cleanHeroFromAddress = (text: string | undefined, fallbackText: string): string => {
+    if (!text) return fallbackText;
+    if (site.isUserSupplied) return text;
+    let cleaned = text.trim();
+    if (address && address.toLowerCase() !== "local area") {
+      // Remove full address match if present
+      const escapedFull = address.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      cleaned = cleaned.replace(new RegExp(`(?:\\s+(?:at|in|on|near|across|located\\s+at|visit\\s+us\\s+at))?\\s*${escapedFull}`, "gi"), "");
+
+      // Remove street/plot/suite/address segments (e.g. "14 Somhlolo Road", "Plot 104", "Suite 3")
+      const segments = address
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => s.length >= 4);
+      for (const seg of segments) {
+        const looksLikeStreetOrPlot =
+          /\d/.test(seg) ||
+          /\b(street|st|road|rd|avenue|ave|boulevard|blvd|drive|dr|lane|ln|way|plot|suite|ste|floor|building|plaza|mall|park|industrial|highway|way|crescent|close)\b/i.test(seg);
+        if (looksLikeStreetOrPlot) {
+          const escapedSeg = seg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          cleaned = cleaned.replace(new RegExp(`(?:\\s*(?:,|at|in|on|near|across|located\\s+at))?\\s*${escapedSeg}`, "gi"), "");
+        }
+      }
+      // Clean trailing prepositions left behind (e.g. "Trusted Plumbing in ." or "Services at ,")
+      cleaned = cleaned
+        .replace(/\s+(?:in|at|on|near|across|located\s+at)\s*([.,;!]|$)/gi, "$1")
+        .replace(/\s{2,}/g, " ")
+        .replace(/\s+([.,;!])/g, "$1")
+        .trim();
+    }
+    return cleaned.length >= 6 ? cleaned : fallbackText;
+  };
+
   const hero = {
-    title: site.hero?.title || archetype.defaultHeroHeadline(city),
-    subtitle: site.hero?.subtitle || archetype.defaultHeroSubtitle(city),
+    title: cleanHeroFromAddress(site.hero?.title, archetype.defaultHeroHeadline(city)),
+    subtitle: cleanHeroFromAddress(site.hero?.subtitle, archetype.defaultHeroSubtitle(city)),
     ctaPrimary: site.hero?.ctaPrimary || archetype.primaryCta,
     ctaSecondary: site.hero?.ctaSecondary || archetype.secondaryCta,
     imageUrl: site.hero?.imageUrl || getCategoryHeroImage(category),

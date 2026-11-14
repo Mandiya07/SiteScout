@@ -513,21 +513,25 @@ export default function WebsiteEditor({
                   <p className="text-sm text-slate-600 dark:text-slate-400">Reach out directly via email or phone to discuss your needs.</p>
                   
                   <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-                    <a href={`mailto:${site.contactPage.email}`} className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold text-white shadow-md cursor-pointer transition-transform hover:scale-105" style={{ backgroundColor: site.accentColor }}>
-                      <MessageSquare className="h-4 w-4" />
-                      Email Us
-                    </a>
-                    <a href={`tel:${site.phone}`} className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold shadow-sm border border-slate-200 bg-white text-slate-800 cursor-pointer transition-transform hover:scale-105 dark:bg-slate-900 dark:border-slate-700 dark:text-white">
-                      <Phone className="h-4 w-4" />
-                      Call {site.phone}
-                    </a>
+                    {site.contactPage?.email && site.contactPage.email.trim().toLowerCase() !== "unlisted" && (
+                      <a href={`mailto:${site.contactPage.email}`} className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold text-white shadow-md cursor-pointer transition-transform hover:scale-105" style={{ backgroundColor: site.accentColor }}>
+                        <MessageSquare className="h-4 w-4" />
+                        Email Us
+                      </a>
+                    )}
+                    {site.phone && site.phone.trim().toLowerCase() !== "unlisted" && (
+                      <a href={`tel:${site.phone}`} className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold shadow-sm border border-slate-200 bg-white text-slate-800 cursor-pointer transition-transform hover:scale-105 dark:bg-slate-900 dark:border-slate-700 dark:text-white">
+                        <Phone className="h-4 w-4" />
+                        Call {site.phone}
+                      </a>
+                    )}
                   </div>
                </div>
             </div>
             <div className="mt-6 flex flex-col items-center gap-2 text-xs text-slate-600">
-              <div className="flex items-center gap-2 font-sans"><Phone className="h-4 w-4" /> {site.phone}</div>
+              <div className="flex items-center gap-2 font-sans"><Phone className="h-4 w-4" /> {site.phone && site.phone.trim().toLowerCase() !== "unlisted" ? site.phone : "Phone: Unlisted"}</div>
               <div className="flex items-center gap-2 font-sans"><MapPin className="h-4 w-4" /> {site.address}</div>
-              <div className="flex items-center gap-2 font-sans"><MessageSquare className="h-4 w-4" /> {site.contactPage.email}</div>
+              <div className="flex items-center gap-2 font-sans"><MessageSquare className="h-4 w-4" /> {site.contactPage?.email || "Email: Unlisted"}</div>
             </div>
             
             <div className="mt-8 rounded-xl overflow-hidden border border-slate-200 h-48 bg-slate-100 flex items-center justify-center relative">

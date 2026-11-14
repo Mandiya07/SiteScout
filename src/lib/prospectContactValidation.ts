@@ -214,7 +214,7 @@ export function validatePhoneFormat(
   const trimmed = rawPhone.trim();
   const lower = trimmed.toLowerCase();
 
-  if (trimmed.length === 0 || lower === "unlisted" || lower === "none" || lower === "n/a") {
+  if (trimmed.length === 0 || lower === "unlisted" || lower === "none" || lower === "n/a" || lower === "not available") {
     return {
       isValid: false,
       errors: ["Phone number is unlisted or missing."],
@@ -225,7 +225,6 @@ export function validatePhoneFormat(
     };
   }
 
-  // Check for dummy or placeholder phone strings
   const digitsOnly = trimmed.replace(/\D/g, "");
   if (digitsOnly.length === 0) {
     errors.push("Phone number contains no numeric digits.");
@@ -238,9 +237,16 @@ export function validatePhoneFormat(
     errors.push("Phone number consists entirely of repeating placeholder digits.");
   }
 
-  // Check for ascending sequence (12345678)
-  if (digitsOnly === "12345678" || digitsOnly === "123456789" || digitsOnly === "0123456789") {
-    errors.push("Phone number is a sequential placeholder pattern.");
+  // Check for ascending/descending placeholder sequences
+  if (
+    digitsOnly === "12345678" ||
+    digitsOnly === "123456789" ||
+    digitsOnly === "0123456789" ||
+    digitsOnly === "987654321" ||
+    digitsOnly.endsWith("12345678") ||
+    digitsOnly.endsWith("00000000")
+  ) {
+    errors.push("Phone number is a sequential or repeating placeholder pattern.");
   }
 
   // Minimum and maximum length check (ITU-T E.164: 7 to 15 digits)
@@ -249,6 +255,16 @@ export function validatePhoneFormat(
   } else if (digitsOnly.length > 15) {
     errors.push("Phone number is too long (maximum 15 digits according to E.164).");
   }
+
+  const dc = (defaultCountry || "").toUpperCase();
+  const defaultDialMap: Record<string, string> = {
+    SZ: "268", ZA: "27", GB: "44", UK: "44", US: "1", CA: "1",
+    AU: "61", NZ: "64", KE: "254", NG: "234", BW: "267", NA: "264",
+    GH: "233", ZW: "263", ZM: "260", MZ: "258", LS: "266", DE: "49",
+    FR: "33", NL: "31", ES: "34", IT: "39", IE: "353", BE: "32",
+    CH: "41", AT: "43", PT: "351", AE: "971", IN: "91", SG: "65",
+    JP: "81", BR: "55"
+  };
 
   // Normalize international format
   let normalized = "";
@@ -260,8 +276,7 @@ export function validatePhoneFormat(
     normalized = `+${digitsOnly}`;
   } else if (trimmed.startsWith("00")) {
     normalized = `+${digitsOnly.substring(2)}`;
-  } else if (defaultCountry === "SZ") {
-    // Eswatini local number normalization
+  } else if (dc === "SZ") {
     if (digitsOnly.startsWith("268") && digitsOnly.length >= 10) {
       normalized = `+${digitsOnly}`;
     } else if (digitsOnly.length === 8) {
@@ -271,8 +286,7 @@ export function validatePhoneFormat(
     } else {
       normalized = `+268${digitsOnly}`;
     }
-  } else if (defaultCountry === "ZA") {
-    // South Africa local number normalization
+  } else if (dc === "ZA") {
     if (digitsOnly.startsWith("27") && digitsOnly.length >= 11) {
       normalized = `+${digitsOnly}`;
     } else if (digitsOnly.startsWith("0") && digitsOnly.length === 10) {
@@ -280,27 +294,53 @@ export function validatePhoneFormat(
     } else {
       normalized = `+27${digitsOnly}`;
     }
+  } else if (dc === "US" || dc === "CA") {
+    if (digitsOnly.startsWith("1") && digitsOnly.length === 11) {
+      normalized = `+${digitsOnly}`;
+    } else if (digitsOnly.length === 10) {
+      normalized = `+1${digitsOnly}`;
+    } else {
+      normalized = `+1${digitsOnly}`;
+    }
+  } else if (defaultDialMap[dc]) {
+    const dial = defaultDialMap[dc];
+    if (digitsOnly.startsWith(dial) && digitsOnly.length >= dial.length + 7) {
+      normalized = `+${digitsOnly}`;
+    } else if (digitsOnly.startsWith("0")) {
+      normalized = `+${dial}${digitsOnly.substring(1)}`;
+    } else {
+      normalized = `+${dial}${digitsOnly}`;
+    }
   } else {
     normalized = trimmed.startsWith("+") ? `+${digitsOnly}` : digitsOnly;
   }
 
-  // Detect Country & Mobile / WhatsApp Capability
+  // Country-specific validation, fictional range rejection & mobile detection
+  const knownDialPrefixes = ["971", "353", "351", "268", "267", "266", "264", "263", "260", "258", "254", "234", "233", "91", "81", "65", "64", "61", "55", "49", "44", "43", "41", "39", "34", "33", "32", "31", "27", "1"];
+
   if (normalized.startsWith("+268")) {
     countryCode = "+268";
     const nationalNumber = normalized.substring(4);
-    // Eswatini mobile prefixes: 76, 78, 79, 74
-    if (nationalNumber.startsWith("76") || nationalNumber.startsWith("78") || nationalNumber.startsWith("79") || nationalNumber.startsWith("74")) {
+    if (nationalNumber.length !== 8) {
+      errors.push("Eswatini phone numbers must have exactly 8 digits after +268.");
+    } else if (/^(\d)\1{7}$/.test(nationalNumber)) {
+      errors.push("Eswatini phone number consists of repeating digits.");
+    }
+    if (/^(71|72|74|76|78|79)/.test(nationalNumber)) {
       isMobile = true;
       whatsappCapable = true;
-    } else if (nationalNumber.startsWith("24") || nationalNumber.startsWith("25")) {
-      // Landline switchboards
+    } else if (/^2[2345]/.test(nationalNumber)) {
       isMobile = false;
       whatsappCapable = false;
+    } else if (nationalNumber.length === 8) {
+      errors.push("Invalid Eswatini phone prefix.");
     }
   } else if (normalized.startsWith("+27")) {
     countryCode = "+27";
     const nationalNumber = normalized.substring(3);
-    // South Africa mobile prefixes: 6x, 71-79, 81-84
+    if (nationalNumber.length !== 9) {
+      errors.push("South Africa phone numbers must have 9 digits after +27.");
+    }
     if (/^[678]/.test(nationalNumber)) {
       isMobile = true;
       whatsappCapable = true;
@@ -308,11 +348,45 @@ export function validatePhoneFormat(
       isMobile = false;
       whatsappCapable = false;
     }
+  } else if (normalized.startsWith("+1")) {
+    countryCode = "+1";
+    const nsn = normalized.substring(2);
+    if (nsn.length !== 10 || /^[01]/.test(nsn) || /^[01]/.test(nsn.substring(3))) {
+      errors.push("Invalid North American Numbering Plan (+1) phone number.");
+    } else if (/^\d{3}55501\d{2}$/.test(nsn) || nsn.endsWith("5555555")) {
+      errors.push("Fictional 555-01XX drama phone number rejected.");
+    }
+    isMobile = false;
+    whatsappCapable = false;
+  } else if (normalized.startsWith("+44")) {
+    countryCode = "+44";
+    const nsn = normalized.substring(3);
+    if (nsn.length < 9 || nsn.length > 10) {
+      errors.push("UK phone numbers must have 9–10 digits after +44.");
+    } else if (/^(2079460|7700900|1134960|1144960|1154960|1164960|1174960|1184960|1214960|1314960|1414960|1514960|1614960)/.test(nsn)) {
+      errors.push("Ofcom reserved drama/placeholder UK number rejected.");
+    }
+    if (nsn.startsWith("7")) {
+      isMobile = true;
+      whatsappCapable = true;
+    }
+  } else if (normalized.startsWith("+61")) {
+    countryCode = "+61";
+    const nsn = normalized.substring(3);
+    if (nsn.length !== 9) {
+      errors.push("Australia phone numbers must have 9 digits after +61.");
+    } else if (/^(491570|25550|37010)/.test(nsn)) {
+      errors.push("ACMA reserved drama/placeholder Australia number rejected.");
+    }
+    if (nsn.startsWith("4")) {
+      isMobile = true;
+      whatsappCapable = true;
+    }
   } else if (normalized.startsWith("+")) {
-    countryCode = normalized.substring(0, 3);
-    // Default heuristic for other international numbers
-    isMobile = true;
-    whatsappCapable = true;
+    const matchedDial = knownDialPrefixes.find((d) => normalized.startsWith(`+${d}`));
+    countryCode = matchedDial ? `+${matchedDial}` : normalized.substring(0, 4);
+    isMobile = false;
+    whatsappCapable = false;
   }
 
   const scope: ContactScope = isMobile ? "NAMED_INDIVIDUAL" : "GENERAL_BUSINESS";

@@ -4,6 +4,7 @@ import { getCategoryHeroImage } from "./heroImages";
 import { buildBusinessTruthProfile } from "./businessTruth";
 import { normalizeWebsiteSchema } from "./websiteSchema";
 import { calculateExplainableOpportunityScore } from "./prospectCrm";
+import { getAuthenticDirectoryBusinesses } from "./authenticDirectory";
 
 // Helper to compute deficit counts and scores on client fallback
 export function computeDefaultDeficits(presence: any): DigitalDeficitAudit {
@@ -51,7 +52,39 @@ export function generateProceduralMockBusinesses(city: string, category: string,
     mbabane: ["Somhlolo Road", "Dzeliwe Street", "Allister Miller Street", "Mhlambanyatsi Road", "Pine Valley Road", "Hospital Hill", "Mahleka Street", "Polinjane Road", "Gilson Street"],
     manzini: ["Ngwane Street", "Mhlakuvane Street", "Tenbergen Street", "Central Way", "Market Street", "Meintjes Street", "Kelly Street", "Nkoseluhlaza Street"],
     matsapha: ["King Mswati III Avenue", "Industrial Bypass", "Sheffield Road", "Matsapha Highway", "Police College Road", "Airport Road"],
-    ezulwini: ["Scenic Way", "Gables Mall Bypass", "Old Manzini Road", "Mantenga Drive", "Cultural Corridor"]
+    ezulwini: ["Scenic Way", "Gables Mall Bypass", "Old Manzini Road", "Mantenga Drive", "Cultural Corridor"],
+    johannesburg: ["Oxford Road", "Rivonia Road", "Jan Smuts Avenue", "Alice Lane", "Grayston Drive", "Main Reef Road", "Sandton Drive", "William Nicol Drive"],
+    "cape town": ["Loop Street", "Bree Street", "Long Street", "Kloof Street", "Strand Street", "Adderley Street", "Somerset Road", "Constantia Main Road"],
+    durban: ["Anton Lembede Street", "Umhlanga Rocks Drive", "Florida Road", "Westville Road", "Point Road", "Marine Parade"],
+    pretoria: ["Pretorius Street", "Francis Baard Street", "Lynnwood Road", "Paul Kruger Street", "Atterbury Road"],
+    london: ["Oxford Street", "Regent Street", "Canary Wharf", "Moorgate", "Bishopsgate", "Piccadilly", "High Street Kensington", "Upper Bank Street"],
+    manchester: ["Deansgate", "Market Street", "King Street", "Portland Street", "Piccadilly Gardens", "Oxford Road"],
+    birmingham: ["New Street", "Colmore Row", "Broad Street", "Corporation Street", "Bullring Way"],
+    austin: ["Congress Avenue", "Lamar Boulevard", "San Jacinto Blvd", "6th Street", "Barton Springs Road", "Guadalupe Street", "Great Hills Trail"],
+    "new york": ["Broadway", "5th Avenue", "Madison Avenue", "Houston Street", "Wall Street", "Lexington Avenue", "Hudson Street"],
+    "los angeles": ["Wilshire Boulevard", "Sunset Boulevard", "Santa Monica Blvd", "Figueroa Street", "Grand Avenue"],
+    chicago: ["Michigan Avenue", "State Street", "Wacker Drive", "LaSalle Street", "Clark Street"],
+    nairobi: ["Kenyatta Avenue", "Moi Avenue", "Kimathi Street", "Waiyaki Way", "Ngong Road", "Langata Road", "Limuru Road"],
+    lagos: ["Ozumba Mbadiwe Avenue", "Ahmadu Bello Way", "Adetokunbo Ademola Street", "Broad Street", "Marina", "Ikoyi Road", "Tiamiyu Savage Street"],
+    sydney: ["George Street", "Pitt Street", "Castlereagh Street", "Bridge Street", "Macquarie Street", "Pacific Highway", "The Rocks"],
+    melbourne: ["Collins Street", "Bourke Street", "Swanston Street", "Flinders Street", "Lonsdale Street"],
+    toronto: ["Bay Street", "Yonge Street", "King Street West", "Queen Street East", "Bloor Street", "Front Street", "Wellington St W"],
+    berlin: ["Friedrichstraße", "Kurfürstendamm", "Unter den Linden", "Alexanderplatz", "Potsdamer Straße", "Torstraße"],
+    paris: ["Avenue des Champs-Élysées", "Rue de Rivoli", "Boulevard Haussmann", "Rue du Faubourg Saint-Honoré", "Boulevard Saint-Germain"],
+    amsterdam: ["Damrak", "Keizersgracht", "Herengracht", "Kalverstraat", "Zuidas"],
+    madrid: ["Gran Vía", "Paseo de la Castellana", "Calle de Alcalá", "Calle de Serrano"],
+    rome: ["Via del Corso", "Via Veneto", "Via Nazionale", "Via Condotti"],
+    dublin: ["O'Connell Street", "Grafton Street", "Baggot Street", "St Stephen's Green"],
+    dubai: ["Sheikh Zayed Road", "Jumeirah Beach Road", "Al Rigga Road", "Business Bay Boulevard", "DIFC Gate Avenue"],
+    accra: ["Independence Avenue", "Oxford Street Osu", "Liberation Road", "Ring Road Central", "Spintex Road"],
+    gaborone: ["Khama Crescent", "Queens Road", "The Mall", "Nelson Mandela Drive", "New CBD Boulevard"],
+    windhoek: ["Independence Avenue", "Robert Mugabe Avenue", "Sam Nujoma Drive", "Mandume Ndemufayo Avenue"],
+    harare: ["Samora Machel Avenue", "Jason Moyo Avenue", "Julius Nyerere Way", "Borrowdale Road"],
+    lusaka: ["Cairo Road", "Independence Avenue", "Great East Road", "Addis Ababa Drive"],
+    singapore: ["Orchard Road", "Raffles Place", "Marina Boulevard", "Shenton Way", "Robinson Road"],
+    tokyo: ["Ginza Chuo-dori", "Marunouchi Naka-dori", "Shinjuku-dori", "Omotesando", "Roppongi-dori"],
+    mumbai: ["Marine Drive", "Mahatma Gandhi Road", "Nariman Point", "Bandra Kurla Complex"],
+    bengaluru: ["MG Road", "Brigade Road", "Indiranagar 100 Feet Road", "Whitefield Main Road"]
   };
 
   const genericStreets = ["Commercial Way", "Main Street", "Link Road", "Industrial Boulevard", "Central Avenue", "Corporate Parkway", "Market Square"];
@@ -198,29 +231,51 @@ export function resolveEffectiveCategory(category: string = "Construction", keyw
 }
 
 export function getClientMockBusinesses(city: string = "Mbabane", category: string = "Construction", country: string = "Eswatini", searchKeywords: string = "", page: number = 1): Business[] {
+  // 1. Check curated real directory with authentic 8-digit numbers and real registry references
+  const authenticMatches = getAuthenticDirectoryBusinesses(city, category, country, searchKeywords, page);
+  if (authenticMatches.length > 0) {
+    return authenticMatches;
+  }
+
+  // 2. Procedural directory fallback with authentic contact rules (NO fake emails, 8-digit format)
   const generated = generateProceduralMockBusinesses(city, category, country, searchKeywords, page);
   const locationStr = [city, country].filter(Boolean).join(", ");
+  const countryConfig = detectCountryFromLocation(locationStr);
+  const countryCode = countryConfig.countryCode;
 
   return generated.map((b, idx) => {
-    const rawWebUrl = idx % 3 === 0 ? `https://${b.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.co.sz` : undefined;
-    const isLiveWebsite = !!rawWebUrl;
+    // Only real corporate domains - no synthetic website generation
+    const rawWebUrl = undefined;
+    const isLiveWebsite = false;
     const rating = Number((3.8 + ((idx * 37) % 12) / 10).toFixed(1));
     const reviewsCount = 4 + ((idx * 17) % 25);
-    const assignedSourceUrl = rawWebUrl || `https://yellowpages.co.sz/directory/${city.toLowerCase()}/${category.toLowerCase()}`;
+    
+    let assignedSourceUrl = `https://www.yellowpages.com/search?search_terms=${encodeURIComponent(category)}&geo_location_terms=${encodeURIComponent(city)}`;
+    if (countryCode === "SZ") {
+      assignedSourceUrl = `https://yellowpages.co.sz/directory/${city.toLowerCase()}/${category.toLowerCase()}`;
+    } else if (countryCode === "ZA") {
+      assignedSourceUrl = `https://www.yellowpages.co.za/search/${category.toLowerCase()}/${city.toLowerCase()}`;
+    } else if (countryCode === "GB") {
+      assignedSourceUrl = `https://www.yell.com/ucs/UcsSearchAction.do?keywords=${encodeURIComponent(category)}&location=${encodeURIComponent(city)}`;
+    }
+
+    // ZERO-FABRICATION MANDATE: Procedural catalog entries do NOT synthesize phone numbers or emails.
+    // Verified authentic numbers come exclusively from live Google Search grounding or REAL_GLOBAL_DIRECTORY.
+    const formattedPhone = "Unlisted";
 
     const presence: any = {
-      hasWebsite: isLiveWebsite,
-      websiteStatus: isLiveWebsite ? "WEBSITE_CONFIRMED" : "WEBSITE_NOT_DISCOVERED",
-      websiteUrl: rawWebUrl,
-      hasEmail: idx % 2 === 0,
+      hasWebsite: false,
+      websiteStatus: "WEBSITE_NOT_DISCOVERED",
+      websiteUrl: undefined,
+      hasEmail: false, // Never fabricate fake emails
       facebookStatus: "none",
       instagramStatus: "none",
       googleProfileQuality: "fair",
       reviewCountStatus: reviewsCount < 10 ? "few" : "average",
-      photosStatus: isLiveWebsite ? "sufficient" : "missing",
+      photosStatus: "missing",
       descriptionQuality: "fair",
       openingHoursStatus: "missing",
-      contactCompleteness: "partial"
+      contactCompleteness: "missing"
     };
 
     const defs = computeDefaultDeficits(presence);
@@ -236,13 +291,13 @@ export function getClientMockBusinesses(city: string = "Mbabane", category: stri
       name: b.name,
       category,
       address: b.addr,
-      phone: `+268 2${b.phoneSuffix}`,
-      email: idx % 2 === 0 ? `contact@${b.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.co.sz` : undefined,
-      websiteUrl: rawWebUrl,
+      phone: formattedPhone,
+      email: undefined, // Never fabricate emails - user will enter authentic contact when requested
+      websiteUrl: undefined,
       websiteStatus: presence.websiteStatus,
       rating,
       reviewsCount,
-      directorySource: "National Business Directory & Yellow Pages Index",
+      directorySource: "National Business Directory Index",
       industryTag: category,
       providerName: "Directory Catalog Index",
       providerId: id,
@@ -255,12 +310,12 @@ export function getClientMockBusinesses(city: string = "Mbabane", category: stri
           url: assignedSourceUrl,
           sourceTitle: `${b.name} - Directory Reference`,
           retrievedAt: new Date().toISOString(),
-          supports: ["name", "address", "phone"],
+          supports: ["name", "address", ...(formattedPhone !== "Unlisted" ? ["phone"] : [])],
           associationMethod: "EXACT_URL",
           confidence: 0.85
         }
       ],
-      verificationState: "CONTACT_READY",
+      verificationState: formattedPhone !== "Unlisted" ? "CONTACT_READY" : "CANDIDATE",
       salesStage: "DISCOVERED",
       isDemo: false,
       dataType: "real",
@@ -308,7 +363,7 @@ export function getIndustryDetails(category: string, city: string) {
   if (cat.includes("plumb") || cat.includes("pipe") || cat.includes("drain") || cat.includes("geyser")) {
     return {
       heroTitle: "Expert Residential & Commercial Plumbing",
-      heroSubtitle: `Fast, reliable plumbing solutions including pipe repairs, drain cleaning, and geyser installations in ${city}.`,
+      heroSubtitle: `Fast, reliable plumbing solutions including pipe repairs, drain cleaning, and hot water installations.`,
       heroImage: "https://images.unsplash.com/photo-1585704032915-c3400ca199e7?auto=format&fit=crop&q=80&w=1200",
       services: [
         {
@@ -341,7 +396,7 @@ export function getIndustryDetails(category: string, city: string) {
   if (cat.includes("restaurant") || cat.includes("food") || cat.includes("diner") || cat.includes("cafe") || cat.includes("bistro") || cat.includes("grill") || cat.includes("eatery") || cat.includes("kitchen")) {
     return {
       heroTitle: "Beautiful Restaurant & Dining Experience",
-      heroSubtitle: `Fresh, artisanal dishes crafted with local ingredients and warm hospitality in ${city}.`,
+      heroSubtitle: `Fresh, artisanal dishes crafted with quality ingredients and warm hospitality every day.`,
       heroImage: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80&w=1200",
       services: [
         {
@@ -374,7 +429,7 @@ export function getIndustryDetails(category: string, city: string) {
   if (cat.includes("salon") || cat.includes("beauty") || cat.includes("hair") || cat.includes("spa") || cat.includes("barber") || cat.includes("nail")) {
     return {
       heroTitle: "Luxury Hair, Beauty & Wellness Spa",
-      heroSubtitle: `Transformative styling, organic skin care, and soothing spa therapies tailored for ${city}.`,
+      heroSubtitle: `Transformative styling, organic skin care, and soothing spa therapies tailored for you.`,
       heroImage: "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&q=80&w=1200",
       services: [
         {
@@ -407,7 +462,7 @@ export function getIndustryDetails(category: string, city: string) {
   if (cat.includes("construct") || cat.includes("build") || cat.includes("civil") || cat.includes("renovat") || cat.includes("roof")) {
     return {
       heroTitle: "Premier Building & Civil Construction Contractors",
-      heroSubtitle: `Turnkey residential developments, structural renovations, and commercial construction in ${city}.`,
+      heroSubtitle: `Turnkey residential developments, structural renovations, and commercial construction built to last.`,
       heroImage: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&q=80&w=1200",
       services: [
         {
@@ -440,7 +495,7 @@ export function getIndustryDetails(category: string, city: string) {
   if (cat.includes("mechanic") || cat.includes("auto") || cat.includes("car") || cat.includes("garage") || cat.includes("tyre") || cat.includes("repair")) {
     return {
       heroTitle: "Expert Mechanic & Auto Repair Workshop",
-      heroSubtitle: `Computerized engine diagnostics, precision brake service, and major vehicle maintenance in ${city}.`,
+      heroSubtitle: `Computerized engine diagnostics, precision brake service, and major vehicle maintenance you can trust.`,
       heroImage: "https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?auto=format&fit=crop&q=80&w=1200",
       services: [
         {
@@ -473,7 +528,7 @@ export function getIndustryDetails(category: string, city: string) {
   // Default fallback for other industries
   return {
     heroTitle: `Professional & Reliable ${category} Services`,
-    heroSubtitle: `Your trusted local specialists serving residential and commercial clients in ${city} with dedicated craftsmanship.`,
+    heroSubtitle: `Your trusted specialists serving residential and commercial clients with dedicated craftsmanship.`,
     heroImage: getCategoryHeroImage(category),
     services: [
       {
@@ -554,7 +609,9 @@ export function generateClientMockSite(biz: Business): GeneratedSite {
     fontStyle: fontStyle,
     seo: {
       title: `${cleanBizName} | High-Quality ${biz.category} in ${addressCity}`,
-      description: `Looking for reliable, professional ${biz.category} in ${addressCity}? Contact ${cleanBizName} today at ${biz.phone} for exceptional local service.`,
+      description: biz.phone && biz.phone.trim().toLowerCase() !== "unlisted"
+        ? `Looking for reliable, professional ${biz.category} in ${addressCity}? Contact ${cleanBizName} today at ${biz.phone} for exceptional local service.`
+        : `Looking for reliable, professional ${biz.category} in ${addressCity}? Contact ${cleanBizName} today for exceptional local service.`,
       keywords: `${biz.category.toLowerCase()} ${addressCity.toLowerCase()}, reliable ${biz.category.toLowerCase()}, qualified technician, responsive service`
     },
     hero: {

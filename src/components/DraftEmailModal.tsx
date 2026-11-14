@@ -529,7 +529,7 @@ export default function DraftEmailModal({
                   + Prototype Link
                 </button>
 
-                {business.phone && (
+                {business.phone && business.phone.trim().toLowerCase() !== "unlisted" && (
                   <button
                     type="button"
                     onClick={() => {

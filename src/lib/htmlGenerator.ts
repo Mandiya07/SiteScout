@@ -72,7 +72,8 @@ function getLogoIconSvg(iconId?: string, color: string = "#2563eb"): string {
 export function generateStaticHtml(rawSite: any): string {
   const site = normalizeWebsiteSchema(rawSite);
   const businessName = escapeHtml(site.businessName || "Local Business");
-  const phone = escapeHtml(site.phone || "");
+  const rawPhoneStr = (site.phone || "").trim();
+  const phone = rawPhoneStr && !["unlisted", "none", "n/a", "not available"].includes(rawPhoneStr.toLowerCase()) ? escapeHtml(rawPhoneStr) : "";
   const cleanPhone = normalizePhoneNumber(site.phone, site.address);
   const waLink = sanitizeUrl(generateWhatsappLink(site.phone, site.whatsappMessage, site.address));
   const address = escapeHtml(site.address || "");
@@ -122,6 +123,8 @@ export function generateStaticHtml(rawSite: any): string {
       <div class="relative z-10 max-w-3xl mx-auto space-y-4 sm:space-y-6 px-4">
         <div class="flex items-center justify-center gap-2 text-xs sm:text-sm font-semibold tracking-wider text-slate-200/90 uppercase">
           <span>${category}</span>
+          <span aria-hidden="true">&bull;</span>
+          <span>${businessName}</span>
         </div>
 
         <h1 class="text-2xl sm:text-4xl md:text-5xl font-extrabold text-white leading-tight sm:leading-tight tracking-tight drop-shadow-md ${fontClass}">

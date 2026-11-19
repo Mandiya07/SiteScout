@@ -333,7 +333,7 @@ export default function App() {
       
       const fetchPreview = async () => {
         try {
-          // Check localStorage fallback first
+          // Check exact localStorage fallback first
           try {
             const cached = localStorage.getItem(`site_${siteId}`);
             if (cached) {
@@ -343,6 +343,28 @@ export default function App() {
             }
           } catch (e) {
             console.error("LocalStorage fallback read error:", e);
+          }
+
+          // Deep scan all localStorage site_* entries for matching id or previewToken
+          try {
+            for (let i = 0; i < localStorage.length; i++) {
+              const k = localStorage.key(i);
+              if (k && k.startsWith("site_")) {
+                const item = localStorage.getItem(k);
+                if (item) {
+                  try {
+                    const parsed = JSON.parse(item);
+                    if (parsed && (parsed.id === siteId || parsed.previewToken === siteId)) {
+                      setPublicPreviewSite(parsed);
+                      setPublicPreviewLoading(false);
+                      return;
+                    }
+                  } catch (parseErr) {}
+                }
+              }
+            }
+          } catch (deepErr) {
+            console.error("Deep localStorage scan error:", deepErr);
           }
 
           // Fetch from Firestore publicPreviews collection

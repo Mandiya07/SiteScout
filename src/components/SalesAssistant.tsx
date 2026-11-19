@@ -13,19 +13,21 @@ interface SalesAssistantProps {
 }
 
 type ChannelType = "whatsapp" | "email" | "sms" | "coldCall" | "followUp" | "linkedin" | "messenger";
+type ViewMode = "channels" | "templates";
 
 export default function SalesAssistant({ site, onBack }: SalesAssistantProps) {
   const [tone, setTone] = useState<string>("Persuasive");
   const [loading, setLoading] = useState<boolean>(false);
   const [copiedSection, setCopiedSection] = useState<string>("");
   const [activeChannel, setActiveChannel] = useState<ChannelType>("whatsapp");
+  const [viewMode, setViewMode] = useState<ViewMode>("channels");
   const [outreach, setOutreach] = useState<SalesOutreach | null>(null);
 
   const isDemo = site.isDemo === true || site.dataType === "demo";
 
   const fetchOutreachTemplates = async (selectedTone: string) => {
     setLoading(true);
-    const link = `${window.location.origin}/preview/${site.id}`;
+    const link = `${window.location.origin}/preview/${site.previewToken || site.id}`;
     try {
       const response = await authedFetch("/api/generate-sales-copy", {
         method: "POST",
@@ -120,13 +122,15 @@ export default function SalesAssistant({ site, onBack }: SalesAssistantProps) {
     }
 
     let body = bodyLines.join("\n").trim();
-    // If we didn't find "Subject:" explicitly, fallback to default or clean it
     if (!foundSubject && emailText) {
       body = emailText;
     }
 
     return { subject, body };
   };
+
+  const city = site.address ? (site.address.split(",")[1]?.trim() || site.address.split(",")[0]?.trim() || "Local Area") : "Local Area";
+  const previewLink = getPreviewUrl();
 
   const channels: { id: ChannelType; label: string; sub: string; icon: any; color: string; bg: string; border: string; tip: string }[] = [
     {
@@ -201,6 +205,30 @@ export default function SalesAssistant({ site, onBack }: SalesAssistantProps) {
     }
   ];
 
+  const missingWebsiteTemplates = [
+    {
+      id: "t1",
+      title: "The Missing Website Opportunity (Direct & Professional)",
+      target: "Email / LinkedIn",
+      subject: `Quick question regarding ${site.businessName}'s online visibility in ${city}`,
+      body: `Hi ${site.businessName} Team,\n\nI was reviewing top ${site.category} providers in ${city} and noticed your business has fantastic local reputation, but currently lacks an optimized mobile website to capture searchers on Google Maps.\n\nTo demonstrate what's possible, I put together a fully functional, mobile-optimized website preview tailored specifically for ${site.businessName}:\n🔗 ${previewLink}\n\nKey findings & features configured for your brand:\n- Instant 1-Click WhatsApp Chat & direct phone hotline\n- Professional service catalog & transparent pricing\n- Clean mobile layout optimized for local leads\n\nTake a quick look whenever you have 2 minutes. Once you review and approve it, let's customize and launch it on your domain!\n\nBest regards,\nLocal Digital Development`
+    },
+    {
+      id: "t2",
+      title: "The Mobile Searcher & Competitor Loss Angle",
+      target: "Cold Email / SMS",
+      subject: `Are local ${city} clients finding ${site.businessName} online?`,
+      body: `Hi ${site.businessName} Management,\n\nOver 80% of customers looking for ${site.category} in ${city} search on their smartphones before making a call. Without a dedicated website, those high-intent clients often bounce to competing listings.\n\nI built a professional, zero-friction website preview for ${site.businessName} so you can capture those leads immediately:\n👉 ${previewLink}\n\nHave a look on your phone. If you like the layout, just click 'Approve' or reply here and we'll get it live for you!\n\nBest,\nDigital Growth Team`
+    },
+    {
+      id: "t3",
+      title: "The Show-Don't-Tell Free Prototype Showcase",
+      target: "All Channels",
+      subject: `We built a website preview for ${site.businessName} (${city})`,
+      body: `Hi ${site.businessName},\n\nInstead of just pitching our services, we decided to show you. We went ahead and built a custom, high-speed website prototype for your ${site.category} business:\n🔗 ${previewLink}\n\nHighlights configured for your team:\n- Instant appointment & quote request form\n- Integrated Google Maps directions and hours\n- 1-Click WhatsApp customer concierge\n\nTake a look and let me know your thoughts. Once approved, we can launch it right away!\n\nWarmly,\nLocal Partner`
+    }
+  ];
+
   return (
     <div className="space-y-6 text-left">
       {/* Upper navigation header */}
@@ -212,36 +240,52 @@ export default function SalesAssistant({ site, onBack }: SalesAssistantProps) {
           >
             <ArrowLeft className="h-3.5 w-3.5" /> Back to Presentation Workspace
           </button>
-          <h2 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-            <Sparkles className="h-6 w-6 text-blue-500 fill-blue-500 animate-pulse" /> AI Sales Assistant
-          </h2>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+              <Sparkles className="h-6 w-6 text-blue-500 fill-blue-500 animate-pulse" /> AI Sales Assistant &amp; Outreach
+            </h2>
+          </div>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Formulate personalized, high-converting outreach copy across 7 channels for <strong className="text-slate-800 dark:text-slate-200">{site.businessName}</strong>.
+            Formulate personalized outreach across multi-channel playbooks or pre-written website deficit scripts for <strong className="text-slate-800 dark:text-slate-200">{site.businessName}</strong>.
           </p>
         </div>
 
-        {/* Tone Selector & Control Bar */}
+        {/* View Mode & Tone Selector Bar */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full xl:w-auto">
-          <div className="flex items-center gap-2 bg-slate-100/80 p-1 rounded-xl dark:bg-slate-900/80 border border-slate-200/40 dark:border-slate-800/40">
-            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-2">Outreach Tone:</span>
-            <select
-              value={tone}
-              onChange={(e) => setTone(e.target.value)}
-              disabled={loading}
-              className="rounded-lg bg-white shadow-xs px-3 py-1.5 text-xs font-bold text-slate-800 dark:bg-slate-800 dark:text-white border-none focus:outline-none"
+          <div className="flex rounded-xl bg-slate-100 p-1 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+            <button
+              onClick={() => setViewMode("channels")}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                viewMode === "channels" ? "bg-white text-blue-600 shadow-xs dark:bg-slate-800 dark:text-blue-400" : "text-slate-600 dark:text-slate-400"
+              }`}
             >
-              {["Professional", "Friendly", "Premium", "Casual", "Concise", "Persuasive"].map((t) => (
-                <option key={t} value={t}>{t} Tone Pitch</option>
-              ))}
-            </select>
+              Multi-Channel Playbooks
+            </button>
+            <button
+              onClick={() => setViewMode("templates")}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                viewMode === "templates" ? "bg-white text-indigo-600 shadow-xs dark:bg-slate-800 dark:text-indigo-400" : "text-slate-600 dark:text-slate-400"
+              }`}
+            >
+              Website Deficit Cold Email Library ({missingWebsiteTemplates.length})
+            </button>
           </div>
-          <button
-            onClick={() => fetchOutreachTemplates(tone)}
-            disabled={loading}
-            className="px-4 py-2 bg-slate-900 hover:bg-slate-850 dark:bg-slate-800 dark:hover:bg-slate-700 text-white dark:text-slate-100 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} /> Regenerate Playbooks
-          </button>
+
+          {viewMode === "channels" && (
+            <div className="flex items-center gap-2 bg-slate-100/80 p-1 rounded-xl dark:bg-slate-900/80 border border-slate-200/40 dark:border-slate-800/40">
+              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-2">Tone:</span>
+              <select
+                value={tone}
+                onChange={(e) => setTone(e.target.value)}
+                disabled={loading}
+                className="rounded-lg bg-white shadow-xs px-3 py-1.5 text-xs font-bold text-slate-800 dark:bg-slate-800 dark:text-white border-none focus:outline-none"
+              >
+                {["Professional", "Friendly", "Premium", "Casual", "Concise", "Persuasive"].map((t) => (
+                  <option key={t} value={t}>{t} Tone</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       </div>
 
@@ -290,7 +334,6 @@ export default function SalesAssistant({ site, onBack }: SalesAssistantProps) {
       </div>
 
       {loading ? (
-        /* Dynamic loading skeleton */
         <div className="min-h-[420px] flex flex-col items-center justify-center p-8 text-center space-y-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-850">
           <Loader2 className="h-10 w-10 text-blue-500 animate-spin" />
           <div className="space-y-1">
@@ -298,6 +341,52 @@ export default function SalesAssistant({ site, onBack }: SalesAssistantProps) {
             <p className="text-xs text-slate-500 max-w-xs leading-relaxed">
               Applying <span className="font-extrabold text-blue-500">"{tone}"</span> tone across the messaging framework, mapping localized hooks for {site.businessName} ({site.category} in {site.address}).
             </p>
+          </div>
+        </div>
+      ) : viewMode === "templates" ? (
+        /* Website Deficit Cold Email Library */
+        <div className="space-y-4">
+          <div className="p-4 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/50 flex items-start gap-3">
+            <Sparkles className="w-5 h-5 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
+            <div className="text-xs text-indigo-900 dark:text-indigo-200 leading-relaxed text-left">
+              <strong className="font-bold">Website Deficit Cold Email Library:</strong> These pre-written scripts are specifically tailored for business owners who currently lack a website. Each template dynamically incorporates <strong className="font-mono">{site.businessName}</strong>, location ({city}), category ({site.category}), and your custom live preview link.
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-5">
+            {missingWebsiteTemplates.map((tpl) => {
+              const isCopied = copiedSection === tpl.id;
+              return (
+                <div key={tpl.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-4 text-left shadow-xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded">
+                        {tpl.target}
+                      </span>
+                      <h3 className="text-base font-bold text-slate-900 dark:text-white mt-1">
+                        {tpl.title}
+                      </h3>
+                    </div>
+                    <button
+                      onClick={() => handleCopy(`Subject: ${tpl.subject}\n\n${tpl.body}`, tpl.id)}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition-all cursor-pointer shrink-0"
+                    >
+                      {isCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      <span>{isCopied ? "Copied Script!" : "Copy Full Script"}</span>
+                    </button>
+                  </div>
+
+                  <div className="space-y-2 bg-slate-50 dark:bg-slate-950/50 p-4 rounded-xl border border-slate-150 dark:border-slate-800 font-mono text-xs text-slate-800 dark:text-slate-200">
+                    <div className="border-b border-slate-200 dark:border-slate-800 pb-2 text-slate-500 dark:text-slate-400 font-sans">
+                      <strong className="text-slate-900 dark:text-white">Subject:</strong> {tpl.subject}
+                    </div>
+                    <div className="whitespace-pre-wrap leading-relaxed pt-1 font-sans text-xs">
+                      {tpl.body}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       ) : (

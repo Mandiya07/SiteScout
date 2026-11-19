@@ -1,6 +1,6 @@
 import { Business, GeneratedSite, DigitalDeficitAudit } from "../types";
 import { detectCountryFromLocation } from "./countryCurrency";
-import { getCategoryHeroImage } from "./heroImages";
+import { getCategoryHeroImage, getCategorySectionImages } from "./heroImages";
 import { buildBusinessTruthProfile } from "./businessTruth";
 import { normalizeWebsiteSchema } from "./websiteSchema";
 import { calculateExplainableOpportunityScore } from "./prospectCrm";
@@ -359,37 +359,35 @@ export function getClientMockBusinesses(city: string = "Mbabane", category: stri
 
 export function getIndustryDetails(category: string, city: string) {
   const cat = (category || "").toLowerCase();
+  const sectionImgs = getCategorySectionImages(category);
 
   if (cat.includes("plumb") || cat.includes("pipe") || cat.includes("drain") || cat.includes("geyser")) {
     return {
       heroTitle: "Expert Residential & Commercial Plumbing",
       heroSubtitle: `Fast, reliable plumbing solutions including pipe repairs, drain cleaning, and hot water installations.`,
-      heroImage: "https://images.unsplash.com/photo-1585704032915-c3400ca199e7?auto=format&fit=crop&q=80&w=1200",
+      heroImage: sectionImgs.hero,
+      aboutImage: sectionImgs.about,
       services: [
         {
           title: "Pipe repair",
           description: "Prompt, precision repairs and replacements for leaking, burst, or worn copper and PVC water pipes.",
           price: "Request a Quote",
-          imageUrl: "https://images.unsplash.com/photo-1542013936693-884638332954?auto=format&fit=crop&w=800"
+          imageUrl: sectionImgs.services[0]
         },
         {
           title: "Drain cleaning",
           description: "High-pressure clearing and electro-snake unblocking for clogged kitchen sinks, drains, and main sewer lines.",
           price: "Contact Us",
-          imageUrl: "https://images.unsplash.com/photo-1505798577917-a65157d3320a?auto=format&fit=crop&w=800"
+          imageUrl: sectionImgs.services[1]
         },
         {
           title: "Geyser installation",
           description: "Professional electric and solar geyser fitting, thermostat replacements, and pressure-equalizing safety valves.",
           price: "Call for Pricing",
-          imageUrl: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=800"
+          imageUrl: sectionImgs.services[2]
         }
       ],
-      gallery: [
-        { url: "https://images.unsplash.com/photo-1585704032915-c3400ca199e7?auto=format&fit=crop&w=800", alt: "Plumbing tools and wrench set" },
-        { url: "https://images.unsplash.com/photo-1505798577917-a65157d3320a?auto=format&fit=crop&w=800", alt: "Pipe installation work" },
-        { url: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=800", alt: "Bathroom plumbing fixtures" }
-      ]
+      gallery: sectionImgs.gallery
     };
   }
 
@@ -397,32 +395,29 @@ export function getIndustryDetails(category: string, city: string) {
     return {
       heroTitle: "Beautiful Restaurant & Dining Experience",
       heroSubtitle: `Fresh, artisanal dishes crafted with quality ingredients and warm hospitality every day.`,
-      heroImage: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80&w=1200",
+      heroImage: sectionImgs.hero,
+      aboutImage: sectionImgs.about,
       services: [
         {
           title: "Dining",
           description: "Cozy table seating, vibrant ambient lighting, and chef-curated seasonal lunch and dinner menus.",
           price: "Reserve Table",
-          imageUrl: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800"
+          imageUrl: sectionImgs.services[0]
         },
         {
           title: "Catering",
           description: "Full-service private event catering, corporate buffet setups, and custom gourmet party platters.",
           price: "Custom Quote",
-          imageUrl: "https://images.unsplash.com/photo-1555244162-803834f70033?auto=format&fit=crop&w=800"
+          imageUrl: sectionImgs.services[1]
         },
         {
           title: "Takeaway",
           description: "Hot, freshly prepared takeaway meals packed securely for fast pickup or express local delivery.",
           price: "View Menu",
-          imageUrl: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?auto=format&fit=crop&w=800"
+          imageUrl: sectionImgs.services[2]
         }
       ],
-      gallery: [
-        { url: "https://images.unsplash.com/photo-1555244162-803834f70033?auto=format&fit=crop&w=800", alt: "Gourmet food plating" },
-        { url: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800", alt: "Restaurant interior dining room" },
-        { url: "https://images.unsplash.com/photo-1556910103-1c02745aae4d?auto=format&fit=crop&w=800", alt: "Professional chef preparing dishes" }
-      ]
+      gallery: sectionImgs.gallery
     };
   }
 
@@ -430,32 +425,29 @@ export function getIndustryDetails(category: string, city: string) {
     return {
       heroTitle: "Luxury Hair, Beauty & Wellness Spa",
       heroSubtitle: `Transformative styling, organic skin care, and soothing spa therapies tailored for you.`,
-      heroImage: "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&q=80&w=1200",
+      heroImage: sectionImgs.hero,
+      aboutImage: sectionImgs.about,
       services: [
         {
           title: "Precision Haircuts & Styling",
           description: "Custom haircuts, highlights, color treatments, weaves, and bridal styling tailored to your unique aesthetic.",
           price: "Book Appointment",
-          imageUrl: "https://images.unsplash.com/photo-1562322140-8baeececf3df?auto=format&fit=crop&w=800"
+          imageUrl: sectionImgs.services[0]
         },
         {
           title: "Luxury Facial & Skincare",
           description: "Deep cleansing facial therapies, botanical hydration, and organic skincare treatments.",
           price: "View Packages",
-          imageUrl: "https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?auto=format&fit=crop&w=800"
+          imageUrl: sectionImgs.services[1]
         },
         {
           title: "Manicure & Nail Art",
           description: "Gel extensions, soothing pedicures, intricate nail design, and pampering hand treatments.",
           price: "Contact Us",
-          imageUrl: "https://images.unsplash.com/photo-1604654894610-df63bc536371?auto=format&fit=crop&w=800"
+          imageUrl: sectionImgs.services[2]
         }
       ],
-      gallery: [
-        { url: "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=800", alt: "Hair salon interior and styling station" },
-        { url: "https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=800", alt: "Relaxing spa treatment room" },
-        { url: "https://images.unsplash.com/photo-1604654894610-df63bc536371?auto=format&fit=crop&w=800", alt: "Nail art studio" }
-      ]
+      gallery: sectionImgs.gallery
     };
   }
 
@@ -463,32 +455,29 @@ export function getIndustryDetails(category: string, city: string) {
     return {
       heroTitle: "Premier Building & Civil Construction Contractors",
       heroSubtitle: `Turnkey residential developments, structural renovations, and commercial construction built to last.`,
-      heroImage: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&q=80&w=1200",
+      heroImage: sectionImgs.hero,
+      aboutImage: sectionImgs.about,
       services: [
         {
           title: "Custom Building",
           description: "End-to-end residential home construction, structural foundations, and architectural framework execution.",
           price: "Request Proposal",
-          imageUrl: "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=800"
+          imageUrl: sectionImgs.services[0]
         },
         {
           title: "Structural Renovations",
           description: "Commercial structural extensions, roofing upgrades, interior remodeling, and concrete masonry.",
           price: "Free Estimate",
-          imageUrl: "https://images.unsplash.com/photo-1581094288338-2314dddb7ecc?auto=format&fit=crop&w=800"
+          imageUrl: sectionImgs.services[1]
         },
         {
           title: "Civil Engineering Works",
           description: "Heavy excavation, site clearing, drainage infrastructure, and commercial plant operations.",
           price: "Contact Us",
-          imageUrl: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800"
+          imageUrl: sectionImgs.services[2]
         }
       ],
-      gallery: [
-        { url: "https://images.unsplash.com/photo-1581094288338-2314dddb7ecc?auto=format&fit=crop&w=800", alt: "Architectural blueprints and engineering" },
-        { url: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800", alt: "Construction site operations" },
-        { url: "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=800", alt: "Building structural timber framing" }
-      ]
+      gallery: sectionImgs.gallery
     };
   }
 
@@ -496,65 +485,59 @@ export function getIndustryDetails(category: string, city: string) {
     return {
       heroTitle: "Expert Mechanic & Auto Repair Workshop",
       heroSubtitle: `Computerized engine diagnostics, precision brake service, and major vehicle maintenance you can trust.`,
-      heroImage: "https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?auto=format&fit=crop&q=80&w=1200",
+      heroImage: sectionImgs.hero,
+      aboutImage: sectionImgs.about,
       services: [
         {
           title: "Engine Diagnostics & Tuning",
           description: "Computerized OBD diagnostic scans, engine fault troubleshooting, component overhaul, and tuning.",
           price: "Book Scan",
-          imageUrl: "https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&w=800"
+          imageUrl: sectionImgs.services[0]
         },
         {
           title: "Brake & Suspension Service",
           description: "Brake pad replacement, disc skimming, shock absorber testing, and steering safety checks.",
           price: "Request Quote",
-          imageUrl: "https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?auto=format&fit=crop&w=800"
+          imageUrl: sectionImgs.services[1]
         },
         {
           title: "Scheduled Vehicle Service",
           description: "Full oil change, filter replacement, spark plugs, fluid top-up, and multi-point roadworthy checks.",
           price: "View Pricing",
-          imageUrl: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=800"
+          imageUrl: sectionImgs.services[2]
         }
       ],
-      gallery: [
-        { url: "https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&w=800", alt: "Mechanic tools and engine repair" },
-        { url: "https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?auto=format&fit=crop&w=800", alt: "Hydraulic lift garage bay" },
-        { url: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=800", alt: "Engine bay diagnostic inspection" }
-      ]
+      gallery: sectionImgs.gallery
     };
   }
 
-  // Default fallback for other industries
+  // Category-tailored fallback for every other industry using verified section images
   return {
     heroTitle: `Professional & Reliable ${category} Services`,
     heroSubtitle: `Your trusted specialists serving residential and commercial clients with dedicated craftsmanship.`,
-    heroImage: getCategoryHeroImage(category),
+    heroImage: sectionImgs.hero || getCategoryHeroImage(category),
+    aboutImage: sectionImgs.about,
     services: [
       {
         title: "Standard Consultation & Inspection",
         description: "Comprehensive on-site evaluations, needs assessment, and itemized transparent quoting.",
         price: "Request a Quote",
-        imageUrl: "https://images.unsplash.com/photo-1581092921461-eab62e97a780?auto=format&fit=crop&w=800"
+        imageUrl: sectionImgs.services[0]
       },
       {
         title: `Core ${category} Service`,
         description: "Professional execution by our dedicated local team with guaranteed workmanship.",
         price: "Contact Us",
-        imageUrl: "https://images.unsplash.com/photo-1521737711867-e3b97375f902?auto=format&fit=crop&w=800"
+        imageUrl: sectionImgs.services[1]
       },
       {
         title: "Maintenance & Preventative Care",
         description: "Routine inspection, servicing, and tuning to keep your systems operating at peak efficiency.",
         price: "Call for Pricing",
-        imageUrl: "https://images.unsplash.com/photo-1581094288338-2314dddb7ecc?auto=format&fit=crop&w=800"
+        imageUrl: sectionImgs.services[2]
       }
     ],
-    gallery: [
-      { url: "https://images.unsplash.com/photo-1581092921461-eab62e97a780?auto=format&fit=crop&w=800", alt: "Professional specialized tools and workspace" },
-      { url: "https://images.unsplash.com/photo-1521737711867-e3b97375f902?auto=format&fit=crop&w=800", alt: "Dedicated local team in action" },
-      { url: "https://images.unsplash.com/photo-1581094288338-2314dddb7ecc?auto=format&fit=crop&w=800", alt: "Completed quality project delivery" }
-    ]
+    gallery: sectionImgs.gallery
   };
 }
 
@@ -625,7 +608,8 @@ export function generateClientMockSite(biz: Business): GeneratedSite {
       title: "Your Local Service Partners",
       history: `${cleanBizName} is committed to serving ${addressCity} with honest rates, transparent communications, and expert craft.`,
       mission: "To deliver reliable solutions tailored to your unique requirements.",
-      pitch: "Whether you require minor repairs, regular maintenance, or large installations, our dedicated crews are ready to assist."
+      pitch: "Whether you require minor repairs, regular maintenance, or large installations, our dedicated crews are ready to assist.",
+      imageUrl: industryConfig.aboutImage || getCategorySectionImages(biz.category).about
     },
     services: industryConfig.services,
     features: [

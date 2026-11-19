@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { ImageMetadata, VisualBusinessProfile } from "../types";
 import { authedFetch } from "../lib/firebase";
+import { INLINE_SVG_IMAGE_FALLBACK, getCategorySectionImages } from "../lib/heroImages";
 import { 
   Search, Sparkles, X, Check, Image as ImageIcon, ExternalLink, 
   Filter, ShieldCheck, User, RefreshCw, AlertCircle 
@@ -71,45 +72,41 @@ export default function ImagePickerModal({
     } catch (err: any) {
       console.error("Image search failed, loading high-quality localized presets:", err);
       
-      const ind = (industry || "").toLowerCase();
-      let presets = [
-        { url: "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=800&q=80", alt: "Modern Toolkits and Safety Gear" },
-        { url: "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=800&q=80", alt: "Complete Home Remodel Interior" },
-        { url: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80", alt: "Commercial Site Construction works" }
+      const sectionSet = getCategorySectionImages(industry);
+      const rawPresets: Array<{ url: string; alt: string }> = [
+        { url: sectionSet.hero, alt: `${industry} Featured Showcase` },
+        { url: sectionSet.about, alt: `${industry} Team & Operations` },
+        ...sectionSet.gallery,
+        ...sectionSet.services.map((url, idx) => ({ url, alt: `${industry} Service ${idx + 1}` }))
       ];
+      const seen = new Set<string>();
+      const validPresets: ImageMetadata[] = rawPresets
+        .filter((p) => {
+          if (!p.url || seen.has(p.url)) return false;
+          seen.add(p.url);
+          return true;
+        })
+        .map((p, idx) => ({
+          id: `preset_${idx}_${p.url.slice(-12)}`,
+          provider: "unsplash",
+          source: "curated",
+          sourceUrl: p.url,
+          thumbnailUrl: p.url.replace(/w=\d+/, "w=400"),
+          fullUrl: p.url,
+          width: 1200,
+          height: 800,
+          alt: p.alt,
+          photographer: "Curated Stock Library",
+          license: "Unsplash License",
+          usageType: "stock",
+          section: (sectionTarget as any) || "gallery",
+          query: searchQuery,
+          industry,
+          relevanceScore: 90,
+          createdAt: new Date().toISOString()
+        }));
 
-      if (ind.includes("restaurant") || ind.includes("cafe") || ind.includes("food") || ind.includes("bistro")) {
-        presets = [
-          { url: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80", alt: "Warm Cozy Restaurant Dining Room" },
-          { url: "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=800&q=80", alt: "Gourmet Prepared Culinary Plate" },
-          { url: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=800&q=80", alt: "Professional Chef Preparing Meals" }
-        ];
-      } else if (ind.includes("salon") || ind.includes("beauty") || ind.includes("spa") || ind.includes("hair") || ind.includes("barber")) {
-        presets = [
-          { url: "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=800&q=80", alt: "Luxury Hair Salon Interior" },
-          { url: "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80", alt: "Gentle Makeup and Cosmetics Station" },
-          { url: "https://images.unsplash.com/photo-1519699047748-de8e457a634e?auto=format&fit=crop&w=800&q=80", alt: "Aromatherapy Wellness Spa Experience" }
-        ];
-      } else if (ind.includes("construct") || ind.includes("build") || ind.includes("engineer")) {
-        presets = [
-          { url: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80", alt: "Industrial Construction Project Management" },
-          { url: "https://images.unsplash.com/photo-1581094288338-2314dddb7ecc?auto=format&fit=crop&w=800&q=80", alt: "Precision Architect Blueprints Plan" },
-          { url: "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=800&q=80", alt: "Heavy Masonry Bricklaying works" }
-        ];
-      } else if (ind.includes("account") || ind.includes("tax") || ind.includes("audit") || ind.includes("finance")) {
-        presets = [
-          { url: "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=800&q=80", alt: "Corporate Taxation Sheets and Ledger" },
-          { url: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=800&q=80", alt: "Audit Analytics Dashboard & Meeting" },
-          { url: "https://images.unsplash.com/photo-1507679799987-c73779587ccf?auto=format&fit=crop&w=800&q=80", alt: "Professional Business Consulting Advisors" }
-        ];
-      } else if (ind.includes("law") || ind.includes("legal") || ind.includes("attorney")) {
-        presets = [
-          { url: "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&w=800&q=80", alt: "Legal Scales of Justice & Gavel" },
-          { url: "https://images.unsplash.com/photo-1450133064473-71024230f91b?auto=format&fit=crop&w=800&q=80", alt: "Corporate Contract Arbitration Signing" }
-        ];
-      }
-
-      setImages(presets);
+      setImages(validPresets);
     } finally {
       setLoading(false);
     }
@@ -223,11 +220,13 @@ export default function ImagePickerModal({
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
               {images.map((img) => {
-                const isSelected = selectedImage?.id === img.id || currentImageUrl === img.fullUrl;
+                const thumbSrc = img.thumbnailUrl || (img as any).thumbUrl || img.fullUrl || (img as any).url;
+                const fullSrc = img.fullUrl || (img as any).url || thumbSrc;
+                const isSelected = selectedImage?.id === img.id || currentImageUrl === fullSrc;
                 return (
                   <div
                     key={img.id}
-                    onClick={() => setSelectedImage(img)}
+                    onClick={() => setSelectedImage({ ...img, fullUrl: fullSrc, thumbnailUrl: thumbSrc })}
                     className={`group relative rounded-xl overflow-hidden border transition-all cursor-pointer aspect-4/3 bg-slate-100 dark:bg-slate-950 ${
                       isSelected
                         ? "border-blue-600 ring-2 ring-blue-500/30 shadow-md"
@@ -235,10 +234,18 @@ export default function ImagePickerModal({
                     }`}
                   >
                     <img
-                      src={img.thumbUrl || img.fullUrl}
+                      src={thumbSrc}
                       alt={img.alt}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        const el = e.currentTarget;
+                        if (fullSrc && el.src !== fullSrc) {
+                          el.src = fullSrc;
+                        } else if (el.src !== INLINE_SVG_IMAGE_FALLBACK) {
+                          el.src = INLINE_SVG_IMAGE_FALLBACK;
+                        }
+                      }}
                     />
 
                     {/* Badge Overlay */}
@@ -299,7 +306,20 @@ export default function ImagePickerModal({
             {selectedImage ? (
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-lg overflow-hidden border border-slate-200 shrink-0">
-                  <img src={selectedImage.thumbUrl} alt="Selected" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  <img
+                    src={selectedImage.thumbnailUrl || (selectedImage as any).thumbUrl || selectedImage.fullUrl}
+                    alt="Selected"
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      const el = e.currentTarget;
+                      if (selectedImage.fullUrl && el.src !== selectedImage.fullUrl) {
+                        el.src = selectedImage.fullUrl;
+                      } else if (el.src !== INLINE_SVG_IMAGE_FALLBACK) {
+                        el.src = INLINE_SVG_IMAGE_FALLBACK;
+                      }
+                    }}
+                  />
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-800 dark:text-slate-200">

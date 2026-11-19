@@ -14,10 +14,14 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert";
+import fs from "node:fs";
+import path from "node:path";
 import { normalizeWebsiteSchema, validateWebsiteSchema, sanitizePricing, sanitizeLiabilityClaims } from "../lib/websiteSchema";
 import { resolveIndustryArchetype, sanitizeCopyCliches, auditSiteCopyQuality, INDUSTRY_ARCHETYPES } from "../lib/aiCopyQuality";
-import { resolveHeroImageUrl, getCategoryHeroImage } from "../lib/heroImages";
+import { resolveHeroImageUrl, getCategoryHeroImage, getCategorySectionImages, isBrokenOrInvalidImageUrl } from "../lib/heroImages";
+import { generateClientMockSite } from "../lib/clientFallback";
 import { generateStaticHtml, escapeHtml, sanitizeUrl } from "../lib/htmlGenerator";
+import { filterWebsites } from "../components/MyWebsites";
 import { Business, GeneratedSite, BusinessTruthProfile } from "../types";
 
 describe("MICRO-PHASE 19C: AI Website Generation & Visual Quality Validation", () => {
@@ -219,6 +223,101 @@ describe("MICRO-PHASE 19C: AI Website Generation & Visual Quality Validation", (
       const resolvedFallback = resolveHeroImageUrl(siteWithNoGallery);
       assert.ok(resolvedFallback.startsWith("https://images.unsplash.com"), "Should fallback to category curated image");
     });
+
+    it("provides valid, non-broken section imagery across 15+ industries", () => {
+      const categories = [
+        "Construction", "Auto Mechanic", "Football Club", "Law Firm",
+        "Real Estate", "Dental Clinic", "Bakery & Cafe", "Boutique Hotel",
+        "IT Support", "Printers & Branding", "Agriculture & Farm", "Logistics & Transport",
+        "Security Services", "Plumbing", "Hair Salon & Spa"
+      ];
+
+      for (const cat of categories) {
+        const imgs = getCategorySectionImages(cat);
+        assert.ok(!isBrokenOrInvalidImageUrl(imgs.hero), `${cat} hero must not be broken: ${imgs.hero}`);
+        assert.ok(!isBrokenOrInvalidImageUrl(imgs.about), `${cat} about must not be broken: ${imgs.about}`);
+        assert.ok(imgs.services.length >= 3, `${cat} must provide at least 3 service images`);
+        assert.ok(imgs.gallery.length >= 3, `${cat} must provide at least 3 gallery images`);
+        imgs.services.forEach((s, i) => {
+          assert.ok(!isBrokenOrInvalidImageUrl(s), `${cat} service[${i}] image must be valid: ${s}`);
+        });
+        imgs.gallery.forEach((g, i) => {
+          assert.ok(!isBrokenOrInvalidImageUrl(g.url), `${cat} gallery[${i}] image must be valid: ${g.url}`);
+          assert.ok(g.alt.length > 0, `${cat} gallery[${i}] alt text must be populated`);
+        });
+      }
+    });
+
+    it("heals dead 404 Unsplash URLs and populates missing about/service/gallery images in normalizeWebsiteSchema", () => {
+      const deadUrls = [
+        "https://images.unsplash.com/photo-1581094288338-2314dddb7ecc?w=800",
+        "https://images.unsplash.com/photo-1486006920555-c77dce18193b?w=800",
+        "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=800",
+        "https://images.unsplash.com/photo-1541888946425-d0fbb186a5b3?w=800"
+      ];
+
+      const brokenSite: Partial<GeneratedSite> = {
+        businessName: "Mbabane Builders Ltd",
+        category: "Construction",
+        address: "Mbabane, Eswatini",
+        phone: "+268 2404 1234",
+        hero: {
+          title: "Trusted Civil Contractors",
+          subtitle: "Commercial & Residential Building",
+          ctaPrimary: "Request Quote",
+          ctaSecondary: "Call Us",
+          imageUrl: deadUrls[3]
+        },
+        about: {
+          title: "About Mbabane Builders",
+          history: "Serving residential and commercial clients.",
+          mission: "Delivering structural durability.",
+          pitch: "Experienced project delivery.",
+          imageUrl: deadUrls[0]
+        },
+        services: [
+          { title: "General Contracting", description: "Turnkey commercial builds", price: "Request a Quote", imageUrl: deadUrls[1] },
+          { title: "Renovations", description: "Office & residential remodeling", price: "Request a Quote", imageUrl: "" }
+        ],
+        gallery: [
+          { url: deadUrls[2], alt: "Completed site" },
+          { url: "", alt: "Foundation work" }
+        ]
+      };
+
+      const healed = normalizeWebsiteSchema(brokenSite);
+      assert.ok(!isBrokenOrInvalidImageUrl(healed.hero.imageUrl), "Hero dead URL must be replaced");
+      assert.ok(!isBrokenOrInvalidImageUrl(healed.about.imageUrl), "About dead URL must be replaced");
+      healed.services.forEach((svc, idx) => {
+        assert.ok(!isBrokenOrInvalidImageUrl(svc.imageUrl), `Service[${idx}] image must be valid after normalization`);
+      });
+      healed.gallery.forEach((item, idx) => {
+        assert.ok(!isBrokenOrInvalidImageUrl(item.url), `Gallery[${idx}] image must be valid after normalization`);
+      });
+    });
+
+    it("generates complete valid section images in client fallback demo sites and static HTML runtime fallbacks", () => {
+      const dummyBiz: Business = {
+        id: "biz_img_check",
+        name: "Swazi Print & Sign Studio",
+        category: "Printers & Branding",
+        address: "Mbabane, Eswatini",
+        phone: "+268 2404 5678",
+        createdAt: new Date().toISOString()
+      } as any;
+
+      const clientSite = generateClientMockSite(dummyBiz);
+      assert.ok(!isBrokenOrInvalidImageUrl(clientSite.hero.imageUrl), "Client fallback hero image must be valid");
+      assert.ok(!isBrokenOrInvalidImageUrl(clientSite.about.imageUrl), "Client fallback about image must be valid");
+      assert.ok(clientSite.services.length >= 3, "Client fallback must produce services");
+      assert.ok(clientSite.gallery.length >= 3, "Client fallback must produce gallery items");
+      clientSite.services.forEach((s, i) => assert.ok(!isBrokenOrInvalidImageUrl(s.imageUrl), `Service[${i}] valid`));
+      clientSite.gallery.forEach((g, i) => assert.ok(!isBrokenOrInvalidImageUrl(g.url), `Gallery[${i}] valid`));
+
+      const html = generateStaticHtml(clientSite);
+      assert.ok(html.includes("window.__scImgFallback"), "Static HTML export must inject __scImgFallback runtime recovery helper");
+      assert.ok(html.includes('onerror="window.__scImgFallback'), "Rendered images in static HTML must include runtime onerror recovery");
+    });
   });
 
   describe("E. Anti-Cliché Content Validator", () => {
@@ -283,6 +382,30 @@ describe("MICRO-PHASE 19C: AI Website Generation & Visual Quality Validation", (
       assert.ok(html.includes("name=\"website_url_hp\""), "Contact form must have anti-spam honeypot");
       // 5. Contact layout 2-column check
       assert.ok(html.includes("grid-cols-1 lg:grid-cols-2"), "Contact section must use responsive 2-column layout on desktop");
+
+      // 6. Card overlap & mobile protection checks
+      assert.ok(!html.includes("inset-x-0 bottom-0 bg-gradient-to-t"), "Gallery captions must sit cleanly below image rather than overlapping inside image container");
+      assert.ok(html.includes("flex-wrap items-center justify-between gap-2.5"), "Service card footer must wrap cleanly without price/button collision on mobile");
+      assert.ok(html.includes("overflow-x-hidden"), "Body and cards must guard against horizontal overflow on narrow mobile screens");
+      assert.ok(html.includes("grid-cols-1 md:grid-cols-3"), "Desktop footer must use multi-column desktop organization");
+    });
+
+    it("verifies WebsiteNavbar and WebsiteView separate forced desktop mode from mobile card layouts", () => {
+      const navbarSrc = fs.readFileSync(path.resolve(process.cwd(), "src/components/WebsiteNavbar.tsx"), "utf-8");
+      const viewSrc = fs.readFileSync(path.resolve(process.cwd(), "src/components/WebsiteView.tsx"), "utf-8");
+
+      assert.ok(
+        navbarSrc.includes('forcedViewport === "desktop"') && navbarSrc.includes("measuredWidth < 540"),
+        "Desktop preview mode must keep horizontal desktop navigation without collapsing to hamburger inside split-pane editors"
+      );
+      assert.ok(
+        viewSrc.includes('forcedViewport === "mobile"') && viewSrc.includes('isMobileLayout ? "grid-cols-1"'),
+        "Mobile preview mode must force strict 1-column card layouts so desktop Tailwind breakpoints never crush cards inside mobile frames"
+      );
+      assert.ok(
+        !viewSrc.includes("inset-x-0 bottom-0 bg-gradient-to-t"),
+        "WebsiteView gallery cards must place captions below images so captions never overlap artwork on mobile"
+      );
     });
   });
 
@@ -337,6 +460,66 @@ describe("MICRO-PHASE 19C: AI Website Generation & Visual Quality Validation", (
       assert.ok(!safeHtml.includes("<script>alert('xss')</script>"), "HTML export must escape malicious user-supplied script tags");
       assert.ok(!safeHtml.includes("<img src=x onerror="), "HTML export must not render unescaped malicious image tags");
       assert.ok(safeHtml.includes("&lt;img src=x onerror=alert(1)&gt;"), "Malicious image tag must be HTML-escaped");
+    });
+  });
+
+  describe("H. My Websites Search & Tag Filtering", () => {
+    it("filters generated sites by business name, tags, #tag syntax, and handles missing optional fields safely", () => {
+      const sampleSites = [
+        normalizeWebsiteSchema({
+          id: "site_1",
+          businessName: "Mbabane Apex Plumbers",
+          category: "Plumbing",
+          address: "Mbabane, Eswatini",
+          tags: ["Hot Lead", "WhatsApp Contacted"],
+          salesStatus: "Lead"
+        }),
+        normalizeWebsiteSchema({
+          id: "site_2",
+          businessName: "Manzini Smile Dental",
+          category: "Dental Care",
+          address: "Manzini, Eswatini",
+          tags: ["VIP Client", "High Value"],
+          salesStatus: "Proposal Sent"
+        }),
+        {
+          ...normalizeWebsiteSchema({
+            id: "site_3",
+            businessName: "Ezulwini Craft Bakery",
+            category: "Bakery",
+            tags: ["Redesign"]
+          }),
+          address: undefined as any
+        }
+      ];
+
+      // 1. Filter by business name (with surrounding whitespace)
+      const byName = filterWebsites(sampleSites, { searchTerm: "  apex plumbers " });
+      assert.strictEqual(byName.length, 1);
+      assert.strictEqual(byName[0].id, "site_1");
+
+      // 2. Filter by tag text
+      const byTag = filterWebsites(sampleSites, { searchTerm: "high value" });
+      assert.strictEqual(byTag.length, 1);
+      assert.strictEqual(byTag[0].id, "site_2");
+
+      // 3. Filter by #tag prefix
+      const byHashTag = filterWebsites(sampleSites, { searchTerm: "#redesign" });
+      assert.strictEqual(byHashTag.length, 1);
+      assert.strictEqual(byHashTag[0].id, "site_3");
+
+      // 4. Null-safe when address is missing and combined with status filter
+      const combined = filterWebsites(sampleSites, {
+        searchTerm: "dental",
+        statusFilter: "Proposal Sent"
+      });
+      assert.strictEqual(combined.length, 1);
+      assert.strictEqual(combined[0].id, "site_2");
+
+      // 5. Verify search input markup exists in MyWebsites.tsx
+      const myWebsitesSrc = fs.readFileSync(path.resolve(process.cwd(), "src/components/MyWebsites.tsx"), "utf-8");
+      assert.ok(myWebsitesSrc.includes('aria-label="Filter websites by business name or tags"'));
+      assert.ok(myWebsitesSrc.includes('placeholder="Search by business name or tags..."'));
     });
   });
 

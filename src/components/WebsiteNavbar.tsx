@@ -27,7 +27,12 @@ export default function WebsiteNavbar({
   containerWidth
 }: WebsiteNavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
+  const [logoFailed, setLogoFailed] = useState<boolean>(false);
   const headerRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    setLogoFailed(false);
+  }, [site.logoUrl]);
   
   // Real-time measurement of the actual navbar width (via ResizeObserver & window resize)
   const [currentWidth, setCurrentWidth] = useState<number>(() => {
@@ -72,19 +77,28 @@ export default function WebsiteNavbar({
     };
   }, []);
 
-  // Determine if small screen mode is active (< 768px):
-  // 1. Explicitly forced by mobile simulator in editor or preview (forcedViewport === "mobile")
-  // 2. The measured navbar header width is < 768px
-  // 3. The parent container width is < 768px
-  // 4. The browser window width is < 768px
-  // Note: forcedViewport === "desktop" ONLY applies if the screen/container is actually wide (>= 768px).
-  // If the actual screen or container is < 768px, it is ALWAYS treated as a small screen.
-  const isSmallScreen = Boolean(
-    forcedViewport === "mobile" ||
-    currentWidth < 768 ||
-    (containerWidth != null && containerWidth > 0 && containerWidth < 768) ||
-    (typeof window !== "undefined" && window.innerWidth < 768)
-  );
+  // Determine if small screen mode is active:
+  // 1. Explicitly forced by mobile simulator in editor or preview (forcedViewport === "mobile") -> always mobile hamburger mode.
+  // 2. Explicitly forced to desktop simulator (forcedViewport === "desktop") -> keep desktop horizontal nav
+  //    even inside split-pane editor previews unless the measured container itself is genuinely phone-narrow (< 540px).
+  // 3. Otherwise (auto/standalone), switch cleanly at standard 768px breakpoint.
+  const measuredWidth =
+    containerWidth != null && containerWidth > 0
+      ? containerWidth
+      : currentWidth > 0
+        ? currentWidth
+        : typeof window !== "undefined"
+          ? window.innerWidth
+          : 1024;
+
+  const isSmallScreen =
+    forcedViewport === "mobile"
+      ? true
+      : forcedViewport === "desktop"
+        ? measuredWidth < 540
+        : measuredWidth < 768 || (typeof window !== "undefined" && window.innerWidth < 768);
+
+  const isCompactDesktop = !isSmallScreen && measuredWidth < 860;
 
   // Close mobile dropdown if viewport expands to desktop
   useEffect(() => {
@@ -117,42 +131,43 @@ export default function WebsiteNavbar({
       };
       const SelectedIcon = logoIcons[iconId] || Sparkles;
       return (
-        <div 
-          className={`flex items-center gap-2 min-w-0 max-w-full cursor-pointer select-none`} 
-          style={{ color: site.primaryColor }} 
+        <div
+          className="flex items-center gap-2 min-w-0 max-w-full cursor-pointer select-none"
+          style={{ color: site.primaryColor }}
           onClick={() => { onNavigate("home"); setMobileMenuOpen(false); }}
           title={displayName}
         >
           <SelectedIcon className="h-5 w-5 shrink-0" style={{ color: site.primaryColor }} />
-          <span className={`text-sm sm:text-base font-bold truncate block min-w-0 ${getFontFamilyClass(site.fontStyle)}`}>
+          <span className={`${isSmallScreen ? "text-sm" : "text-sm lg:text-base"} font-bold truncate block min-w-0 ${getFontFamilyClass(site.fontStyle)}`}>
             {displayName}
           </span>
         </div>
       );
-    } else if (logoType === "image" && site.logoUrl) {
+    } else if (logoType === "image" && site.logoUrl && !logoFailed) {
       return (
-        <div 
-          className="flex items-center gap-2 cursor-pointer select-none min-w-0 shrink-0" 
+        <div
+          className="flex items-center gap-2 cursor-pointer select-none min-w-0 shrink-0"
           onClick={() => { onNavigate("home"); setMobileMenuOpen(false); }}
           title={displayName}
         >
-          <img 
-            src={site.logoUrl} 
-            alt={displayName} 
-            className="h-8 w-auto object-contain max-w-[140px] sm:max-w-[180px]" 
-            referrerPolicy="no-referrer" 
+          <img
+            src={site.logoUrl}
+            alt={displayName}
+            className="h-8 w-auto object-contain max-w-[140px] sm:max-w-[180px]"
+            referrerPolicy="no-referrer"
+            onError={() => setLogoFailed(true)}
           />
         </div>
       );
     } else {
       return (
-        <div 
-          className={`cursor-pointer select-none min-w-0 max-w-full`} 
-          style={{ color: site.primaryColor }} 
+        <div
+          className="cursor-pointer select-none min-w-0 max-w-full"
+          style={{ color: site.primaryColor }}
           onClick={() => { onNavigate("home"); setMobileMenuOpen(false); }}
           title={displayName}
         >
-          <span className={`text-sm sm:text-base font-bold truncate block min-w-0 ${getFontFamilyClass(site.fontStyle)}`}>
+          <span className={`${isSmallScreen ? "text-sm" : "text-sm lg:text-base"} font-bold truncate block min-w-0 ${getFontFamilyClass(site.fontStyle)}`}>
             {displayName}
           </span>
         </div>
@@ -175,28 +190,28 @@ export default function WebsiteNavbar({
   ];
 
   const visibleMenuItems = navMenuItems.filter(item => item.condition);
+  const hasPhone = Boolean(site.phone && site.phone.trim().toLowerCase() !== "unlisted");
 
   return (
-    <header 
+    <header
       ref={headerRef}
-      className="sticky top-0 z-40 border-b border-slate-100 bg-white/95 backdrop-blur-md px-3 sm:px-5 py-3 shrink-0 shadow-2xs transition-colors duration-200 w-full"
+      className={`sticky top-0 z-40 border-b border-slate-100 bg-white/95 backdrop-blur-md ${isSmallScreen ? "px-3.5 py-2.5" : "px-5 lg:px-8 py-3.5"} shrink-0 shadow-2xs transition-colors duration-200 w-full`}
       style={{ borderBottomColor: `${site.primaryColor}20` }}
       data-testid="created-website-navbar"
       data-viewport-mode={isSmallScreen ? "small-screen" : "large-screen"}
     >
       <style>{`
-        @media (max-width: 767.98px) {
-          .website-desktop-nav-links {
-            display: none !important;
-          }
-          .website-hamburger-toggle-btn {
-            display: flex !important;
-          }
+        [data-viewport-mode="small-screen"] .website-desktop-nav-links {
+          display: none !important;
         }
-        @media (min-width: 768px) {
-          .website-hamburger-toggle-btn.hide-on-desktop {
-            display: none !important;
-          }
+        [data-viewport-mode="small-screen"] .website-hamburger-toggle-btn {
+          display: flex !important;
+        }
+        [data-viewport-mode="large-screen"] .website-desktop-nav-links {
+          display: flex !important;
+        }
+        [data-viewport-mode="large-screen"] .website-hamburger-toggle-btn {
+          display: none !important;
         }
         #website-mobile-dropdown-menu {
           max-height: min(70vh, 460px);
@@ -219,21 +234,16 @@ export default function WebsiteNavbar({
         }
       `}</style>
 
-      <div className="flex items-center justify-between gap-2 sm:gap-4 w-full">
-        {/* Left: Brand / Business Name / Logo
-            Protected with min-w-0 and flex-1 so long business names truncate cleanly with ellipsis 
-            and never push the right action items or hamburger menu button out of view.
-        */}
-        <div className="flex items-center min-w-0 flex-1 max-w-[55%] sm:max-w-[45%] md:max-w-[40%]">
+      <div className={`flex items-center justify-between gap-3 w-full ${isSmallScreen ? "" : "max-w-5xl mx-auto"}`}>
+        {/* Left: Brand / Business Name / Logo */}
+        <div className={`flex items-center min-w-0 ${isSmallScreen ? "flex-1 max-w-[65%]" : isCompactDesktop ? "max-w-[165px] shrink-0" : "max-w-[230px] shrink-0"}`}>
           {renderHeaderLogo()}
         </div>
 
-        {/* Center: Standard Horizontal Navigation Links (Desktop / Screen Width >= 768px)
-            On small screens (< 768px), this is completely replaced by the hamburger menu toggle.
-        */}
+        {/* Center: Horizontal Navigation Links on Desktop */}
         {!isSmallScreen && (
-          <nav 
-            className="website-desktop-nav-links hidden md:flex items-center space-x-3 lg:space-x-6 text-xs font-bold text-slate-600 shrink-0"
+          <nav
+            className={`website-desktop-nav-links flex items-center ${isCompactDesktop ? "gap-3 text-[11px]" : "gap-5 lg:gap-7 text-xs"} font-semibold text-slate-600 shrink-0`}
             aria-label="Website desktop navigation"
           >
             {visibleMenuItems.map((item) => {
@@ -242,15 +252,15 @@ export default function WebsiteNavbar({
                 <button
                   key={item.id}
                   onClick={() => handleSelectNav(item.id)}
-                  className={`hover:text-slate-900 transition-colors cursor-pointer relative py-1 whitespace-nowrap ${
-                    isActive ? "text-slate-900 font-extrabold" : ""
+                  className={`hover:text-slate-900 transition-colors cursor-pointer relative py-1.5 whitespace-nowrap ${
+                    isActive ? "text-slate-900 font-bold" : ""
                   }`}
                   style={isActive ? { color: site.primaryColor } : {}}
                 >
                   <span>{item.label}</span>
                   {isActive && (
-                    <span 
-                      className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full" 
+                    <span
+                      className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full"
                       style={{ backgroundColor: site.primaryColor }}
                     />
                   )}
@@ -261,45 +271,46 @@ export default function WebsiteNavbar({
         )}
 
         {/* Right Section: Contact CTAs & Hamburger Menu Toggle Button */}
-        <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
-          {/* Quick Call Action */}
-          {site.phone && site.phone.trim().toLowerCase() !== "unlisted" && (
-            <a 
-              href={`tel:${normalizePhoneNumber(site.phone)}`} 
-              onClick={() => onLogEvent?.("phone_clicked")} 
-              className="flex h-8 w-8 sm:h-8.5 sm:w-8.5 items-center justify-center rounded-lg text-white shadow-xs transition-transform hover:scale-105 shrink-0" 
-              style={{ backgroundColor: site.accentColor || site.primaryColor }} 
+        <div className="flex items-center gap-2 shrink-0">
+          {hasPhone && (
+            <a
+              href={`tel:${normalizePhoneNumber(site.phone)}`}
+              onClick={() => onLogEvent?.("phone_clicked")}
+              className={`flex items-center justify-center rounded-lg text-white shadow-xs transition-transform hover:scale-105 shrink-0 ${
+                !isSmallScreen && !isCompactDesktop ? "h-8.5 px-3 gap-1.5 text-xs font-bold" : "h-8 w-8"
+              }`}
+              style={{ backgroundColor: site.accentColor || site.primaryColor }}
               title={`Call ${site.phone}`}
               aria-label="Call business phone"
             >
-              <Phone className="h-4 w-4" />
+              <Phone className="h-3.5 w-3.5 shrink-0" />
+              {!isSmallScreen && !isCompactDesktop && <span>Call</span>}
             </a>
           )}
 
-          {/* Quick WhatsApp Action */}
-          {site.phone && site.phone.trim().toLowerCase() !== "unlisted" && (
-            <a 
-              href={generateWhatsappLink(site.phone, site.whatsappMessage, site.address)} 
+          {hasPhone && (
+            <a
+              href={generateWhatsappLink(site.phone, site.whatsappMessage, site.address)}
               onClick={() => onLogEvent?.("whatsapp_clicked")}
-              target="_blank" 
+              target="_blank"
               rel="noopener noreferrer"
-              className="flex h-8 w-8 sm:h-8.5 sm:w-8.5 items-center justify-center rounded-lg text-white bg-emerald-500 shadow-xs transition-transform hover:scale-105 shrink-0" 
+              className={`flex items-center justify-center rounded-lg text-white bg-emerald-500 shadow-xs transition-transform hover:scale-105 shrink-0 ${
+                !isSmallScreen && !isCompactDesktop ? "h-8.5 px-3 gap-1.5 text-xs font-bold" : "h-8 w-8"
+              }`}
               title="WhatsApp Chat"
               aria-label="Chat on WhatsApp"
             >
-              <MessageSquare className="h-4 w-4" />
+              <MessageSquare className="h-3.5 w-3.5 shrink-0" />
+              {!isSmallScreen && !isCompactDesktop && <span>WhatsApp</span>}
             </a>
           )}
 
-          {/* Hamburger Menu Toggle Component
-              - Replaces standard horizontal navigation links on small screens (< 768px).
-              - Has an open/close toggle state that reveals the menu links in a vertical dropdown list.
-          */}
+          {/* Hamburger Menu Toggle Component (strictly hidden on desktop) */}
           <button
             onClick={() => setMobileMenuOpen(prev => !prev)}
             className={`website-hamburger-toggle-btn ${
-              isSmallScreen ? "flex" : "flex md:hidden hide-on-desktop"
-            } h-8 w-8 sm:h-8.5 sm:w-8.5 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-800 hover:text-slate-900 hover:bg-slate-50 active:scale-95 transition-all shadow-2xs shrink-0 cursor-pointer`}
+              isSmallScreen ? "flex" : "hidden"
+            } h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-800 hover:text-slate-900 hover:bg-slate-50 active:scale-95 transition-all shadow-2xs shrink-0 cursor-pointer`}
             aria-expanded={mobileMenuOpen}
             aria-label="Toggle navigation menu"
             aria-controls="website-mobile-dropdown-menu"
@@ -315,12 +326,12 @@ export default function WebsiteNavbar({
         </div>
       </div>
 
-      {/* Vertical Dropdown List (Revealed when open/close toggle state is true on small screens) */}
-      {mobileMenuOpen && (
-        <div 
+      {/* Vertical Dropdown List (Only shown on small screens when hamburger toggled open) */}
+      {isSmallScreen && mobileMenuOpen && (
+        <div
           id="website-mobile-dropdown-menu"
           className="mt-3 pt-3 border-t border-slate-100 flex flex-col space-y-1 animate-fade-in w-full text-left max-h-[min(70vh,460px)] overflow-y-auto overscroll-contain pr-1.5 pb-3 scroll-smooth"
-          style={{ 
+          style={{
             borderTopColor: `${site.primaryColor}20`,
             WebkitOverflowScrolling: "touch"
           }}

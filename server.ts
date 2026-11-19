@@ -6,6 +6,7 @@ import { buildBusinessTruthProfile, normalizeUrl, extractDomain } from "./src/li
 import { resolveDeterministicBusinessId } from "./src/lib/businessIdentity";
 import { assignIndustryTag } from "./src/lib/industryTagger";
 import { normalizeWebsiteSchema } from "./src/lib/websiteSchema";
+import { getCategorySectionImages, isBrokenOrInvalidImageUrl } from "./src/lib/heroImages";
 import { 
   validateSearchRelevance, 
   detectDataQualityAndConflicts, 
@@ -1467,38 +1468,59 @@ function generateDefaultTemplateSite(business: any) {
   const taxonomy = matchIndustryTaxonomy(category);
   const visualProfile = imageAssistant.createVisualProfile(name, category, taxonomy.services, city);
 
-  const curated = taxonomy.curatedImages;
-  const heroImg = curated.find(i => i.section === "hero") || curated[0];
-  const aboutImg = curated.find(i => i.section === "about") || curated[1] || heroImg;
+  const sectionFallback = getCategorySectionImages(category);
+  const curated = taxonomy.curatedImages || [];
+  const rawHeroImg = curated.find(i => i.section === "hero") || curated[0];
+  const rawAboutImg = curated.find(i => i.section === "about") || curated[1] || rawHeroImg;
   const serviceImages = curated.filter(i => i.section === "services");
   const galleryImages = curated.filter(i => i.section === "gallery");
+
+  const heroUrl = rawHeroImg?.fullUrl && !isBrokenOrInvalidImageUrl(rawHeroImg.fullUrl)
+    ? rawHeroImg.fullUrl
+    : sectionFallback.hero;
+  const aboutUrl = rawAboutImg?.fullUrl && !isBrokenOrInvalidImageUrl(rawAboutImg.fullUrl)
+    ? rawAboutImg.fullUrl
+    : sectionFallback.about;
+  const heroImgMeta = rawHeroImg ? { ...rawHeroImg, fullUrl: heroUrl } : undefined;
+  const aboutImgMeta = rawAboutImg ? { ...rawAboutImg, fullUrl: aboutUrl } : undefined;
 
   const currencyInfo = getLocalCurrencyPrefix(business.address || business.country || city);
 
   const services = taxonomy.services.map((srvTitle, idx) => {
-    const img = serviceImages[idx] || curated[idx % curated.length];
+    const img = serviceImages[idx] || curated[idx % Math.max(1, curated.length)];
+    const candidateUrl = img?.fullUrl && !isBrokenOrInvalidImageUrl(img.fullUrl)
+      ? img.fullUrl
+      : sectionFallback.services[idx % sectionFallback.services.length];
     return {
       title: srvTitle,
       description: `Comprehensive ${srvTitle.toLowerCase()} delivered with professional expertise, quality materials, and transparent rates for ${city} clients.`,
       price: idx === 0 ? "Request a Quote" : idx === 1 ? "Contact Us" : "Call for Pricing",
-      imageUrl: img?.fullUrl,
+      imageUrl: candidateUrl,
       imageMetadata: img
     };
   });
 
-  const gallery = (galleryImages.length > 0 ? galleryImages : curated.slice(0, 4)).map(img => ({
-    url: img.fullUrl,
-    alt: img.alt,
-    photographer: img.photographer,
-    photographerUrl: img.photographerUrl,
-    license: img.license,
-    usageType: img.usageType,
-    relevanceScore: img.relevanceScore,
-    explanation: img.explanation,
-    imageMetadata: img
-  }));
+  const baseGallery = galleryImages.length > 0 ? galleryImages : curated.slice(0, 4);
+  const gallery = baseGallery.length > 0
+    ? baseGallery.map((img, idx) => ({
+        url: img.fullUrl && !isBrokenOrInvalidImageUrl(img.fullUrl)
+          ? img.fullUrl
+          : sectionFallback.gallery[idx % sectionFallback.gallery.length].url,
+        alt: img.alt,
+        photographer: img.photographer,
+        photographerUrl: img.photographerUrl,
+        license: img.license,
+        usageType: img.usageType,
+        relevanceScore: img.relevanceScore,
+        explanation: img.explanation,
+        imageMetadata: img
+      }))
+    : sectionFallback.gallery.map((g) => ({
+        url: g.url,
+        alt: g.alt
+      }));
 
-  const attributions = [heroImg, aboutImg, ...serviceImages, ...galleryImages].filter(Boolean);
+  const attributions = [rawHeroImg, rawAboutImg, ...serviceImages, ...galleryImages].filter(Boolean);
 
   const industryPalettes: Record<string, { primary: string; secondary: string; accent: string; background: string; text: string; fontStyle: "sans" | "serif" | "display" | "modern" }> = {
     Plumbing: { primary: "#1d4ed8", secondary: "#1e3a8a", accent: "#f59e0b", background: "#ffffff", text: "#0f172a", fontStyle: "sans" },
@@ -1549,19 +1571,19 @@ function generateDefaultTemplateSite(business: any) {
       subtitle: `Providing trusted, dependable ${taxonomy.industry.toLowerCase()} services with transparent quotes and dedicated workmanship.`,
       ctaPrimary: "Request Free Quote",
       ctaSecondary: "Chat on WhatsApp",
-      imageUrl: heroImg.fullUrl,
-      photographer: heroImg.photographer,
-      photographerUrl: heroImg.photographerUrl,
-      license: heroImg.license,
-      imageMetadata: heroImg
+      imageUrl: heroUrl,
+      photographer: heroImgMeta?.photographer,
+      photographerUrl: heroImgMeta?.photographerUrl,
+      license: heroImgMeta?.license,
+      imageMetadata: heroImgMeta
     },
     about: {
       title: `About ${name}`,
       history: `Proudly serving homeowners, commercial properties, and organizations throughout ${city} with dedicated ${taxonomy.industry.toLowerCase()} expertise.`,
       mission: `To deliver consistent, high-standard ${taxonomy.industry.toLowerCase()} services with transparent pricing, honest communication, and lasting client satisfaction.`,
       pitch: `${name} focuses on uncompromising quality, prompt dispatch, and transparent pricing. Contact our local team today to discuss your requirements.`,
-      imageUrl: aboutImg.fullUrl,
-      imageMetadata: aboutImg
+      imageUrl: aboutUrl,
+      imageMetadata: aboutImgMeta
     },
     services,
     features: [
@@ -3089,22 +3111,34 @@ app.post("/api/generate-site", optionalAuthToken, generateSiteLimiter, async (re
 
     const resolvedImages = await imageAssistant.batchResolveSiteImages(visualProfile);
 
-    // Enrich services with resolved high-fidelity images
+    const sectionFallback = getCategorySectionImages(business.category);
+
+    // Enrich services with resolved high-fidelity images (never leave undefined or broken URLs)
     const enrichedServices = (data.services || []).map((srv: any, idx: number) => {
       const img = resolvedImages.serviceImages[idx] || resolvedImages.serviceImages[0];
+      const safeServiceUrl =
+        img?.fullUrl && !isBrokenOrInvalidImageUrl(img.fullUrl)
+          ? img.fullUrl
+          : sectionFallback.services[idx % sectionFallback.services.length];
       return {
         ...srv,
-        imageUrl: img?.fullUrl,
+        imageUrl: safeServiceUrl,
         imageMetadata: img
       };
     });
 
-    // Enrich gallery with verified taxonomy/provider imagery
-    const enrichedGallery = (resolvedImages.galleryImages.length > 0 ? resolvedImages.galleryImages : data.gallery || []).map((img: any, idx: number) => {
-      if (img.fullUrl) {
+    // Enrich gallery with verified taxonomy/provider imagery (sanitize any raw LLM URLs)
+    const rawGallerySource =
+      resolvedImages.galleryImages.length > 0
+        ? resolvedImages.galleryImages
+        : (Array.isArray(data.gallery) && data.gallery.length > 0 ? data.gallery : sectionFallback.gallery);
+
+    const enrichedGallery = rawGallerySource.map((img: any, idx: number) => {
+      const fallbackGal = sectionFallback.gallery[idx % sectionFallback.gallery.length];
+      if (img?.fullUrl) {
         return {
-          url: img.fullUrl,
-          alt: img.alt,
+          url: !isBrokenOrInvalidImageUrl(img.fullUrl) ? img.fullUrl : fallbackGal.url,
+          alt: img.alt || fallbackGal.alt,
           photographer: img.photographer,
           photographerUrl: img.photographerUrl,
           license: img.license,
@@ -3114,7 +3148,11 @@ app.post("/api/generate-site", optionalAuthToken, generateSiteLimiter, async (re
           imageMetadata: img
         };
       }
-      return img;
+      return {
+        ...img,
+        url: !isBrokenOrInvalidImageUrl(img?.url) ? img.url : fallbackGal.url,
+        alt: img?.alt || fallbackGal.alt
+      };
     });
 
     const heroImageMeta = resolvedImages.heroImage;
@@ -3126,6 +3164,20 @@ app.post("/api/generate-site", optionalAuthToken, generateSiteLimiter, async (re
       ...resolvedImages.serviceImages,
       ...resolvedImages.galleryImages
     ].filter(Boolean);
+
+    const safeHeroUrl =
+      heroImageMeta?.fullUrl && !isBrokenOrInvalidImageUrl(heroImageMeta.fullUrl)
+        ? heroImageMeta.fullUrl
+        : !isBrokenOrInvalidImageUrl(data.hero?.imageUrl)
+          ? data.hero.imageUrl
+          : sectionFallback.hero || getCategoryHeroImage(business.category);
+
+    const safeAboutUrl =
+      aboutImageMeta?.fullUrl && !isBrokenOrInvalidImageUrl(aboutImageMeta.fullUrl)
+        ? aboutImageMeta.fullUrl
+        : !isBrokenOrInvalidImageUrl(data.about?.imageUrl)
+          ? data.about.imageUrl
+          : sectionFallback.about;
 
     const rawGeneratedSite = {
       id: `site_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
@@ -3139,7 +3191,7 @@ app.post("/api/generate-site", optionalAuthToken, generateSiteLimiter, async (re
       ...data,
       hero: {
         ...data.hero,
-        imageUrl: heroImageMeta?.fullUrl || data.hero?.imageUrl || getCategoryHeroImage(business.category),
+        imageUrl: safeHeroUrl,
         photographer: heroImageMeta?.photographer,
         photographerUrl: heroImageMeta?.photographerUrl,
         license: heroImageMeta?.license,
@@ -3147,7 +3199,7 @@ app.post("/api/generate-site", optionalAuthToken, generateSiteLimiter, async (re
       },
       about: {
         ...data.about,
-        imageUrl: aboutImageMeta?.fullUrl,
+        imageUrl: safeAboutUrl,
         imageMetadata: aboutImageMeta
       },
       services: enrichedServices,

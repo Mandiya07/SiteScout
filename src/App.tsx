@@ -1142,8 +1142,8 @@ export default function App() {
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex items-center justify-center bg-slate-50 dark:bg-slate-950/20">
-              <div className="w-[340px] h-[550px] rounded-[36px] border-[10px] border-slate-900 bg-white shadow-2xl overflow-hidden flex flex-col relative dark:bg-slate-900">
+            <div className="flex-1 flex items-center justify-center bg-slate-50 dark:bg-slate-950/20 px-4">
+              <div className="w-[375px] max-w-full h-[640px] rounded-[36px] border-[10px] border-slate-900 bg-white shadow-2xl overflow-hidden flex flex-col relative dark:bg-slate-900">
                 {/* Phone Notch */}
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 h-4 w-28 bg-slate-900 rounded-b-xl z-20" />
                 <div className="flex-1 pt-4 overflow-hidden flex flex-col">

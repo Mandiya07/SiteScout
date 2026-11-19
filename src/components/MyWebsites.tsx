@@ -96,6 +96,50 @@ export function getSiteSalesStatus(site: GeneratedSite): SalesStatus {
   return "Lead";
 }
 
+export function filterWebsites(
+  sites: GeneratedSite[],
+  options: {
+    searchTerm?: string;
+    statusFilter?: "All" | SalesStatus;
+    selectedTagFilter?: string | null;
+  } = {}
+): GeneratedSite[] {
+  const {
+    searchTerm = "",
+    statusFilter = "All",
+    selectedTagFilter = null
+  } = options;
+
+  const trimmedQuery = searchTerm.trim().toLowerCase();
+  const normalizedTagQuery = trimmedQuery.replace(/^#+/, "");
+
+  return sites.filter((site) => {
+    const siteStatus = getSiteSalesStatus(site);
+
+    if (statusFilter !== "All" && siteStatus !== statusFilter) {
+      return false;
+    }
+
+    if (selectedTagFilter && (!site.tags || !site.tags.includes(selectedTagFilter))) {
+      return false;
+    }
+
+    if (trimmedQuery !== "") {
+      const matchName = (site.businessName || "").toLowerCase().includes(trimmedQuery);
+      const matchCat = (site.category || "").toLowerCase().includes(trimmedQuery);
+      const matchAddr = (site.address || "").toLowerCase().includes(trimmedQuery);
+      const matchTag = (site.tags || []).some((t) => {
+        const lowerTag = (t || "").toLowerCase();
+        return lowerTag.includes(trimmedQuery) || (normalizedTagQuery !== "" && lowerTag.includes(normalizedTagQuery));
+      });
+      const matchStatus = siteStatus.toLowerCase().includes(trimmedQuery);
+      return matchName || matchCat || matchAddr || matchTag || matchStatus;
+    }
+
+    return true;
+  });
+}
+
 export default function MyWebsites({
   sites,
   onEditSite,
@@ -129,31 +173,10 @@ export default function MyWebsites({
   );
 
   // Filter sites logic
-  const filteredSites = sites.filter(site => {
-    const siteStatus = getSiteSalesStatus(site);
-    
-    // Status filter
-    if (statusFilter !== "All" && siteStatus !== statusFilter) {
-      return false;
-    }
-
-    // Custom tag filter
-    if (selectedTagFilter && (!site.tags || !site.tags.includes(selectedTagFilter))) {
-      return false;
-    }
-
-    // Search term
-    if (searchTerm.trim() !== "") {
-      const query = searchTerm.toLowerCase();
-      const matchName = site.businessName.toLowerCase().includes(query);
-      const matchCat = site.category.toLowerCase().includes(query);
-      const matchAddr = site.address.toLowerCase().includes(query);
-      const matchTag = site.tags?.some(t => t.toLowerCase().includes(query));
-      const matchStatus = siteStatus.toLowerCase().includes(query);
-      return matchName || matchCat || matchAddr || matchTag || matchStatus;
-    }
-
-    return true;
+  const filteredSites = filterWebsites(sites, {
+    searchTerm,
+    statusFilter,
+    selectedTagFilter
   });
 
   // Calculate Pipeline Analytics
@@ -235,14 +258,25 @@ export default function MyWebsites({
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
-              placeholder="Search website or tag..."
+              aria-label="Filter websites by business name or tags"
+              placeholder="Search by business name or tags..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 pr-3.5 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 w-full sm:w-64"
+              className="pl-9 pr-8 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 w-full sm:w-72"
             />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm("")}
+                aria-label="Clear website search"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
           <button
@@ -321,6 +355,11 @@ export default function MyWebsites({
           <div className="flex items-center gap-1.5">
             <Filter className="w-3.5 h-3.5" />
             <span>Filter By Sales Status Tag:</span>
+            {(statusFilter !== "All" || selectedTagFilter !== null || searchTerm.trim() !== "") && (
+              <span className="ml-2 text-[11px] font-mono normal-case text-slate-500 dark:text-slate-400">
+                Showing {filteredSites.length} of {sites.length}
+              </span>
+            )}
           </div>
           {(statusFilter !== "All" || selectedTagFilter !== null || searchTerm !== "") && (
             <button
@@ -411,7 +450,7 @@ export default function MyWebsites({
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-12 text-center">
           <Globe className="w-12 h-12 text-slate-300 dark:text-slate-700 mx-auto mb-3" />
           <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-            {sites.length === 0 ? "No website previews created yet" : "No website projects match this tag filter"}
+            {sites.length === 0 ? "No website previews created yet" : "No websites match your search or filter"}
           </h3>
           <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto mt-1 mb-5">
             {sites.length === 0 
@@ -431,7 +470,7 @@ export default function MyWebsites({
               onClick={() => { setStatusFilter("All"); setSelectedTagFilter(null); setSearchTerm(""); }}
               className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 transition-all cursor-pointer"
             >
-              Clear Tag Filters
+              Clear Search &amp; Filters
             </button>
           )}
         </div>

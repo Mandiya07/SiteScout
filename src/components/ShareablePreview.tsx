@@ -442,7 +442,7 @@ export default function ShareablePreview({
 
             {previewDevice === "mobile" && (
               <div className="flex items-center justify-center py-6 bg-slate-50 dark:bg-slate-950/20 rounded-2xl border border-slate-200 dark:border-slate-800 animate-fade-in">
-                <div className="w-[330px] h-[540px] rounded-[36px] border-[10px] border-slate-900 bg-white shadow-xl overflow-hidden flex flex-col relative dark:bg-slate-900">
+                <div className="w-[360px] max-w-full h-[600px] rounded-[36px] border-[10px] border-slate-900 bg-white shadow-xl overflow-hidden flex flex-col relative dark:bg-slate-900">
                   {/* Phone Notch */}
                   <div className="absolute top-0 left-1/2 -translate-x-1/2 h-4 w-28 bg-slate-900 rounded-b-xl z-20" />
                   <div className="flex-1 pt-4 overflow-hidden flex flex-col">

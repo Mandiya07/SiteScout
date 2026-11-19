@@ -1,5 +1,5 @@
 import { GeneratedSite, Business, ServiceItem, FAQItem, FeatureItem, TestimonialItem, BlogPostItem, GalleryImage, BusinessTruthProfile, ContentLevel } from "../types";
-import { getCategoryHeroImage } from "./heroImages";
+import { getCategoryHeroImage, getCategorySectionImages, isBrokenOrInvalidImageUrl, resolveHeroImageUrl } from "./heroImages";
 import { resolveIndustryArchetype, sanitizeCopyCliches } from "./aiCopyQuality";
 
 export interface ContentIntegrityReport {
@@ -498,38 +498,43 @@ export function normalizeWebsiteSchema(
     return cleaned.length >= 6 ? cleaned : fallbackText;
   };
 
+  const sectionImages = getCategorySectionImages(category);
+
   const hero = {
     title: cleanHeroFromAddress(site.hero?.title, archetype.defaultHeroHeadline(city)),
     subtitle: cleanHeroFromAddress(site.hero?.subtitle, archetype.defaultHeroSubtitle(city)),
     ctaPrimary: site.hero?.ctaPrimary || archetype.primaryCta,
     ctaSecondary: site.hero?.ctaSecondary || archetype.secondaryCta,
-    imageUrl: site.hero?.imageUrl || getCategoryHeroImage(category),
+    imageUrl: resolveHeroImageUrl({ hero: site.hero, gallery: site.gallery, category }),
     photographer: site.hero?.photographer,
     photographerUrl: site.hero?.photographerUrl,
     license: site.hero?.license,
     imageMetadata: site.hero?.imageMetadata
   };
 
-  // 4. Ensure About section
+  // 4. Ensure About section (populate verified category photo if missing or broken)
   const about = {
     title: site.about?.title || `About ${name}`,
     history: site.about?.history || `${name} is committed to serving ${city} with honest communications, transparent rates, and dedicated craftsmanship.`,
     mission: site.about?.mission || "To deliver reliable, high-quality solutions tailored to your unique requirements.",
     pitch: site.about?.pitch || "Whether you require minor repairs, regular maintenance, or full service packages, our team is ready to assist.",
-    imageUrl: site.about?.imageUrl,
+    imageUrl: !isBrokenOrInvalidImageUrl(site.about?.imageUrl) ? site.about!.imageUrl!.trim() : sectionImages.about,
     imageMetadata: site.about?.imageMetadata
   };
 
-  // 5. Ensure Services & Sanitize Pricing
+  // 5. Ensure Services & Sanitize Pricing (and repair missing/broken service card images)
   const rawServices: ServiceItem[] = (site.services && site.services.length > 0)
-    ? site.services
+    ? site.services.map((srv, idx) => ({
+        ...srv,
+        imageUrl: !isBrokenOrInvalidImageUrl(srv.imageUrl)
+          ? srv.imageUrl!.trim()
+          : sectionImages.services[idx % sectionImages.services.length]
+      }))
     : archetype.typicalServices.map((srvTitle, idx) => ({
         title: srvTitle,
         description: `Comprehensive ${srvTitle.toLowerCase()} delivered with professional expertise, quality materials, and transparent rates.`,
         price: "Request a Quote",
-        imageUrl: idx === 0 ? "https://images.unsplash.com/photo-1581092921461-eab62e97a780?auto=format&fit=crop&w=800" :
-                 idx === 1 ? "https://images.unsplash.com/photo-1521737711867-e3b97375f902?auto=format&fit=crop&w=800" :
-                 "https://images.unsplash.com/photo-1581094288338-2314dddb7ecc?auto=format&fit=crop&w=800"
+        imageUrl: sectionImages.services[idx % sectionImages.services.length]
       }));
 
   const { services: sanitizedServices, sanitizedCount: unverifiedPricesSanitizedCount } = sanitizePricing(rawServices, isPricingVerified);
@@ -543,14 +548,17 @@ export function normalizeWebsiteSchema(
         { title: "Verified Craftsmanship", icon: "Award", description: "All work conducted by trained specialists adhering strictly to quality standards." }
       ];
 
-  // 7. Ensure Gallery
+  // 7. Ensure Gallery (repair missing or broken gallery item URLs)
   const gallery: GalleryImage[] = (site.gallery && site.gallery.length > 0)
-    ? site.gallery
-    : [
-        { url: "https://images.unsplash.com/photo-1581092921461-eab62e97a780?auto=format&fit=crop&w=800", alt: "Specialized tools and workspace" },
-        { url: "https://images.unsplash.com/photo-1521737711867-e3b97375f902?auto=format&fit=crop&w=800", alt: "Dedicated local team in action" },
-        { url: "https://images.unsplash.com/photo-1581094288338-2314dddb7ecc?auto=format&fit=crop&w=800", alt: "Completed project delivery" }
-      ];
+    ? site.gallery.map((g, idx) => {
+        const fallbackItem = sectionImages.gallery[idx % sectionImages.gallery.length];
+        return {
+          ...g,
+          url: !isBrokenOrInvalidImageUrl(g?.url) ? g.url.trim() : fallbackItem.url,
+          alt: g?.alt || fallbackItem.alt
+        };
+      })
+    : sectionImages.gallery;
 
   // 8. Ensure FAQs
   const faqs: FAQItem[] = (site.faqs && site.faqs.length > 0)

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { GeneratedSite, ServiceItem, FAQItem, ImageMetadata } from "../types";
-import { getCategoryHeroImage, resolveHeroImageUrl } from "../lib/heroImages";
+import { getCategoryHeroImage, resolveHeroImageUrl, INLINE_SVG_IMAGE_FALLBACK } from "../lib/heroImages";
 import { normalizeWebsiteSchema } from "../lib/websiteSchema";
 import WebsiteView from "./WebsiteView";
 import PublishingModal from "./PublishingModal";
@@ -672,8 +672,8 @@ export default function WebsiteEditor({
 
       {/* Main content grid split */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left Side: Editorial Drawer (35%) */}
-        <div className={`w-full md:w-[35%] border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/40 flex-col h-full overflow-y-auto ${activeSection === 'preview' ? 'hidden md:flex' : 'flex'}`}>
+        {/* Left Side: Editorial Drawer */}
+        <div className={`w-full md:w-[32%] lg:w-[350px] xl:w-[390px] shrink-0 border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/40 flex-col h-full overflow-y-auto ${activeSection === 'preview' ? 'hidden md:flex' : 'flex'}`}>
           {/* Section index select list */}
           <div className="flex border-b border-slate-100 dark:border-slate-800 scrollbar-none overflow-x-auto shrink-0 bg-slate-50/50 dark:bg-slate-950/20">
             {[
@@ -863,7 +863,15 @@ export default function WebsiteEditor({
                       />
                       {site.logoUrl && (
                         <div className="mt-1 h-12 rounded border border-slate-100 bg-white p-1.5 flex items-center justify-center dark:bg-slate-950 dark:border-slate-800">
-                          <img src={site.logoUrl} alt="Logo preview" className="h-full w-auto object-contain" />
+                          <img
+                            src={site.logoUrl}
+                            alt="Logo preview"
+                            className="h-full w-auto object-contain"
+                            referrerPolicy="no-referrer"
+                            onError={(e) => {
+                              e.currentTarget.src = INLINE_SVG_IMAGE_FALLBACK;
+                            }}
+                          />
                         </div>
                       )}
                     </div>
@@ -1037,7 +1045,21 @@ export default function WebsiteEditor({
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">Hero Section Background/Featured Image</label>
                   {site.hero.imageUrl ? (
                     <div className="relative rounded-lg overflow-hidden border border-slate-200 aspect-video mb-2 bg-slate-50">
-                      <img src={site.hero.imageUrl} alt="Hero illustration thumbnail" className="w-full h-full object-cover" />
+                      <img
+                        src={site.hero.imageUrl}
+                        alt="Hero illustration thumbnail"
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          const el = e.currentTarget;
+                          if (!el.dataset.fb) {
+                            el.dataset.fb = "1";
+                            el.src = getCategoryHeroImage(site.category);
+                          } else if (el.src !== INLINE_SVG_IMAGE_FALLBACK) {
+                            el.src = INLINE_SVG_IMAGE_FALLBACK;
+                          }
+                        }}
+                      />
                       <button
                         type="button"
                         onClick={() => updateField("hero", "imageUrl", "", false)}
@@ -1119,7 +1141,21 @@ export default function WebsiteEditor({
                   <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block">About Visual Photo</label>
                   {site.about.imageUrl && (
                     <div className="relative aspect-video rounded-lg overflow-hidden border border-slate-200 bg-white">
-                      <img src={site.about.imageUrl} alt="About preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      <img
+                        src={site.about.imageUrl}
+                        alt="About preview"
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          const el = e.currentTarget;
+                          if (!el.dataset.fb) {
+                            el.dataset.fb = "1";
+                            el.src = getCategoryHeroImage(site.category);
+                          } else if (el.src !== INLINE_SVG_IMAGE_FALLBACK) {
+                            el.src = INLINE_SVG_IMAGE_FALLBACK;
+                          }
+                        }}
+                      />
                       <button
                         type="button"
                         onClick={() => updateField("about", "imageUrl", "", false)}
@@ -1225,7 +1261,21 @@ export default function WebsiteEditor({
                       <div className="flex items-center justify-between pt-1">
                         {srv.imageUrl ? (
                           <div className="flex items-center gap-2">
-                            <img src={srv.imageUrl} alt={srv.title} className="h-7 w-7 rounded object-cover border border-slate-200" referrerPolicy="no-referrer" />
+                            <img
+                              src={srv.imageUrl}
+                              alt={srv.title}
+                              className="h-7 w-7 rounded object-cover border border-slate-200"
+                              referrerPolicy="no-referrer"
+                              onError={(e) => {
+                                const el = e.currentTarget;
+                                if (!el.dataset.fb) {
+                                  el.dataset.fb = "1";
+                                  el.src = getCategoryHeroImage(site.category);
+                                } else if (el.src !== INLINE_SVG_IMAGE_FALLBACK) {
+                                  el.src = INLINE_SVG_IMAGE_FALLBACK;
+                                }
+                              }}
+                            />
                             <span className="text-[10px] text-slate-500 line-clamp-1 max-w-[120px]">Has image</span>
                           </div>
                         ) : (
@@ -1361,7 +1411,21 @@ export default function WebsiteEditor({
                        
                        <div className="flex gap-3">
                          <div className="h-14 w-14 shrink-0 rounded-lg overflow-hidden border border-slate-200 bg-white">
-                           <img src={img.url} alt="Thumbnail preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                           <img
+                             src={img.url}
+                             alt="Thumbnail preview"
+                             className="w-full h-full object-cover"
+                             referrerPolicy="no-referrer"
+                             onError={(e) => {
+                               const el = e.currentTarget;
+                               if (!el.dataset.fb) {
+                                 el.dataset.fb = "1";
+                                 el.src = getCategoryHeroImage(site.category);
+                               } else if (el.src !== INLINE_SVG_IMAGE_FALLBACK) {
+                                 el.src = INLINE_SVG_IMAGE_FALLBACK;
+                               }
+                             }}
+                           />
                          </div>
                          <div className="flex-1 space-y-1.5">
                            <input
@@ -1541,8 +1605,8 @@ export default function WebsiteEditor({
           </div>
         </div>
 
-        {/* Right Side: Responsive Render Stage (65%) */}
-        <div className={`${activeSection === 'preview' ? 'flex' : 'hidden md:flex'} flex-1 flex-col bg-slate-100 dark:bg-slate-950 p-6 items-center justify-center overflow-y-auto relative`}>
+        {/* Right Side: Responsive Render Stage */}
+        <div className={`${activeSection === 'preview' ? 'flex' : 'hidden md:flex'} flex-1 min-w-0 flex-col bg-slate-100 dark:bg-slate-950 p-3 md:p-4 lg:p-5 items-center justify-center overflow-y-auto relative`}>
           <div className="absolute top-2 right-4 text-[10px] font-mono text-slate-400 bg-slate-200/50 px-2 py-0.5 rounded dark:bg-slate-900/45">
             DEVICE: {viewport.toUpperCase()} RENDER
           </div>
@@ -1587,8 +1651,8 @@ export default function WebsiteEditor({
             <div 
               className={`bg-white text-slate-900 rounded-2xl shadow-xl transition-all duration-300 border border-slate-200 overflow-hidden flex flex-col dark:bg-slate-900 dark:border-slate-800 ${
                 viewport === "mobile" 
-                  ? "w-[375px] h-[660px] rounded-[36px] border-[10px] border-slate-900 relative" 
-                  : "w-full h-[780px] max-h-[840px]"
+                  ? "w-[375px] max-w-full h-[660px] rounded-[36px] border-[10px] border-slate-900 relative" 
+                  : "w-full max-w-6xl h-[780px] max-h-[840px]"
               }`}
             >
               {viewport === "mobile" && (

@@ -1,11 +1,26 @@
 import { ImageMetadata, VisualBusinessProfile, ImageRequirement, ImageSearchOptions } from "./types.js";
-import { matchIndustryTaxonomy, INDUSTRY_TAXONOMY } from "./taxonomy.js";
+import { matchIndustryTaxonomy, INDUSTRY_TAXONOMY, getCuratedImagesForIndustry } from "./taxonomy.js";
 import { PexelsImageProvider } from "./providers/pexelsProvider.js";
 import { UnsplashImageProvider } from "./providers/unsplashProvider.js";
 import { CuratedTaxonomyProvider } from "./providers/curatedProvider.js";
 import { sortAndRankCandidates, ScoreContext } from "./imageRanking.js";
 import { imageCache } from "./imageCache.js";
 import { visualAnalyzer } from "./visualAnalyzer.js";
+
+const BROKEN_IMAGE_FRAGMENTS = [
+  "1581094288338-2314dddb7ecc",
+  "1486006920555-c77dce18193b",
+  "1508098682722-e99c43a406b2",
+  "1541888946425-d0fbb186a5b3",
+];
+
+function isValidResolvedImage(img?: ImageMetadata | null): img is ImageMetadata {
+  if (!img || !img.fullUrl || typeof img.fullUrl !== "string") return false;
+  const trimmed = img.fullUrl.trim();
+  if (trimmed.length < 8) return false;
+  const lower = trimmed.toLowerCase();
+  return !BROKEN_IMAGE_FRAGMENTS.some((frag) => lower.includes(frag));
+}
 
 export class ImageSearchAssistant {
   private pexelsProvider = new PexelsImageProvider();
@@ -196,7 +211,8 @@ export class ImageSearchAssistant {
       localContext: options.localContext
     };
 
-    const ranked = sortAndRankCandidates(candidatePool, scoreContext);
+    const validPool = candidatePool.filter(isValidResolvedImage);
+    const ranked = sortAndRankCandidates(validPool, scoreContext);
     const finalResults = ranked.slice(0, options.limit || 12);
 
     imageCache.set(query, options.section, options.orientation, finalResults, options.industry);
@@ -214,6 +230,10 @@ export class ImageSearchAssistant {
   }> {
     const usedIds = new Set<string>();
 
+    const curatedPool = getCuratedImagesForIndustry(profile.industry);
+    const taxonomyPool = matchIndustryTaxonomy(profile.industry).curatedImages;
+    const safePool = [...taxonomyPool, ...curatedPool].filter(isValidResolvedImage);
+
     // 1. Hero Image
     const heroCandidates = await this.searchImages(profile.heroRequirement.subject, {
       industry: profile.industry,
@@ -227,7 +247,10 @@ export class ImageSearchAssistant {
       customerType: profile.audience,
       localContext: profile.localContext
     });
-    const heroImage = heroCandidates[0] || matchIndustryTaxonomy(profile.industry).curatedImages[0];
+    const heroImage =
+      heroCandidates.find(isValidResolvedImage) ||
+      safePool.find(i => i.section === "hero") ||
+      safePool[0];
     usedIds.add(heroImage.id);
     usedIds.add(heroImage.fullUrl);
 
@@ -244,13 +267,19 @@ export class ImageSearchAssistant {
       customerType: profile.audience,
       localContext: profile.localContext
     });
-    const aboutImage = aboutCandidates.find(c => !usedIds.has(c.id)) || aboutCandidates[0] || heroImage;
+    const aboutImage =
+      aboutCandidates.find(c => isValidResolvedImage(c) && !usedIds.has(c.id) && c.fullUrl !== heroImage.fullUrl) ||
+      aboutCandidates.find(isValidResolvedImage) ||
+      safePool.find(i => i.section === "about") ||
+      heroImage;
     usedIds.add(aboutImage.id);
     usedIds.add(aboutImage.fullUrl);
 
     // 3. Service Images
     const serviceImages: ImageMetadata[] = [];
-    for (const srvReq of profile.servicesRequirements.slice(0, 4)) {
+    const fallbackServices = safePool.filter(i => i.section === "services");
+    for (let idx = 0; idx < profile.servicesRequirements.slice(0, 4).length; idx++) {
+      const srvReq = profile.servicesRequirements[idx];
       const srvCandidates = await this.searchImages(srvReq.subject, {
         industry: profile.industry,
         subcategory: profile.subcategory,
@@ -264,7 +293,11 @@ export class ImageSearchAssistant {
         customerType: profile.audience,
         localContext: profile.localContext
       });
-      const chosen = srvCandidates.find(c => !usedIds.has(c.id)) || srvCandidates[0];
+      const chosen =
+        srvCandidates.find(c => isValidResolvedImage(c) && !usedIds.has(c.id)) ||
+        srvCandidates.find(isValidResolvedImage) ||
+        fallbackServices[idx % Math.max(1, fallbackServices.length)] ||
+        safePool[idx % safePool.length];
       if (chosen) {
         usedIds.add(chosen.id);
         usedIds.add(chosen.fullUrl);
@@ -274,7 +307,9 @@ export class ImageSearchAssistant {
 
     // 4. Gallery Images
     const galleryImages: ImageMetadata[] = [];
-    for (const galReq of profile.galleryRequirements.slice(0, 6)) {
+    const fallbackGallery = safePool.filter(i => i.section === "gallery");
+    for (let idx = 0; idx < profile.galleryRequirements.slice(0, 6).length; idx++) {
+      const galReq = profile.galleryRequirements[idx];
       const galCandidates = await this.searchImages(galReq.subject, {
         industry: profile.industry,
         subcategory: profile.subcategory,
@@ -287,7 +322,11 @@ export class ImageSearchAssistant {
         customerType: profile.audience,
         localContext: profile.localContext
       });
-      const chosen = galCandidates.find(c => !usedIds.has(c.id)) || galCandidates[0];
+      const chosen =
+        galCandidates.find(c => isValidResolvedImage(c) && !usedIds.has(c.id)) ||
+        galCandidates.find(isValidResolvedImage) ||
+        fallbackGallery[idx % Math.max(1, fallbackGallery.length)] ||
+        safePool[idx % safePool.length];
       if (chosen) {
         usedIds.add(chosen.id);
         usedIds.add(chosen.fullUrl);

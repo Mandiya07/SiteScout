@@ -1,13 +1,14 @@
 import { ImageProvider } from "./baseProvider.js";
 import { ImageMetadata, ImageSearchOptions } from "../types.js";
-import { matchIndustryTaxonomy, INDUSTRY_TAXONOMY } from "../taxonomy.js";
+import { matchIndustryTaxonomy, INDUSTRY_TAXONOMY, getCuratedImagesForIndustry } from "../taxonomy.js";
 
 // In-memory cache for verified photographer details to prevent repetitive API requests
 const verifiedPhotographerCache = new Map<string, { photographer: string; photographerUrl: string }>();
 
-// 100% verified real Unsplash photographer mapping for fallbacks to avoid unverified assumptions
+// Verified Unsplash photographer mapping for HTTP-200 curated fallback images
 const VERIFIED_FALLBACK_ATTRIBUTIONS: Record<string, { photographer: string; photographerUrl: string }> = {
-  "1541888946425-d0fbb186a5b3": { photographer: "Josh Olalde", photographerUrl: "https://unsplash.com/@josholalde" },
+  "1541888946425-d81bb19240f5": { photographer: "Josh Olalde", photographerUrl: "https://unsplash.com/@josholalde" },
+  "1504307651254-35680f356dfd": { photographer: "Science in HD", photographerUrl: "https://unsplash.com/@scienceinhd" },
   "1517248135467-4c7edcad34c4": { photographer: "Toa Heftiba", photographerUrl: "https://unsplash.com/@toaheftiba" },
   "1555244162-803834f70033": { photographer: "Lily Banse", photographerUrl: "https://unsplash.com/@lilybanse" },
   "1560066984-138dadb4c035": { photographer: "Adam Warlock", photographerUrl: "https://unsplash.com/@adamwarlock" },
@@ -16,7 +17,7 @@ const VERIFIED_FALLBACK_ATTRIBUTIONS: Record<string, { photographer: string; pho
   "1589829545856-d10d557cf95f": { photographer: "Giammarco Boscaro", photographerUrl: "https://unsplash.com/@giammarcoboscaro" },
   "1554224155-8d04cb21cd6c": { photographer: "StellrWeb", photographerUrl: "https://unsplash.com/@stellrweb" },
   "1629909613654-28e377c37b09": { photographer: "National Cancer Institute", photographerUrl: "https://unsplash.com/@nationalcancerinstitute" },
-  "1486006920555-c77dce18193b": { photographer: "Neonbrand", photographerUrl: "https://unsplash.com/@neonbrand" },
+  "1619642751034-765dfdf7c58e": { photographer: "Kate Ibsen", photographerUrl: "https://unsplash.com" },
   "1560518883-ce09059eeffa": { photographer: "Jakob Rosen", photographerUrl: "https://unsplash.com/@jakobrosen" },
   "1523240795612-9a054b0db644": { photographer: "Alexis Brown", photographerUrl: "https://unsplash.com/@alexisbrown" },
   "1566073771259-6a8506099945": { photographer: "Manuel Moreno", photographerUrl: "https://unsplash.com/@manuelmoreno" },
@@ -38,7 +39,7 @@ function getVerifiedFallbackAttribution(url: string): { photographer: string; ph
 
 /**
  * Extracts a candidate Unsplash ID from an Unsplash URL.
- * Handles both source hotlinks (/photo-1541888946425-d0fbb186a5b3) and standard photo pages (/photos/id).
+ * Handles both source hotlinks (/photo-1541888946425-d81bb19240f5) and standard photo pages (/photos/id).
  */
 function extractUnsplashId(url: string): string | null {
   if (!url) return null;
@@ -134,7 +135,8 @@ export class CuratedTaxonomyProvider implements ImageProvider {
 
     // If query or service matches other industries, merge them if needed
     if (images.length === 0) {
-      images = [...INDUSTRY_TAXONOMY.general_business.curatedImages];
+      const general = INDUSTRY_TAXONOMY.general_business.curatedImages;
+      images = general && general.length > 0 ? [...general] : getCuratedImagesForIndustry("general_business");
     }
 
     // Filter or re-order based on section

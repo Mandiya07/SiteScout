@@ -2,7 +2,7 @@ import { Business, GeneratedSite, DigitalDeficitAudit } from "../types";
 import { detectCountryFromLocation } from "./countryCurrency";
 import { getCategoryHeroImage, getCategorySectionImages } from "./heroImages";
 import { buildBusinessTruthProfile } from "./businessTruth";
-import { normalizeWebsiteSchema } from "./websiteSchema";
+import { normalizeWebsiteSchema, extractCleanCity } from "./websiteSchema";
 import { calculateExplainableOpportunityScore } from "./prospectCrm";
 import { getAuthenticDirectoryBusinesses } from "./authenticDirectory";
 
@@ -574,7 +574,7 @@ export function generateClientMockSite(biz: Business): GeneratedSite {
   }
 
   const cleanBizName = biz.name;
-  const addressCity = biz.address.split(",")[1]?.trim() || biz.address.split(",")[0]?.trim() || "Local Area";
+  const addressCity = extractCleanCity(biz.address);
   const industryConfig = getIndustryDetails(biz.category, addressCity);
 
   const rawSite: GeneratedSite = {
@@ -606,7 +606,7 @@ export function generateClientMockSite(biz: Business): GeneratedSite {
     },
     about: {
       title: "Your Local Service Partners",
-      history: `${cleanBizName} is committed to serving ${addressCity} with honest rates, transparent communications, and expert craft.`,
+      history: `${cleanBizName} is committed to serving clients with honest rates, transparent communications, and expert craft.`,
       mission: "To deliver reliable solutions tailored to your unique requirements.",
       pitch: "Whether you require minor repairs, regular maintenance, or large installations, our dedicated crews are ready to assist.",
       imageUrl: industryConfig.aboutImage || getCategorySectionImages(biz.category).about
@@ -620,7 +620,7 @@ export function generateClientMockSite(biz: Business): GeneratedSite {
     gallery: industryConfig.gallery,
     faqs: [
       { question: "How do you handle pricing?", answer: "We believe in complete transparency. We provide clear, itemized quotes before any work begins." },
-      { question: "What areas do you serve?", answer: `We proudly serve ${addressCity} and the surrounding local communities.` }
+      { question: "What areas do you serve?", answer: addressCity === "Local Area" ? "We proudly serve clients across our local service area and neighboring communities." : `We proudly serve ${addressCity} and the surrounding local communities.` }
     ],
     testimonials: [],
     blog: [],

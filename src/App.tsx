@@ -1504,8 +1504,11 @@ export default function App() {
       
       // Standalone high-fidelity client-side layout generator
       const mockSite = generateClientMockSite(selectedBusiness);
-      mockSite.isDemo = selectedBusiness.isDemo ?? true;
-      mockSite.dataType = selectedBusiness.dataType || "demo";
+      mockSite.isDemo = selectedBusiness.isDemo ?? false;
+      mockSite.dataType = selectedBusiness.dataType || (selectedBusiness.isDemo ? "demo" : "real");
+      if (selectedBusiness.email && !mockSite.contactPage?.email) {
+        mockSite.contactPage = { ...mockSite.contactPage, email: selectedBusiness.email };
+      }
       setGeneratedSite(mockSite);
       await handleSaveDraft(mockSite);
       setStats(prev => ({ ...prev, generated: prev.generated + 1 }));
@@ -2147,10 +2150,16 @@ export default function App() {
           {activeTab === "preview" && generatedSite && (
             <ShareablePreview 
               site={generatedSite}
+              businessEmail={
+                (selectedBusiness?.id === generatedSite.businessId ? selectedBusiness.email : undefined) ||
+                businesses.find(b => b.id === generatedSite.businessId)?.email ||
+                null
+              }
               onBackToEditor={() => setActiveTab("editor")}
               onGoToSalesAssistant={() => setActiveTab("sales")}
               onGoToProposals={() => setActiveTab("proposals")}
               onOpenPortal={() => setActiveTab("portal")}
+              onUpdateSite={handleSaveDraft}
             />
           )}
 
@@ -2158,7 +2167,13 @@ export default function App() {
           {activeTab === "sales" && generatedSite && (
             <SalesAssistant 
               site={generatedSite}
+              business={
+                (selectedBusiness?.id === generatedSite.businessId ? selectedBusiness : undefined) ||
+                businesses.find(b => b.id === generatedSite.businessId) ||
+                null
+              }
               onBack={() => setActiveTab("preview")}
+              onUpdateSite={handleSaveDraft}
             />
           )}
 

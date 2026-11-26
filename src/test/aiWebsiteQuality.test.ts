@@ -16,7 +16,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert";
 import fs from "node:fs";
 import path from "node:path";
-import { normalizeWebsiteSchema, validateWebsiteSchema, sanitizePricing, sanitizeLiabilityClaims } from "../lib/websiteSchema";
+import { normalizeWebsiteSchema, validateWebsiteSchema, sanitizePricing, sanitizeLiabilityClaims, extractCleanCity, stripAddressFromCopy } from "../lib/websiteSchema";
 import { resolveIndustryArchetype, sanitizeCopyCliches, auditSiteCopyQuality, INDUSTRY_ARCHETYPES } from "../lib/aiCopyQuality";
 import { resolveHeroImageUrl, getCategoryHeroImage, getCategorySectionImages, isBrokenOrInvalidImageUrl } from "../lib/heroImages";
 import { generateClientMockSite } from "../lib/clientFallback";
@@ -24,6 +24,7 @@ import { generateStaticHtml, escapeHtml, sanitizeUrl } from "../lib/htmlGenerato
 import { filterWebsites } from "../components/MyWebsites";
 import { filterAndRankSearchResults, hasAuthenticBusinessEmail } from "../lib/searchNormalization";
 import { getAuthenticDirectoryBusinesses } from "../lib/authenticDirectory";
+import { generateWhatsappLink } from "../lib/formatters";
 import { Business, GeneratedSite, BusinessTruthProfile } from "../types";
 
 describe("MICRO-PHASE 19C: AI Website Generation & Visual Quality Validation", () => {
@@ -579,6 +580,95 @@ describe("MICRO-PHASE 19C: AI Website Generation & Visual Quality Validation", (
       const finderSrc = fs.readFileSync(path.resolve(process.cwd(), "src/components/BusinessFinder.tsx"), "utf-8");
       assert.ok(finderSrc.includes("useState<'email_first'"), "BusinessFinder must default sortOrder to email_first");
       assert.ok(finderSrc.includes('value="email_first"'), "BusinessFinder sort dropdown must include email_first option");
+    });
+  });
+
+  describe("J. Address-Free History Pitch Paragraph & Feature Copy", () => {
+    it("extracts clean cities without street names and strips addresses from History Pitch Paragraph and features", () => {
+      assert.strictEqual(extractCleanCity("Tsekwane Street, Mbabane, Eswatini"), "Mbabane");
+      assert.strictEqual(extractCleanCity("Plot 104, Somhlolo Road, Manzini"), "Manzini");
+      assert.strictEqual(extractCleanCity("Tsekwane Street"), "Local Area");
+
+      const fmcBiz: Business = {
+        id: "biz_fmc",
+        name: "FMC Projects (Pty) Ltd",
+        category: "Construction",
+        address: "Tsekwane Street",
+        phone: "+268 7612 3456",
+        email: "tenders@fmcprojects.co.sz",
+        createdAt: new Date().toISOString()
+      } as any;
+
+      const fallbackSite = generateClientMockSite(fmcBiz);
+      assert.ok(!fallbackSite.about.history.includes("Tsekwane Street"), "Client fallback History Pitch Paragraph must not contain street address");
+      assert.ok(!fallbackSite.hero.title.includes("Tsekwane Street"));
+      assert.ok(!fallbackSite.hero.subtitle.includes("Tsekwane Street"));
+      assert.strictEqual(fallbackSite.address, "Tsekwane Street", "Physical address must remain preserved on site.address for Contact section");
+
+      const normalizedDirty = normalizeWebsiteSchema({
+        businessName: "FMC Projects (Pty) Ltd",
+        category: "Construction",
+        address: "Tsekwane Street, Mbabane, Eswatini",
+        hero: {
+          title: "FMC Projects at Tsekwane Street",
+          subtitle: "Quality construction on Tsekwane Street, Mbabane, Eswatini",
+          ctaPrimary: "Request Quote",
+          ctaSecondary: "Call Us"
+        },
+        about: {
+          title: "About FMC Projects",
+          history: "FMC Projects (Pty) Ltd is committed to serving Tsekwane Street with honest rates, transparent communications, and expert craft.",
+          mission: "Serving clients near Tsekwane Street with reliable civil engineering.",
+          pitch: "Visit us at Tsekwane Street, Mbabane, Eswatini for project consultations."
+        },
+        features: [
+          { title: "Local Team", icon: "MapPin", description: "Based on Tsekwane Street for fast turnarounds." }
+        ],
+        faqs: [
+          { question: "Where do you operate?", answer: "We work around Tsekwane Street and nearby areas." }
+        ]
+      }, fmcBiz);
+
+      assert.ok(!normalizedDirty.about.history.includes("Tsekwane Street"), "Normalized History Pitch Paragraph must strip street address");
+      assert.ok(!normalizedDirty.about.mission.includes("Tsekwane Street"), "About mission must strip street address");
+      assert.ok(!normalizedDirty.about.pitch.includes("Tsekwane Street"), "About pitch must strip street address");
+      assert.ok(!normalizedDirty.hero.title.includes("Tsekwane Street"), "Hero title must strip street address");
+      assert.ok(!normalizedDirty.hero.subtitle.includes("Tsekwane Street"), "Hero subtitle must strip street address");
+      assert.ok(!normalizedDirty.features[0].description.includes("Tsekwane Street"), "Features must strip street address");
+      assert.ok(!normalizedDirty.faqs[0].answer.includes("Tsekwane Street"), "FAQs must strip street address");
+      assert.ok(normalizedDirty.about.history.includes("clients with"), `Repaired history should read naturally: ${normalizedDirty.about.history}`);
+    });
+  });
+
+  describe("K. Sending Created Demo Websites to Provided Email & Contact Details", () => {
+    it("preserves business email in contactPage, formats WhatsApp targets, and exposes /api/send-demo-website wiring", () => {
+      const biz: Business = {
+        id: "biz_send_demo",
+        name: "Capital Civil Contractors",
+        category: "Construction",
+        address: "Mbabane, Eswatini",
+        phone: "+268 7612 9876",
+        email: "contact@capitalcivil.co.sz",
+        createdAt: new Date().toISOString()
+      } as any;
+
+      const site = normalizeWebsiteSchema({}, biz);
+      assert.strictEqual(site.contactPage.email, "contact@capitalcivil.co.sz", "Provided business email must be preserved even if starting with contact@");
+
+      const waHref = generateWhatsappLink(site.phone, "Preview ready", site.address);
+      assert.ok(waHref.startsWith("https://wa.me/26876129876?text="), `WhatsApp link must target recipient number: ${waHref}`);
+
+      const serverSrc = fs.readFileSync(path.resolve(process.cwd(), "server.ts"), "utf-8");
+      assert.ok(serverSrc.includes('app.post("/api/send-demo-website", verifyAuthToken'), "Server must expose authenticated /api/send-demo-website endpoint");
+
+      const shareSrc = fs.readFileSync(path.resolve(process.cwd(), "src/components/ShareablePreview.tsx"), "utf-8");
+      assert.ok(shareSrc.includes("/api/send-demo-website") && shareSrc.includes("Recipient Email Address"), "ShareablePreview must support sending demo website to provided email/phone");
+
+      const salesSrc = fs.readFileSync(path.resolve(process.cwd(), "src/components/SalesAssistant.tsx"), "utf-8");
+      assert.ok(salesSrc.includes("/api/send-demo-website") && !salesSrc.includes("owner@${site.businessName"), "SalesAssistant must dispatch to real recipient contact instead of hardcoded fake owner email");
+
+      const draftSrc = fs.readFileSync(path.resolve(process.cwd(), "src/components/DraftEmailModal.tsx"), "utf-8");
+      assert.ok(draftSrc.includes("/api/send-demo-website") && draftSrc.includes("Send Demo Email"), "DraftEmailModal must support sending demo email via /api/send-demo-website");
     });
   });
 

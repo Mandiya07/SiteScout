@@ -6,7 +6,8 @@ import { generateStaticHtml, escapeHtml } from "./src/lib/htmlGenerator";
 import { buildBusinessTruthProfile, normalizeUrl, extractDomain } from "./src/lib/businessTruth";
 import { resolveDeterministicBusinessId } from "./src/lib/businessIdentity";
 import { assignIndustryTag } from "./src/lib/industryTagger";
-import { normalizeWebsiteSchema } from "./src/lib/websiteSchema";
+import { normalizeWebsiteSchema, extractCleanCity } from "./src/lib/websiteSchema";
+import { generateWhatsappLink, normalizePhoneNumber } from "./src/lib/formatters";
 import { getCategorySectionImages, isBrokenOrInvalidImageUrl } from "./src/lib/heroImages";
 import { 
   validateSearchRelevance, 
@@ -1478,7 +1479,7 @@ function getLocalCurrencyPrefix(addressOrCountry: string = ""): { symbol: string
 function generateDefaultTemplateSite(business: any) {
   const name = business.name || "Premier Local Services";
   const category = business.category || "Professional Services";
-  const city = (business.address || "Local Area").split(",")[0];
+  const city = extractCleanCity(business.address);
   const phone = business.phone || "+268 7600 0000";
   const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '');
 
@@ -1510,7 +1511,7 @@ function generateDefaultTemplateSite(business: any) {
       : sectionFallback.services[idx % sectionFallback.services.length];
     return {
       title: srvTitle,
-      description: `Comprehensive ${srvTitle.toLowerCase()} delivered with professional expertise, quality materials, and transparent rates for ${city} clients.`,
+      description: `Comprehensive ${srvTitle.toLowerCase()} delivered with professional expertise, quality materials, and transparent rates.`,
       price: idx === 0 ? "Request a Quote" : idx === 1 ? "Contact Us" : "Call for Pricing",
       imageUrl: candidateUrl,
       imageMetadata: img
@@ -1596,7 +1597,7 @@ function generateDefaultTemplateSite(business: any) {
     },
     about: {
       title: `About ${name}`,
-      history: `Proudly serving homeowners, commercial properties, and organizations throughout ${city} with dedicated ${taxonomy.industry.toLowerCase()} expertise.`,
+      history: `${name} is committed to serving local homeowners, commercial properties, and organizations with honest rates, transparent communication, and dependable ${taxonomy.industry.toLowerCase()} expertise.`,
       mission: `To deliver consistent, high-standard ${taxonomy.industry.toLowerCase()} services with transparent pricing, honest communication, and lasting client satisfaction.`,
       pitch: `${name} focuses on uncompromising quality, prompt dispatch, and transparent pricing. Contact our local team today to discuss your requirements.`,
       imageUrl: aboutUrl,
@@ -1607,7 +1608,7 @@ function generateDefaultTemplateSite(business: any) {
       {
         title: "Dedicated Local Service",
         icon: "MapPin",
-        description: `Directly based in ${city} for fast turnarounds, on-time arrivals, and responsive support.`
+        description: "Committed to fast turnarounds, on-time arrivals, and responsive local support."
       },
       {
         title: "Transparent Fixed Pricing",
@@ -1629,7 +1630,9 @@ function generateDefaultTemplateSite(business: any) {
       },
       {
         question: "What areas do you serve?",
-        answer: `We serve clients throughout ${city} and neighboring surrounding regions.`
+        answer: city === "Local Area"
+          ? "We serve clients across our local service area and neighboring surrounding regions."
+          : `We serve clients throughout ${city} and neighboring surrounding regions.`
       },
       {
         question: "What is your typical turnaround time?",
@@ -2884,11 +2887,11 @@ app.post("/api/generate-site", optionalAuthToken, generateSiteLimiter, async (re
     Generate content for the following elements:
     1. Color palette (primary, secondary, accent, background hex codes tailored to the industry)
     2. Font family style (sans, serif, mono, modern, display)
-    3. Homepage Hero (Headline, subheadline, CTA button text, secondary CTA button text — DO NOT include any street address, plot/suite/building number, postal code, or physical address information in the hero title or subtitle)
-    4. About Section (History, mission, long pitch, key bullet points)
+    3. Homepage Hero (Headline, subheadline, CTA button text, secondary CTA button text — DO NOT include any street address, road name, plot/suite/building number, postal code, or physical address information in the hero title or subtitle)
+    4. About Section (History, mission, long pitch — keep strictly free of street names, road names, plot/suite numbers, or physical address details; focus on values, craftsmanship, and service quality)
     5. Services list (at least 3 realistic service packages for this category, each with title, description, and price explicitly set to "Request a Quote", "Contact Us", or "Call for Pricing". DO NOT invent arbitrary monetary values.)
-    6. Features section (3 bullet points of what makes them reliable, with title, icon-slug (choose from: Shield, Award, Clock, Star, Zap, MapPin, Sparkles, Smile), description)
-    7. FAQ section (at least 3 frequently asked questions and professional answers)
+    6. Features section (3 bullet points of what makes them reliable, with title, icon-slug (choose from: Shield, Award, Clock, Star, Zap, MapPin, Sparkles, Smile), description — never mention street or physical address details)
+    7. FAQ section (at least 3 frequently asked questions and professional answers — never mention street names or plot numbers)
     8. Testimonials (Return an empty array [] unless genuine customer review evidence was provided in the business description or profile. NEVER fabricate customer names, reviews, or ratings)
     9. Blog posts (2 relevant local educational guides/article titles, summaries, and categories)
     10. SEO Metadata (Meta title, meta description, and keywords)
@@ -2907,7 +2910,7 @@ app.post("/api/generate-site", optionalAuthToken, generateSiteLimiter, async (re
     CONTENT INTEGRITY & LIABILITY PROTECTION MANDATES:
     - Service Pricing: Set all service prices to "Request a Quote", "Contact for Pricing", or "Custom Quote". Do NOT invent numeric prices (e.g. "$150", "R400").
     - Liability Protection: Do NOT invent fabricated years in business (e.g., "Over 20 years in business", "Serving since 1995"), fabricated ISO/governmental licenses, or unverified 100% money-back/lifetime guarantees. Use truthful, customer-focused phrasing like "Dedicated local service" and "Satisfaction-focused commitment".
-    - No Address in Hero: NEVER put street addresses, plot/suite/building numbers, postal codes, or physical address details in "hero.title" or "hero.subtitle". Keep physical address details strictly in the Contact page/section.
+    - No Address in Non-Contact Copy: NEVER put street addresses, road names, plot/suite/building numbers, postal codes, or physical address details in "hero", "about" ("history", "mission", "pitch"), "features", "services", or "faqs". Keep physical address details strictly in the Contact section.
     - Anti-Cliché & Natural Tone: NEVER use cliché AI marketing tropes such as "Welcome to [business]", "In today's fast-paced world", "Premier destination", "One-stop shop", "Tapestry of", "Testament to", "Elevate your [experience]", "Cutting-edge solutions", "Delivering excellence", or "Look no further". Craft punchy, grounded commercial prose with high editorial clarity.
 
     Return a strict JSON object with this exact structure:
@@ -3123,7 +3126,7 @@ app.post("/api/generate-site", optionalAuthToken, generateSiteLimiter, async (re
       business.name,
       business.category,
       (data.services || []).map((s: any) => s.title),
-      (business.address || "").split(",")[0]
+      extractCleanCity(business.address)
     );
 
     const resolvedImages = await imageAssistant.batchResolveSiteImages(visualProfile);
@@ -3221,6 +3224,12 @@ app.post("/api/generate-site", optionalAuthToken, generateSiteLimiter, async (re
       },
       services: enrichedServices,
       gallery: enrichedGallery,
+      contactPage: {
+        ...(data.contactPage || {}),
+        email: (data.contactPage?.email && String(data.contactPage.email).includes("@"))
+          ? data.contactPage.email
+          : (business.email || null)
+      },
       truthProfile: buildBusinessTruthProfile(business),
       presence: business.presence || null,
       deficits: business.deficits || null
@@ -3886,6 +3895,213 @@ Return a strict JSON object with this exact structure:
   } catch (error: any) {
     console.log("Draft email generation returned fallback due to error:", error.message || error);
     res.json(getFallbackDraft(tone));
+  }
+});
+
+// Send created demo website directly to provided email address or phone/WhatsApp/SMS contact details
+app.post("/api/send-demo-website", verifyAuthToken, salesLimiter, async (req: AuthenticatedRequest, res) => {
+  try {
+    const {
+      siteId,
+      businessId,
+      businessName = "Your Business",
+      previewUrl,
+      channel = "email",
+      recipientEmail,
+      recipientPhone,
+      address,
+      subject,
+      message
+    } = req.body || {};
+
+    const normalizedChannel = String(channel || "email").toLowerCase();
+    if (!["email", "whatsapp", "sms"].includes(normalizedChannel)) {
+      return res.status(400).json({ error: "Unsupported delivery channel. Use email, whatsapp, or sms." });
+    }
+
+    const safeBusinessName = String(businessName || "Your Business").replace(/[\r\n]/g, " ").trim().slice(0, 140);
+    const rawPreviewUrl = String(previewUrl || "").trim();
+    let safePreviewUrl = rawPreviewUrl;
+    if (rawPreviewUrl) {
+      if (rawPreviewUrl.startsWith("/preview/")) {
+        safePreviewUrl = rawPreviewUrl;
+      } else {
+        try {
+          const parsedPreview = new URL(rawPreviewUrl);
+          if (!["http:", "https:"].includes(parsedPreview.protocol)) {
+            return res.status(400).json({ error: "Invalid preview URL protocol." });
+          }
+          safePreviewUrl = parsedPreview.toString();
+        } catch {
+          return res.status(400).json({ error: "Invalid preview URL format." });
+        }
+      }
+    }
+
+    const cleanEmail = typeof recipientEmail === "string" ? recipientEmail.replace(/[\r\n]/g, "").trim() : "";
+    const cleanPhoneRaw = typeof recipientPhone === "string" ? recipientPhone.replace(/[\r\n]/g, "").trim() : "";
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (normalizedChannel === "email") {
+      if (!cleanEmail || !emailRegex.test(cleanEmail)) {
+        return res.status(400).json({ error: "Please provide a valid recipient email address." });
+      }
+    }
+
+    const e164Digits = normalizePhoneNumber(cleanPhoneRaw, typeof address === "string" ? address : "");
+    if (normalizedChannel === "whatsapp" || normalizedChannel === "sms") {
+      if (!e164Digits || e164Digits.length < 7) {
+        return res.status(400).json({ error: "Please provide a valid recipient phone or WhatsApp number." });
+      }
+    }
+
+    const safeSubject = (typeof subject === "string" && subject.trim())
+      ? subject.replace(/[\r\n]/g, " ").trim().slice(0, 200)
+      : `Free Website Preview for ${safeBusinessName}`;
+
+    const safeMessage = (typeof message === "string" && message.trim())
+      ? message.trim().slice(0, 5000)
+      : `Hi ${safeBusinessName} Team,\n\nI created a custom website preview for your business.\n\nView the live preview here:\n${safePreviewUrl}\n\nOnce you review and approve it, we can customize and launch it for you.`;
+
+    const dispatchId = `disp_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+    const sentAt = new Date().toISOString();
+    const recipient = normalizedChannel === "email" ? cleanEmail : `+${e164Digits}`;
+
+    let deliveryMode: "direct_email" | "webhook" | "client_handoff" = "client_handoff";
+    let provider = "device_app";
+    let protocolUrl: string | undefined;
+
+    if (normalizedChannel === "email" && process.env.RESEND_API_KEY) {
+      const fromAddress = process.env.OUTREACH_FROM_EMAIL || "SiteScout AI <onboarding@resend.dev>";
+      const htmlParagraphs = escapeHtml(safeMessage).replace(/\n/g, "<br/>");
+      const previewCtaHtml = safePreviewUrl
+        ? `<p style="margin:20px 0;"><a href="${escapeHtml(safePreviewUrl)}" style="display:inline-block;padding:12px 20px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:bold;">View Demo Website</a></p>`
+        : "";
+      const htmlBody = `<div style="font-family:sans-serif;line-height:1.6;color:#0f172a;max-width:600px;">${htmlParagraphs}${previewCtaHtml}</div>`;
+
+      const resendRes = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          from: fromAddress,
+          to: [cleanEmail],
+          subject: safeSubject,
+          text: safeMessage,
+          html: htmlBody
+        })
+      });
+
+      if (!resendRes.ok) {
+        const errText = await resendRes.text().catch(() => "");
+        console.error("[SendDemoWebsite] Resend delivery failed:", resendRes.status, errText);
+        return res.status(502).json({ error: "Email provider could not deliver to that address right now." });
+      }
+      deliveryMode = "direct_email";
+      provider = "resend";
+    } else if (process.env.OUTREACH_WEBHOOK_URL) {
+      const webhookUrl = new URL(process.env.OUTREACH_WEBHOOK_URL);
+      if (!["http:", "https:"].includes(webhookUrl.protocol)) {
+        return res.status(500).json({ error: "Configured outreach webhook URL is invalid." });
+      }
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (process.env.OUTREACH_WEBHOOK_SECRET) {
+        headers["x-webhook-secret"] = process.env.OUTREACH_WEBHOOK_SECRET;
+      }
+      const hookRes = await fetch(webhookUrl.toString(), {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          dispatchId,
+          siteId,
+          businessId,
+          businessName: safeBusinessName,
+          channel: normalizedChannel,
+          recipientEmail: cleanEmail || null,
+          recipientPhone: e164Digits ? `+${e164Digits}` : null,
+          previewUrl: safePreviewUrl,
+          subject: safeSubject,
+          message: safeMessage,
+          sentAt,
+          actorUid: req.user?.uid || "anonymous"
+        })
+      });
+      if (!hookRes.ok) {
+        return res.status(502).json({ error: "Outreach webhook delivery failed." });
+      }
+      deliveryMode = "webhook";
+      provider = "webhook";
+    } else {
+      if (normalizedChannel === "email") {
+        protocolUrl = `mailto:${cleanEmail}?subject=${encodeURIComponent(safeSubject)}&body=${encodeURIComponent(safeMessage)}`;
+      } else if (normalizedChannel === "whatsapp") {
+        protocolUrl = generateWhatsappLink(`+${e164Digits}`, safeMessage, typeof address === "string" ? address : "");
+      } else {
+        protocolUrl = `sms:+${e164Digits}?body=${encodeURIComponent(safeMessage)}`;
+      }
+    }
+
+    // Best-effort Firestore dispatch log & site status update
+    if (db) {
+      try {
+        await setDoc(doc(db, "outreachDispatches", dispatchId), {
+          dispatchId,
+          siteId: siteId || null,
+          businessId: businessId || null,
+          businessName: safeBusinessName,
+          channel: normalizedChannel,
+          recipient,
+          previewUrl: safePreviewUrl,
+          subject: safeSubject,
+          deliveryMode,
+          provider,
+          actorUid: req.user?.uid || null,
+          sentAt
+        });
+
+        if (siteId && typeof siteId === "string") {
+          const siteUpdate: Record<string, any> = {
+            salesStatus: "Contacted",
+            salesStage: "PREVIEW_SENT",
+            lastContactedAt: sentAt,
+            lastSentContact: recipient,
+            lastSentChannel: normalizedChannel,
+            updatedAt: sentAt
+          };
+          if (cleanEmail) {
+            siteUpdate["contactPage.email"] = cleanEmail;
+          }
+          if (e164Digits) {
+            siteUpdate.phone = `+${e164Digits}`;
+          }
+          await updateDoc(doc(db, "sites", siteId), siteUpdate).catch(() => {});
+        }
+      } catch (persistErr) {
+        console.warn("[SendDemoWebsite] Non-fatal Firestore logging warning:", persistErr);
+      }
+    }
+
+    return res.json({
+      success: true,
+      dispatchId,
+      channel: normalizedChannel,
+      recipient,
+      deliveryMode,
+      provider,
+      protocolUrl,
+      sentAt,
+      message:
+        deliveryMode === "direct_email"
+          ? `Demo website sent directly to ${recipient}.`
+          : deliveryMode === "webhook"
+            ? `Demo website dispatched via outreach relay to ${recipient}.`
+            : `Demo dispatch prepared for ${recipient}. Complete delivery in your ${normalizedChannel === "email" ? "email" : normalizedChannel === "whatsapp" ? "WhatsApp" : "SMS"} app.`
+    });
+  } catch (error: any) {
+    console.error("Error in /api/send-demo-website:", error);
+    return res.status(500).json({ error: error.message || "Failed to send demo website." });
   }
 });
 

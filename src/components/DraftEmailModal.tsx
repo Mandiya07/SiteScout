@@ -54,6 +54,8 @@ export default function DraftEmailModal({
   const [highlightedGaps, setHighlightedGaps] = useState<string[]>([]);
   const [selectedGaps, setSelectedGaps] = useState<string[]>([]);
   const [hasLoggedSent, setHasLoggedSent] = useState<boolean>(false);
+  const [sendingEmail, setSendingEmail] = useState<boolean>(false);
+  const [sendFeedback, setSendFeedback] = useState<{ type: "success" | "error"; text: string; handoffUrl?: string } | null>(null);
 
   // Compute preview URL
   const previewUrl = site
@@ -187,7 +189,7 @@ export default function DraftEmailModal({
     return `mailto:${recipient}?subject=${encodeURIComponent(activeSubject)}&body=${encodeURIComponent(activeBody)}`;
   };
 
-  const handleLogAsSent = () => {
+  const handleLogAsSent = (customNote?: string) => {
     const now = new Date().toISOString();
     const nextDate = new Date();
     nextDate.setDate(nextDate.getDate() + 2);
@@ -198,7 +200,8 @@ export default function DraftEmailModal({
       : currentStage;
     const nextStatus = canonicalToProspectStatus(targetStage);
 
-    const noteEntry = `AI Email Outreach (${selectedTone}) sent on ${new Date().toLocaleDateString()} with subject: "${subject}". Focused on: ${selectedGaps.slice(0, 2).join(", ")}.`;
+    const activeSubject = activeTab === "initial" ? subject : followUpSubject;
+    const noteEntry = customNote || `AI Email Outreach (${selectedTone}) sent on ${new Date().toLocaleDateString()} with subject: "${activeSubject}". Focused on: ${selectedGaps.slice(0, 2).join(", ")}.`;
     const updatedNotes = business.prospectNotes 
       ? `${business.prospectNotes}\n• ${noteEntry}` 
       : `• ${noteEntry}`;
@@ -219,6 +222,68 @@ export default function DraftEmailModal({
       setHasLoggedSent(false);
       onClose();
     }, 1400);
+  };
+
+  const handleSendDemoEmail = async () => {
+    const cleanEmail = recipientEmail.trim();
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setSendFeedback({ type: "error", text: "Please enter a valid recipient email address." });
+      return;
+    }
+
+    const activeSubject = activeTab === "initial" ? subject : followUpSubject;
+    const activeBody = activeTab === "initial" ? body : followUpBody;
+
+    setSendingEmail(true);
+    setSendFeedback(null);
+
+    try {
+      const res = await authedFetch("/api/send-demo-website", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          siteId: site?.id,
+          businessId: business.id,
+          businessName: business.name,
+          previewUrl,
+          channel: "email",
+          recipientEmail: cleanEmail,
+          recipientPhone: business.phone,
+          address: business.address,
+          subject: activeSubject,
+          message: activeBody
+        })
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Could not dispatch demo email.");
+      }
+
+      if (data.deliveryMode === "client_handoff" && data.protocolUrl && data.protocolUrl.startsWith("mailto:")) {
+        const a = document.createElement("a");
+        a.href = data.protocolUrl;
+        a.style.display = "none";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+
+      setSendFeedback({
+        type: "success",
+        text: data.message || `Demo website prepared for ${cleanEmail}.`,
+        handoffUrl: data.protocolUrl
+      });
+
+      handleLogAsSent(`Demo Website dispatched via ${data.provider || "email"} to ${cleanEmail} on ${new Date().toLocaleDateString()} ("${activeSubject}").`);
+    } catch (err: any) {
+      setSendFeedback({
+        type: "error",
+        text: err?.message || "Failed to send demo email."
+      });
+    } finally {
+      setSendingEmail(false);
+    }
   };
 
   const isDemo = business.isDemo === true || business.dataType === "demo" || business.evidence?.verificationStatus === "sample_demo";
@@ -565,6 +630,24 @@ export default function DraftEmailModal({
 
         </div>
 
+        {/* Feedback banner */}
+        {sendFeedback && (
+          <div
+            className={`px-6 py-2.5 border-t text-xs flex items-center justify-between gap-2 ${
+              sendFeedback.type === "success"
+                ? "bg-emerald-50 border-emerald-200 text-emerald-900 dark:bg-emerald-950/30 dark:border-emerald-900/50 dark:text-emerald-200"
+                : "bg-rose-50 border-rose-200 text-rose-900 dark:bg-rose-950/30 dark:border-rose-900/50 dark:text-rose-200"
+            }`}
+          >
+            <span className="font-medium">{sendFeedback.text}</span>
+            {sendFeedback.handoffUrl && (
+              <a href={sendFeedback.handoffUrl} className="font-bold underline shrink-0">
+                Open Mail App
+              </a>
+            )}
+          </div>
+        )}
+
         {/* Modal Footer Controls */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/50 shrink-0">
           
@@ -611,8 +694,20 @@ export default function DraftEmailModal({
               Cancel
             </button>
 
+            {!isDemo && (
+              <button
+                type="button"
+                onClick={handleSendDemoEmail}
+                disabled={sendingEmail || hasLoggedSent}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-md shadow-emerald-500/10 flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+              >
+                <Send className="w-3.5 h-3.5" />
+                {sendingEmail ? "Sending..." : "Send Demo Email"}
+              </button>
+            )}
+
             <button
-              onClick={handleLogAsSent}
+              onClick={() => handleLogAsSent()}
               disabled={hasLoggedSent}
               className="px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white transition-all shadow-md shadow-blue-500/10 flex items-center gap-1.5 cursor-pointer disabled:bg-emerald-600"
             >
@@ -622,7 +717,7 @@ export default function DraftEmailModal({
                 </>
               ) : (
                 <>
-                  <Send className="w-3.5 h-3.5" /> Mark Email Sent (+2d Follow-Up)
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Mark Email Sent (+2d Follow-Up)
                 </>
               )}
             </button>

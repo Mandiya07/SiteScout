@@ -425,6 +425,89 @@ export function sanitizeLiabilityClaims(
 }
 
 /**
+ * Extracts a clean city or locality segment from a raw address string,
+ * skipping street names, road names, plot/suite/building numbers, and postal codes.
+ */
+export function extractCleanCity(address?: string): string {
+  if (!address || typeof address !== "string") return "Local Area";
+  const segments = address
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length >= 2);
+
+  for (const seg of segments) {
+    if (seg.toLowerCase() === "local area") continue;
+    if (/^\d{3,10}$/.test(seg)) continue; // postal/zip codes
+    const looksLikeStreetOrPlot =
+      /\d/.test(seg) ||
+      /\b(street|st|road|rd|avenue|ave|boulevard|blvd|drive|dr|lane|ln|way|plot|suite|ste|floor|building|plaza|mall|park|industrial|highway|crescent|close|erf|stand|unit|shop|block|ext|extension)\b/i.test(seg);
+    if (!looksLikeStreetOrPlot) {
+      return seg;
+    }
+  }
+  return "Local Area";
+}
+
+/**
+ * Removes physical street addresses, plot/suite/building numbers, and road names
+ * from non-contact copy such as Hero, History Pitch Paragraph, Features, Services, FAQs, and Blog.
+ */
+export function stripAddressFromCopy(
+  text: string | undefined,
+  address: string | undefined,
+  fallbackText: string,
+  isUserSupplied: boolean = false
+): string {
+  if (!text) return fallbackText;
+  if (isUserSupplied) return text;
+
+  let cleaned = text.trim();
+
+  if (address && address.toLowerCase() !== "local area") {
+    const escapedFull = address.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    cleaned = cleaned.replace(
+      new RegExp(`(?:\\s+(?:at|in|on|near|across|throughout|located\\s+at|visit\\s+us\\s+at))?\\s*${escapedFull}`, "gi"),
+      ""
+    );
+
+    const segments = address
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.length >= 4);
+    for (const seg of segments) {
+      const looksLikeStreetOrPlot =
+        /\d/.test(seg) ||
+        /\b(street|st|road|rd|avenue|ave|boulevard|blvd|drive|dr|lane|ln|way|plot|suite|ste|floor|building|plaza|mall|park|industrial|highway|crescent|close|erf|stand|unit|shop|block)\b/i.test(seg);
+      if (looksLikeStreetOrPlot) {
+        const escapedSeg = seg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        cleaned = cleaned.replace(
+          new RegExp(`(?:\\s*(?:,|at|in|on|near|across|throughout|located\\s+at))?\\s*${escapedSeg}`, "gi"),
+          ""
+        );
+      }
+    }
+  }
+
+  // Strip common inline street/plot fragments even if formatted slightly differently from raw address
+  cleaned = cleaned
+    .replace(/\b(?:plot|suite|ste|lot|erf|stand|unit)\s+[a-z0-9-]+(?:\s*,)?/gi, "")
+    .replace(/\b\d+\s+[A-Z0-9][a-zA-Z0-9'-]+(?:\s+[A-Z0-9][a-zA-Z0-9'-]+){0,3}\s+(?:Street|St|Road|Rd|Avenue|Ave|Boulevard|Blvd|Drive|Dr|Lane|Ln|Way|Crescent|Close)\b/g, "")
+    .replace(/\b[A-Z][a-zA-Z'-]+(?:\s+[A-Z][a-zA-Z'-]+){0,2}\s+(?:Street|Road|Avenue|Boulevard|Drive|Lane|Crescent|Close)\b/g, "");
+
+  // Repair dangling prepositions after stripping (e.g. "serving  with" -> "serving clients with")
+  cleaned = cleaned
+    .replace(/\b(committed\s+to\s+serving|proudly\s+serving|serving)\s+(?:the\s+)?(?:and\s+|with\b)/gi, "$1 clients with")
+    .replace(/\b(committed\s+to\s+serving|proudly\s+serving|serving)\s*([.,;!]|$)/gi, "$1 local clients$2")
+    .replace(/\s+(?:in|at|on|near|across|throughout|located\s+at)\s*([.,;!]|$)/gi, "$1")
+    .replace(/\bwith\s+with\b/gi, "with")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([.,;!])/g, "$1")
+    .trim();
+
+  return cleaned.length >= 6 ? cleaned : fallbackText;
+}
+
+/**
  * Normalizes any site object to strictly conform to the Canonical Website JSON Schema,
  * enforcing quote-based pricing defaults, source classification, and anti-fabrication safeguards.
  */
@@ -437,7 +520,7 @@ export function normalizeWebsiteSchema(
   const category = site.category || business?.category || "Professional Services";
   const address = site.address || business?.address || "Local Area";
   const phone = site.phone || business?.phone || "+268 7600 0000";
-  const city = address.split(",")[0] || "Local Area";
+  const city = extractCleanCity(address);
 
   const archetype = resolveIndustryArchetype(category);
 
@@ -464,45 +547,15 @@ export function normalizeWebsiteSchema(
     ogImage: site.seo?.ogImage
   };
 
-  // 3. Ensure Hero section (strictly refrain from using physical address details in the hero section)
-  const cleanHeroFromAddress = (text: string | undefined, fallbackText: string): string => {
-    if (!text) return fallbackText;
-    if (site.isUserSupplied) return text;
-    let cleaned = text.trim();
-    if (address && address.toLowerCase() !== "local area") {
-      // Remove full address match if present
-      const escapedFull = address.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      cleaned = cleaned.replace(new RegExp(`(?:\\s+(?:at|in|on|near|across|located\\s+at|visit\\s+us\\s+at))?\\s*${escapedFull}`, "gi"), "");
-
-      // Remove street/plot/suite/address segments (e.g. "14 Somhlolo Road", "Plot 104", "Suite 3")
-      const segments = address
-        .split(",")
-        .map((s) => s.trim())
-        .filter((s) => s.length >= 4);
-      for (const seg of segments) {
-        const looksLikeStreetOrPlot =
-          /\d/.test(seg) ||
-          /\b(street|st|road|rd|avenue|ave|boulevard|blvd|drive|dr|lane|ln|way|plot|suite|ste|floor|building|plaza|mall|park|industrial|highway|way|crescent|close)\b/i.test(seg);
-        if (looksLikeStreetOrPlot) {
-          const escapedSeg = seg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-          cleaned = cleaned.replace(new RegExp(`(?:\\s*(?:,|at|in|on|near|across|located\\s+at))?\\s*${escapedSeg}`, "gi"), "");
-        }
-      }
-      // Clean trailing prepositions left behind (e.g. "Trusted Plumbing in ." or "Services at ,")
-      cleaned = cleaned
-        .replace(/\s+(?:in|at|on|near|across|located\s+at)\s*([.,;!]|$)/gi, "$1")
-        .replace(/\s{2,}/g, " ")
-        .replace(/\s+([.,;!])/g, "$1")
-        .trim();
-    }
-    return cleaned.length >= 6 ? cleaned : fallbackText;
-  };
+  // 3. Ensure Hero section (strictly refrain from using physical address details in non-contact copy)
+  const cleanCopyFromAddress = (text: string | undefined, fallbackText: string): string =>
+    stripAddressFromCopy(text, address, fallbackText, !!site.isUserSupplied);
 
   const sectionImages = getCategorySectionImages(category);
 
   const hero = {
-    title: cleanHeroFromAddress(site.hero?.title, archetype.defaultHeroHeadline(city)),
-    subtitle: cleanHeroFromAddress(site.hero?.subtitle, archetype.defaultHeroSubtitle(city)),
+    title: cleanCopyFromAddress(site.hero?.title, archetype.defaultHeroHeadline(city)),
+    subtitle: cleanCopyFromAddress(site.hero?.subtitle, archetype.defaultHeroSubtitle(city)),
     ctaPrimary: site.hero?.ctaPrimary || archetype.primaryCta,
     ctaSecondary: site.hero?.ctaSecondary || archetype.secondaryCta,
     imageUrl: resolveHeroImageUrl({ hero: site.hero, gallery: site.gallery, category }),
@@ -512,12 +565,15 @@ export function normalizeWebsiteSchema(
     imageMetadata: site.hero?.imageMetadata
   };
 
-  // 4. Ensure About section (populate verified category photo if missing or broken)
+  // 4. Ensure About section (address-free History Pitch Paragraph, Mission, and Pitch)
+  const defaultHistory = `${name} is committed to serving local clients with honest communications, transparent rates, and dedicated craftsmanship.`;
+  const defaultMission = "To deliver reliable, high-quality solutions tailored to your unique requirements.";
+  const defaultPitch = "Whether you require minor repairs, regular maintenance, or full service packages, our team is ready to assist.";
   const about = {
-    title: site.about?.title || `About ${name}`,
-    history: site.about?.history || `${name} is committed to serving ${city} with honest communications, transparent rates, and dedicated craftsmanship.`,
-    mission: site.about?.mission || "To deliver reliable, high-quality solutions tailored to your unique requirements.",
-    pitch: site.about?.pitch || "Whether you require minor repairs, regular maintenance, or full service packages, our team is ready to assist.",
+    title: cleanCopyFromAddress(site.about?.title, `About ${name}`),
+    history: cleanCopyFromAddress(site.about?.history, defaultHistory),
+    mission: cleanCopyFromAddress(site.about?.mission, defaultMission),
+    pitch: cleanCopyFromAddress(site.about?.pitch, defaultPitch),
     imageUrl: !isBrokenOrInvalidImageUrl(site.about?.imageUrl) ? site.about!.imageUrl!.trim() : sectionImages.about,
     imageMetadata: site.about?.imageMetadata
   };
@@ -526,6 +582,10 @@ export function normalizeWebsiteSchema(
   const rawServices: ServiceItem[] = (site.services && site.services.length > 0)
     ? site.services.map((srv, idx) => ({
         ...srv,
+        description: cleanCopyFromAddress(
+          srv.description,
+          `Comprehensive ${(srv.title || category).toLowerCase()} delivered with professional expertise, quality materials, and transparent rates.`
+        ),
         imageUrl: !isBrokenOrInvalidImageUrl(srv.imageUrl)
           ? srv.imageUrl!.trim()
           : sectionImages.services[idx % sectionImages.services.length]
@@ -539,11 +599,17 @@ export function normalizeWebsiteSchema(
 
   const { services: sanitizedServices, sanitizedCount: unverifiedPricesSanitizedCount } = sanitizePricing(rawServices, isPricingVerified);
 
-  // 6. Ensure Features section
+  // 6. Ensure Features section (address-free)
   const features: FeatureItem[] = (site.features && site.features.length > 0)
-    ? site.features
+    ? site.features.map((feat) => ({
+        ...feat,
+        description: cleanCopyFromAddress(
+          feat.description,
+          "Committed to fast turnarounds, clear communication, and dependable local service."
+        )
+      }))
     : [
-        { title: "Dedicated Local Team", icon: "MapPin", description: `Based directly in ${city} for fast turnarounds and responsive service.` },
+        { title: "Dedicated Local Team", icon: "MapPin", description: "Committed to fast turnarounds, clear communication, and responsive service." },
         { title: "Transparent Pricing", icon: "Shield", description: "Upfront quote-based estimates with clear scope and zero hidden fees." },
         { title: "Verified Craftsmanship", icon: "Award", description: "All work conducted by trained specialists adhering strictly to quality standards." }
       ];
@@ -560,12 +626,21 @@ export function normalizeWebsiteSchema(
       })
     : sectionImages.gallery;
 
-  // 8. Ensure FAQs
+  // 8. Ensure FAQs (address-free)
+  const defaultServiceAreaAnswer = city === "Local Area"
+    ? "We proudly serve clients across our local service area and neighboring surrounding regions."
+    : `We proudly serve clients throughout ${city} and neighboring surrounding regions.`;
   const faqs: FAQItem[] = (site.faqs && site.faqs.length > 0)
-    ? site.faqs
+    ? site.faqs.map((faq) => ({
+        ...faq,
+        answer: cleanCopyFromAddress(
+          faq.answer,
+          "Please contact our team directly for tailored details regarding your service request."
+        )
+      }))
     : [
         { question: "How do I get an accurate pricing estimate?", answer: "We provide itemized quotes based on your specific requirements. Click 'Request Free Quote' or contact us directly." },
-        { question: "What areas do you serve?", answer: `We proudly serve clients throughout ${city} and neighboring surrounding regions.` },
+        { question: "What areas do you serve?", answer: defaultServiceAreaAnswer },
         { question: "What is your typical turnaround time?", answer: "Response times depend on project scope, but we strive to respond to all inquiries within 24 hours." }
       ];
 
@@ -578,15 +653,24 @@ export function normalizeWebsiteSchema(
 
   // 10. Ensure Blog
   const blog: BlogPostItem[] = (site.blog && site.blog.length > 0)
-    ? site.blog
+    ? site.blog.map((post) => ({
+        ...post,
+        title: cleanCopyFromAddress(post.title, `Choosing the Right ${category} Partner`),
+        summary: cleanCopyFromAddress(post.summary, `Key factors to consider when selecting local ${category.toLowerCase()} service providers.`)
+      }))
     : [
         { title: `Choosing the Right ${category} Specialist in ${city}`, summary: `Key factors to consider when selecting local ${category.toLowerCase()} service providers.`, category: "Guide" }
       ];
 
   // 11. Contact Page, Policy, Terms, 404
-  const rawEmail = business?.email || site.contactPage?.email;
-  const isFabricatedEmail = rawEmail ? (rawEmail.startsWith("contact@") || rawEmail.startsWith("info@") && !business?.email) : true;
-  const validContactEmail = (rawEmail && !isFabricatedEmail) ? rawEmail : (business?.email || null);
+  const validContactEmail =
+    business?.email && business.email.includes("@")
+      ? business.email.trim()
+      : site.contactPage?.email && site.contactPage.email.includes("@")
+        ? (site.isUserSupplied || !(site.contactPage.email.startsWith("contact@") || site.contactPage.email.startsWith("info@"))
+            ? site.contactPage.email.trim()
+            : null)
+        : null;
 
   const contactPage = {
     title: site.contactPage?.title || `Get in Touch with ${name}`,

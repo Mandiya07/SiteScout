@@ -1,26 +1,32 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { GeneratedSite } from "../types";
 import WebsiteView from "./WebsiteView";
+import { authedFetch } from "../lib/firebase";
+import { generateWhatsappLink, normalizePhoneNumber } from "../lib/formatters";
 import { 
   Copy, Check, Share2, Mail, MessageSquare, QrCode, 
   Clock, CheckCircle, ExternalLink, ArrowRight, Settings, Phone, Calendar, ArrowUpRight,
-  Eye, Smartphone, Monitor, Flame, AlertTriangle, ShieldCheck
+  Eye, Smartphone, Monitor, Flame, AlertTriangle, ShieldCheck, Send, Loader2
 } from "lucide-react";
 
 interface ShareablePreviewProps {
   site: GeneratedSite;
+  businessEmail?: string | null;
   onBackToEditor: () => void;
   onGoToSalesAssistant: () => void;
   onGoToProposals: () => void;
   onOpenPortal: () => void;
+  onUpdateSite?: (updated: GeneratedSite) => void;
 }
 
 export default function ShareablePreview({
   site,
+  businessEmail,
   onBackToEditor,
   onGoToSalesAssistant,
   onGoToProposals,
-  onOpenPortal
+  onOpenPortal,
+  onUpdateSite
 }: ShareablePreviewProps) {
   const [copied, setCopied] = useState(false);
   const [copiedMsg, setCopiedMsg] = useState(false);
@@ -28,6 +34,17 @@ export default function ShareablePreview({
   const [showQr, setShowQr] = useState(false);
   const [expiry, setExpiry] = useState("14");
   const [previewDevice, setPreviewDevice] = useState<"mockup" | "desktop" | "mobile">("mockup");
+  const [recipientEmail, setRecipientEmail] = useState<string>(site.contactPage?.email || businessEmail || "");
+  const [recipientPhone, setRecipientPhone] = useState<string>(site.phone && site.phone.toLowerCase() !== "unlisted" ? site.phone : "");
+  const [sendingChannel, setSendingChannel] = useState<null | "email" | "whatsapp" | "sms">(null);
+  const [sendFeedback, setSendFeedback] = useState<{ type: "success" | "error"; text: string; handoffUrl?: string; channel?: string } | null>(null);
+
+  useEffect(() => {
+    setRecipientEmail(site.contactPage?.email || businessEmail || "");
+    setRecipientPhone(site.phone && site.phone.toLowerCase() !== "unlisted" ? site.phone : "");
+    setSendFeedback(null);
+  }, [site.id, site.contactPage?.email, site.phone, businessEmail]);
+
   const customLink = site.previewToken 
     ? `${window.location.origin}/preview/${site.previewToken}` 
     : `${window.location.origin}/preview/${site.id}`;
@@ -57,15 +74,126 @@ export default function ShareablePreview({
     setTimeout(() => setCopiedMsg(false), 2000);
   };
 
+  const emailSubject = `Free Website Preview for ${site.businessName}`;
+  const emailBodyText = `Hi ${site.businessName} Team,\n\nI created a free website preview for your business matching your verified local brand details.\n\nYou can view the live preview here:\n${customLink}\n\nOnce you check it out and approve it, let's customize and launch it on your custom domain!\n\nBest regards,\nWeb Design Team`;
+  const whatsappText = `Hi! I created a free website preview for ${site.businessName}. You can view the live preview here: ${customLink} - once you approve it, let's customize and launch it!`;
+  const smsText = `Hi ${site.businessName}! I created a free website preview for your business: ${customLink}`;
+
   const getMailShareLink = () => {
-    const subject = encodeURIComponent(`Free Website Preview for ${site.businessName}`);
-    const body = encodeURIComponent(`Hi ${site.businessName} Team,\n\nI created a free website preview for your business matching your verified local brand details.\n\nYou can view the live preview here:\n${customLink}\n\nOnce you check it out and approve it, let's customize and launch it on your custom domain!\n\nBest regards,\nWeb Design Team`);
-    return `mailto:?subject=${subject}&body=${body}`;
+    const cleanEmail = recipientEmail.trim();
+    return `mailto:${cleanEmail}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBodyText)}`;
   };
 
   const getWhatsappShareLink = () => {
-    const text = encodeURIComponent(`Hi! I created a free website preview for ${site.businessName}. You can view the live preview here: ${customLink} - once you approve it, let's customize and launch it!`);
-    return `https://wa.me/?text=${text}`;
+    return generateWhatsappLink(recipientPhone, whatsappText, site.address);
+  };
+
+  const getSmsShareLink = () => {
+    const digits = normalizePhoneNumber(recipientPhone, site.address);
+    const target = digits ? `+${digits}` : recipientPhone.trim();
+    return `sms:${target}?body=${encodeURIComponent(smsText)}`;
+  };
+
+  const triggerSafeHandoff = (url: string, channel: "email" | "whatsapp" | "sms") => {
+    if (!url) return;
+    if (
+      url.startsWith("mailto:") ||
+      url.startsWith("sms:") ||
+      url.startsWith("https://wa.me/")
+    ) {
+      const a = document.createElement("a");
+      a.href = url;
+      if (channel === "whatsapp") {
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+      }
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  };
+
+  const handleSendDemo = async (channel: "email" | "whatsapp" | "sms") => {
+    const cleanEmail = recipientEmail.trim();
+    const cleanPhone = recipientPhone.trim();
+
+    if (channel === "email" && (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail))) {
+      setSendFeedback({ type: "error", text: "Enter a valid recipient email address first." });
+      return;
+    }
+
+    if ((channel === "whatsapp" || channel === "sms") && normalizePhoneNumber(cleanPhone, site.address).length < 7) {
+      setSendFeedback({ type: "error", text: "Enter a valid recipient phone or WhatsApp number first." });
+      return;
+    }
+
+    setSendingChannel(channel);
+    setSendFeedback(null);
+
+    try {
+      const payload = {
+        siteId: site.id,
+        businessId: site.businessId,
+        businessName: site.businessName,
+        previewUrl: customLink,
+        channel,
+        recipientEmail: cleanEmail,
+        recipientPhone: cleanPhone,
+        address: site.address,
+        subject: emailSubject,
+        message: channel === "email" ? emailBodyText : channel === "whatsapp" ? whatsappText : smsText
+      };
+
+      const res = await authedFetch("/api/send-demo-website", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Could not dispatch demo website.");
+      }
+
+      if (onUpdateSite) {
+        onUpdateSite({
+          ...site,
+          phone: cleanPhone || site.phone,
+          salesStatus: "Contacted",
+          salesStage: "PREVIEW_SENT",
+          contactPage: {
+            ...site.contactPage,
+            email: cleanEmail || site.contactPage?.email || null
+          }
+        });
+      }
+
+      if (data.deliveryMode === "client_handoff" && data.protocolUrl) {
+        triggerSafeHandoff(data.protocolUrl, channel);
+        setSendFeedback({
+          type: "success",
+          text: data.message || `Prepared demo link for ${data.recipient}.`,
+          handoffUrl: data.protocolUrl,
+          channel
+        });
+      } else {
+        setSendFeedback({
+          type: "success",
+          text: data.message || `Demo website sent to ${data.recipient}.`
+        });
+      }
+    } catch (err: any) {
+      const fallbackUrl = channel === "email" ? getMailShareLink() : channel === "whatsapp" ? getWhatsappShareLink() : getSmsShareLink();
+      setSendFeedback({
+        type: "error",
+        text: err?.message || "Failed to dispatch demo website.",
+        handoffUrl: fallbackUrl,
+        channel
+      });
+    } finally {
+      setSendingChannel(null);
+    }
   };
 
   const getExpiryDateString = () => {
@@ -504,24 +632,109 @@ export default function ShareablePreview({
 
           {/* Share Channels */}
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Instant Sharing Actions</h3>
-            <p className="text-xs text-slate-500 mt-1 mb-4">Leverage our pre-built channel hooks to initiate outreach instantly.</p>
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Send Demo Website</h3>
+            <p className="text-xs text-slate-500 mt-1 mb-3">Send this created demo website directly to the business&apos;s email or phone/WhatsApp contact details.</p>
+
+            {/* Editable Contact Details */}
+            <div className="space-y-2.5 mb-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-150 dark:border-slate-800">
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+                  Recipient Email Address
+                </label>
+                <input
+                  type="email"
+                  value={recipientEmail}
+                  onChange={(e) => setRecipientEmail(e.target.value)}
+                  placeholder="owner@business.com"
+                  aria-label="Recipient Email Address"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+                  WhatsApp / SMS Number
+                </label>
+                <input
+                  type="tel"
+                  value={recipientPhone}
+                  onChange={(e) => setRecipientPhone(e.target.value)}
+                  placeholder="+268 7600 0000"
+                  aria-label="WhatsApp or SMS Number"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+            </div>
+
+            {sendFeedback && (
+              <div
+                className={`mb-3 p-3 rounded-xl border text-xs space-y-1.5 ${
+                  sendFeedback.type === "success"
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-900 dark:bg-emerald-950/30 dark:border-emerald-900/50 dark:text-emerald-200"
+                    : "bg-rose-50 border-rose-200 text-rose-900 dark:bg-rose-950/30 dark:border-rose-900/50 dark:text-rose-200"
+                }`}
+              >
+                <p className="font-medium leading-relaxed">{sendFeedback.text}</p>
+                {sendFeedback.handoffUrl && (
+                  <a
+                    href={sendFeedback.handoffUrl}
+                    target={sendFeedback.channel === "whatsapp" ? "_blank" : undefined}
+                    rel={sendFeedback.channel === "whatsapp" ? "noopener noreferrer" : undefined}
+                    className="inline-flex items-center gap-1 font-bold underline"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    {sendFeedback.channel === "email"
+                      ? "Open in Email App"
+                      : sendFeedback.channel === "whatsapp"
+                        ? "Open in WhatsApp"
+                        : "Open SMS App"}
+                  </a>
+                )}
+              </div>
+            )}
             
             <div className="space-y-2.5">
-              <a
-                href={getWhatsappShareLink()}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white py-2.5 text-xs font-bold transition-all shadow-sm shadow-emerald-500/10 cursor-pointer"
+              <button
+                type="button"
+                onClick={() => handleSendDemo("email")}
+                disabled={sendingChannel !== null}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white py-2.5 text-xs font-bold transition-all shadow-sm shadow-blue-500/10 cursor-pointer"
               >
-                <MessageSquare className="h-4 w-4" /> Share via WhatsApp
-              </a>
-              <a
-                href={getMailShareLink()}
-                className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 py-2.5 text-xs font-bold dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                {sendingChannel === "email" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Mail className="h-4 w-4" />
+                )}
+                {sendingChannel === "email" ? "Sending Demo Email..." : "Send Demo via Email"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSendDemo("whatsapp")}
+                disabled={sendingChannel !== null}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white py-2.5 text-xs font-bold transition-all shadow-sm shadow-emerald-500/10 cursor-pointer"
               >
-                <Mail className="h-4 w-4 text-blue-500" /> Share via Custom Email
-              </a>
+                {sendingChannel === "whatsapp" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <MessageSquare className="h-4 w-4" />
+                )}
+                {sendingChannel === "whatsapp" ? "Preparing WhatsApp..." : "Send Demo via WhatsApp"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSendDemo("sms")}
+                disabled={sendingChannel !== null}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-60 text-slate-700 py-2.5 text-xs font-bold dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 transition-all cursor-pointer"
+              >
+                {sendingChannel === "sms" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4 text-purple-500" />
+                )}
+                {sendingChannel === "sms" ? "Preparing SMS..." : "Send Demo via SMS"}
+              </button>
+
               <button
                 onClick={() => setShowQr(!showQr)}
                 className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 py-2.5 text-xs font-bold dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 transition-all cursor-pointer"

@@ -1181,7 +1181,8 @@ export default function WebsiteEditor({
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">History Pitch Paragraph</label>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">History Pitch Paragraph</label>
+                  <p className="text-[10px] text-slate-400 mb-1.5">Keep this focused on your story and craftsmanship; physical addresses belong in the Contact tab.</p>
                   <textarea
                     rows={4}
                     value={site.about.history}

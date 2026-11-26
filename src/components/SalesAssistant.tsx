@@ -1,29 +1,48 @@
 import { useState, useEffect } from "react";
-import { GeneratedSite, SalesOutreach } from "../types";
-import { generateWhatsappLink } from "../lib/formatters";
+import { Business, GeneratedSite, SalesOutreach } from "../types";
+import { generateWhatsappLink, normalizePhoneNumber } from "../lib/formatters";
+import { extractCleanCity } from "../lib/websiteSchema";
 import { authedFetch } from "../lib/firebase";
 import { 
   Copy, Check, MessageSquare, Mail, Phone, Send, Sparkles, Loader2, Info, ArrowLeft, RefreshCw,
-  Smartphone, MessageCircle, Linkedin, ChevronRight, Share2, AlertCircle
+  Smartphone, MessageCircle, Linkedin, ChevronRight, Share2, AlertCircle, ExternalLink
 } from "lucide-react";
 
 interface SalesAssistantProps {
   site: GeneratedSite;
+  business?: Business | null;
   onBack: () => void;
+  onUpdateSite?: (updated: GeneratedSite) => void;
 }
 
 type ChannelType = "whatsapp" | "email" | "sms" | "coldCall" | "followUp" | "linkedin" | "messenger";
 type ViewMode = "channels" | "templates";
 
-export default function SalesAssistant({ site, onBack }: SalesAssistantProps) {
+export default function SalesAssistant({ site, business, onBack, onUpdateSite }: SalesAssistantProps) {
   const [tone, setTone] = useState<string>("Persuasive");
   const [loading, setLoading] = useState<boolean>(false);
   const [copiedSection, setCopiedSection] = useState<string>("");
   const [activeChannel, setActiveChannel] = useState<ChannelType>("whatsapp");
   const [viewMode, setViewMode] = useState<ViewMode>("channels");
   const [outreach, setOutreach] = useState<SalesOutreach | null>(null);
+  const [recipientEmail, setRecipientEmail] = useState<string>(site.contactPage?.email || business?.email || "");
+  const [recipientPhone, setRecipientPhone] = useState<string>(
+    (site.phone && site.phone.toLowerCase() !== "unlisted" ? site.phone : "") ||
+    (business?.phone && business.phone.toLowerCase() !== "unlisted" ? business.phone : "")
+  );
+  const [sendingChannel, setSendingChannel] = useState<null | "email" | "whatsapp" | "sms">(null);
+  const [sendFeedback, setSendFeedback] = useState<{ type: "success" | "error"; text: string; handoffUrl?: string; channel?: string } | null>(null);
 
-  const isDemo = site.isDemo === true || site.dataType === "demo";
+  useEffect(() => {
+    setRecipientEmail(site.contactPage?.email || business?.email || "");
+    setRecipientPhone(
+      (site.phone && site.phone.toLowerCase() !== "unlisted" ? site.phone : "") ||
+      (business?.phone && business.phone.toLowerCase() !== "unlisted" ? business.phone : "")
+    );
+    setSendFeedback(null);
+  }, [site.id, site.contactPage?.email, site.phone, business?.email, business?.phone]);
+
+  const isDemo = business?.evidence?.verificationStatus === "sample_demo" || (site.isDemo === true && site.dataType === "demo" && !recipientEmail);
 
   const fetchOutreachTemplates = async (selectedTone: string) => {
     setLoading(true);
@@ -100,7 +119,104 @@ export default function SalesAssistant({ site, onBack }: SalesAssistantProps) {
   };
 
   const getWhatsappHref = (msg: string) => {
-    return generateWhatsappLink(site.phone, msg, site.address);
+    return generateWhatsappLink(recipientPhone, msg, site.address);
+  };
+
+  const triggerSafeHandoff = (url: string, channel: "email" | "whatsapp" | "sms") => {
+    if (!url) return;
+    if (url.startsWith("mailto:") || url.startsWith("sms:") || url.startsWith("https://wa.me/")) {
+      const a = document.createElement("a");
+      a.href = url;
+      if (channel === "whatsapp") {
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+      }
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  };
+
+  const handleDispatchChannel = async (channel: "email" | "whatsapp" | "sms") => {
+    if (!outreach) return;
+    const cleanEmail = recipientEmail.trim();
+    const cleanPhone = recipientPhone.trim();
+
+    if (channel === "email" && (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail))) {
+      setSendFeedback({ type: "error", text: "Please enter a valid recipient email address." });
+      return;
+    }
+    if ((channel === "whatsapp" || channel === "sms") && normalizePhoneNumber(cleanPhone, site.address).length < 7) {
+      setSendFeedback({ type: "error", text: "Please enter a valid phone or WhatsApp number." });
+      return;
+    }
+
+    const emailParsed = parseEmailContent(outreach.email);
+    const subject = channel === "email" ? emailParsed.subject : `Free Website Preview for ${site.businessName}`;
+    const message = channel === "email" ? emailParsed.body : channel === "whatsapp" ? outreach.whatsapp : outreach.sms;
+
+    setSendingChannel(channel);
+    setSendFeedback(null);
+
+    try {
+      const res = await authedFetch("/api/send-demo-website", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          siteId: site.id,
+          businessId: site.businessId,
+          businessName: site.businessName,
+          previewUrl: getPreviewUrl(),
+          channel,
+          recipientEmail: cleanEmail,
+          recipientPhone: cleanPhone,
+          address: site.address,
+          subject,
+          message
+        })
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Could not send demo website.");
+      }
+
+      if (onUpdateSite) {
+        onUpdateSite({
+          ...site,
+          phone: cleanPhone || site.phone,
+          salesStatus: "Contacted",
+          salesStage: "PREVIEW_SENT",
+          contactPage: {
+            ...site.contactPage,
+            email: cleanEmail || site.contactPage?.email || null
+          }
+        });
+      }
+
+      if (data.deliveryMode === "client_handoff" && data.protocolUrl) {
+        triggerSafeHandoff(data.protocolUrl, channel);
+        setSendFeedback({
+          type: "success",
+          text: data.message || `Prepared demo dispatch for ${data.recipient}.`,
+          handoffUrl: data.protocolUrl,
+          channel
+        });
+      } else {
+        setSendFeedback({
+          type: "success",
+          text: data.message || `Demo website sent to ${data.recipient}.`
+        });
+      }
+    } catch (err: any) {
+      setSendFeedback({
+        type: "error",
+        text: err?.message || "Failed to send demo website."
+      });
+    } finally {
+      setSendingChannel(null);
+    }
   };
 
   // Helper to parse subject and body from the email template
@@ -129,7 +245,7 @@ export default function SalesAssistant({ site, onBack }: SalesAssistantProps) {
     return { subject, body };
   };
 
-  const city = site.address ? (site.address.split(",")[1]?.trim() || site.address.split(",")[0]?.trim() || "Local Area") : "Local Area";
+  const city = extractCleanCity(site.address);
   const previewLink = getPreviewUrl();
 
   const channels: { id: ChannelType; label: string; sub: string; icon: any; color: string; bg: string; border: string; tip: string }[] = [
@@ -463,10 +579,16 @@ export default function SalesAssistant({ site, onBack }: SalesAssistantProps) {
                 {activeChannel === "whatsapp" && outreach && (
                   <div className="space-y-3 font-sans">
                     <div className="flex items-center space-x-2 bg-slate-50 dark:bg-slate-950/40 p-2.5 rounded-xl border border-slate-100 dark:border-slate-850">
-                      <div className="h-7 w-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">W</div>
-                      <div className="text-left">
-                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Target Owner Contact</p>
-                        <p className="text-xs font-bold text-slate-800 dark:text-slate-300">{site.phone}</p>
+                      <div className="h-7 w-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs shrink-0">W</div>
+                      <div className="text-left flex-1">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">Target Owner WhatsApp Number</label>
+                        <input
+                          type="tel"
+                          value={recipientPhone}
+                          onChange={(e) => setRecipientPhone(e.target.value)}
+                          placeholder="+268 7600 0000"
+                          className="w-full text-xs font-bold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-2.5 py-1 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                        />
                       </div>
                     </div>
                     
@@ -490,13 +612,20 @@ export default function SalesAssistant({ site, onBack }: SalesAssistantProps) {
                   return (
                     <div className="space-y-3 font-sans">
                       {/* Email Header Panel */}
-                      <div className="space-y-1.5 bg-slate-50 dark:bg-slate-950/40 p-3.5 rounded-xl border border-slate-200/60 dark:border-slate-850">
-                        <div className="flex items-center text-xs text-slate-500 dark:text-slate-450">
-                          <span className="w-16 font-bold uppercase tracking-wider">To:</span>
-                          <span className="text-slate-800 dark:text-slate-200 font-semibold truncate bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 px-2 py-0.5 rounded">owner@{site.businessName.toLowerCase().replace(/[^a-z0-9]/g, "")}.com</span>
+                      <div className="space-y-2 bg-slate-50 dark:bg-slate-950/40 p-3.5 rounded-xl border border-slate-200/60 dark:border-slate-850">
+                        <div className="flex items-center text-xs text-slate-500 dark:text-slate-450 gap-2">
+                          <span className="w-16 font-bold uppercase tracking-wider shrink-0">To:</span>
+                          <input
+                            type="email"
+                            value={recipientEmail}
+                            onChange={(e) => setRecipientEmail(e.target.value)}
+                            placeholder="Enter business email address..."
+                            aria-label="Recipient Business Email"
+                            className="flex-1 text-slate-800 dark:text-slate-200 font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-2.5 py-1 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
                         </div>
-                        <div className="flex items-center text-xs text-slate-500 dark:text-slate-450 border-t border-slate-100 dark:border-slate-800/60 pt-2">
-                          <span className="w-16 font-bold uppercase tracking-wider">Subject:</span>
+                        <div className="flex items-center text-xs text-slate-500 dark:text-slate-450 border-t border-slate-100 dark:border-slate-800/60 pt-2 gap-2">
+                          <span className="w-16 font-bold uppercase tracking-wider shrink-0">Subject:</span>
                           <span className="text-slate-900 dark:text-slate-100 font-extrabold truncate">{emailDetails.subject}</span>
                         </div>
                       </div>
@@ -511,7 +640,17 @@ export default function SalesAssistant({ site, onBack }: SalesAssistantProps) {
 
                 {/* 3. SMS SMARTPHONE SCREEN */}
                 {activeChannel === "sms" && outreach && (
-                  <div className="flex items-center justify-center py-2">
+                  <div className="space-y-3 flex flex-col items-center py-2">
+                    <div className="w-full max-w-[300px] bg-slate-50 dark:bg-slate-950/40 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-left">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">Recipient SMS Number</label>
+                      <input
+                        type="tel"
+                        value={recipientPhone}
+                        onChange={(e) => setRecipientPhone(e.target.value)}
+                        placeholder="+268 7600 0000"
+                        className="w-full text-xs font-bold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-2.5 py-1 rounded-lg focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                    </div>
                     <div className="w-[300px] bg-slate-100 dark:bg-slate-950 rounded-3xl p-3 border border-slate-200 dark:border-slate-800 shadow-md">
                       <div className="h-5 flex items-center justify-between text-[9px] text-slate-400 font-mono px-2 mb-1">
                         <span>12:00 PM</span>
@@ -598,11 +737,38 @@ export default function SalesAssistant({ site, onBack }: SalesAssistantProps) {
                 </p>
               </div>
 
+              {sendFeedback && (
+                <div
+                  className={`px-4 py-2.5 border-t text-xs flex flex-wrap items-center justify-between gap-2 ${
+                    sendFeedback.type === "success"
+                      ? "bg-emerald-50 border-emerald-200 text-emerald-900 dark:bg-emerald-950/30 dark:border-emerald-900/50 dark:text-emerald-200"
+                      : "bg-rose-50 border-rose-200 text-rose-900 dark:bg-rose-950/30 dark:border-rose-900/50 dark:text-rose-200"
+                  }`}
+                >
+                  <span className="font-medium">{sendFeedback.text}</span>
+                  {sendFeedback.handoffUrl && (
+                    <a
+                      href={sendFeedback.handoffUrl}
+                      target={sendFeedback.channel === "whatsapp" ? "_blank" : undefined}
+                      rel={sendFeedback.channel === "whatsapp" ? "noopener noreferrer" : undefined}
+                      className="inline-flex items-center gap-1 font-bold underline shrink-0"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      {sendFeedback.channel === "email" ? "Open Email App" : sendFeedback.channel === "whatsapp" ? "Open WhatsApp" : "Open SMS App"}
+                    </a>
+                  )}
+                </div>
+              )}
+
               {/* Action Footer */}
               <div className="p-4 bg-white border-t border-slate-200 shrink-0 dark:bg-slate-900 dark:border-slate-850 flex flex-col sm:flex-row items-center justify-between gap-3 text-left">
                 <div className="text-left w-full sm:w-auto">
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Target Destination</span>
-                  <span className="text-xs font-bold text-slate-600 dark:text-slate-300 truncate block max-w-xs">{site.phone || "No contact number recorded"}</span>
+                  <span className="text-xs font-bold text-slate-600 dark:text-slate-300 truncate block max-w-xs">
+                    {activeChannel === "email"
+                      ? (recipientEmail || "No email provided yet")
+                      : (recipientPhone || "No contact number recorded")}
+                  </span>
                 </div>
                 
                 <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
@@ -635,15 +801,52 @@ export default function SalesAssistant({ site, onBack }: SalesAssistantProps) {
                         <span>Locked: Demo Data</span>
                       </button>
                     ) : (
-                      <a
-                        href={getWhatsappHref(outreach.whatsapp)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2.5 text-xs font-bold transition-all shadow-md shadow-emerald-500/10 cursor-pointer"
+                      <button
+                        type="button"
+                        onClick={() => handleDispatchChannel("whatsapp")}
+                        disabled={sendingChannel !== null}
+                        className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white px-5 py-2.5 text-xs font-bold transition-all shadow-md shadow-emerald-500/10 cursor-pointer"
                       >
-                        <Send className="h-3.5 w-3.5 fill-white" /> Open Chat
-                      </a>
+                        {sendingChannel === "whatsapp" ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Send className="h-3.5 w-3.5 fill-white" />
+                        )}
+                        {sendingChannel === "whatsapp" ? "Preparing..." : "Send via WhatsApp"}
+                      </button>
                     )
+                  )}
+
+                  {activeChannel === "email" && outreach && (
+                    <button
+                      type="button"
+                      onClick={() => handleDispatchChannel("email")}
+                      disabled={sendingChannel !== null}
+                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white px-5 py-2.5 text-xs font-bold transition-all shadow-md shadow-blue-500/10 cursor-pointer"
+                    >
+                      {sendingChannel === "email" ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Mail className="h-3.5 w-3.5" />
+                      )}
+                      {sendingChannel === "email" ? "Sending..." : "Send Demo Email"}
+                    </button>
+                  )}
+
+                  {activeChannel === "sms" && outreach && (
+                    <button
+                      type="button"
+                      onClick={() => handleDispatchChannel("sms")}
+                      disabled={sendingChannel !== null}
+                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-60 text-white px-5 py-2.5 text-xs font-bold transition-all shadow-md shadow-purple-500/10 cursor-pointer"
+                    >
+                      {sendingChannel === "sms" ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Smartphone className="h-3.5 w-3.5" />
+                      )}
+                      {sendingChannel === "sms" ? "Preparing..." : "Send via SMS"}
+                    </button>
                   )}
                 </div>
               </div>

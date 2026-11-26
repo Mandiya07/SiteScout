@@ -32,6 +32,7 @@ import { toCanonicalStage } from "./lib/prospectCrm";
 import { deduplicateAndIngestBusinesses } from "./lib/businessIdentity";
 import { fetchUserBusinesses, saveBusinessRecord, ingestAndPersistBusinesses } from "./lib/businessPersistence";
 import { applyWebsiteUpdate } from "./lib/websiteVersioning";
+import { sortBusinessesEmailFirst } from "./lib/searchNormalization";
 import { 
   Search, Globe, Award, Trophy, User, MessageSquare, Phone, MapPin, 
   CheckCircle2, AlertTriangle, ShieldCheck, HeartCrack, Flame, TrendingUp, Users, ArrowRight, BookOpen, Database, Handshake, Sparkles, Clock, Calendar,
@@ -712,6 +713,9 @@ export default function App() {
       const pageNum = filters.page || 1;
       const isAppend = pageNum > 1;
 
+      // Always prioritize businesses that have email addresses first
+      resolvedBizs = sortBusinessesEmailFirst(resolvedBizs);
+
       // Ingest and persist through canonical persistence service in background
       ingestAndPersistBusinesses(resolvedBizs, session?.uid).catch(err => {
         console.warn("[Ingestion] Background persistence notice:", err);
@@ -723,7 +727,7 @@ export default function App() {
           const cleanPrev = prev.filter(b => !b.isDemo && b.dataType !== "demo" && !b.id?.startsWith("demo-"));
           const existingIds = new Set(cleanPrev.map(b => b.id));
           const uniqueNew = resolvedBizs.filter(b => !existingIds.has(b.id));
-          return [...cleanPrev, ...uniqueNew];
+          return sortBusinessesEmailFirst([...cleanPrev, ...uniqueNew]);
         });
       } else {
         setBusinesses(resolvedBizs);
@@ -748,18 +752,20 @@ export default function App() {
     } catch (error) {
       console.warn("Search API error:", error);
       // Absolute safety guarantee: ensure directory catalog is always rendered even on catastrophic network error
-      const emergencyBizs = getClientMockBusinesses(
-        filters.city || "Mbabane",
-        filters.category || "Construction",
-        filters.country || "Eswatini",
-        filters.keywords || "",
-        filters.page || 1
+      const emergencyBizs = sortBusinessesEmailFirst(
+        getClientMockBusinesses(
+          filters.city || "Mbabane",
+          filters.category || "Construction",
+          filters.country || "Eswatini",
+          filters.keywords || "",
+          filters.page || 1
+        )
       );
       if (filters.page && filters.page > 1) {
         setBusinesses(prev => {
           const cleanPrev = prev.filter(b => !b.isDemo && b.dataType !== "demo" && !b.id?.startsWith("demo-"));
           const existingIds = new Set(cleanPrev.map(b => b.id));
-          return [...cleanPrev, ...emergencyBizs.filter(b => !existingIds.has(b.id))];
+          return sortBusinessesEmailFirst([...cleanPrev, ...emergencyBizs.filter(b => !existingIds.has(b.id))]);
         });
       } else {
         setBusinesses(emergencyBizs);

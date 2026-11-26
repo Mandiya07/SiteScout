@@ -638,16 +638,23 @@ async function handleSearchAndDiscovery(req: express.Request, res: express.Respo
       isCached: true
     });
 
+    const sortedCached = [...(cached.businesses || [])].sort((a: any, b: any) => {
+      const aHasEmail = Boolean((a.email && String(a.email).includes("@")) || a.presence?.hasEmail) ? 1 : 0;
+      const bHasEmail = Boolean((b.email && String(b.email).includes("@")) || b.presence?.hasEmail) ? 1 : 0;
+      if (bHasEmail !== aHasEmail) return bHasEmail - aHasEmail;
+      return (b.relevanceScore || 0) - (a.relevanceScore || 0);
+    });
+
     console.log(`[Search Cache] Serving cached results for query key: ${cacheKey}`);
     return res.json({
       success: true,
       correlationId,
-      businesses: cached.businesses,
+      businesses: sortedCached,
       groundingUrls: cached.groundingUrls,
       source: "cache",
       isCached: true,
       cachedAt: cached.cachedAt,
-      totalResults: cached.totalResults
+      totalResults: sortedCached.length
     });
   }
 
@@ -734,8 +741,9 @@ CRITICAL ACCURACY & CONTACT AUTHENTICITY MANDATES FOR ALL CITIES GLOBALLY:
      ${phoneRulesText}
      * Identify their real contact phone number as listed in public directories.
      * If no real public phone number is published, state "Unlisted". NEVER make up digits.
-   - EMAIL ADDRESS RULES (ZERO FABRICATION):
-     * Identify their real public contact email address ONLY if genuinely published in public business directories (e.g. info@..., sales@..., enquiries@...).
+   - EMAIL ADDRESS RULES (ZERO FABRICATION & PRIORITIZATION):
+     * Prioritize discovering and listing FIRST those real businesses that publish a genuine public contact email address in directories (e.g. info@..., sales@..., enquiries@...) so proposals can be sent to them immediately.
+     * Identify their real public contact email address ONLY if genuinely published in public business directories.
      * If NO public email address is listed or published, set "email": null or "Unlisted".
      * ABSOLUTELY NEVER synthesize, fabricate, or make up an email address (such as "contact@businessname.com" or "info@..."). The user will be sending real proposals and websites to these contacts, so invalid made-up emails will bounce and cause severe operational problems!
    - Identify their exact source URL where this business listing was found (e.g. Yellow Pages page, directory URL, or business social profile).
@@ -1106,6 +1114,14 @@ Return ONLY a valid JSON array of 6 to 10 real businesses enclosed in \`\`\`json
         if (!b.id || seenIds.has(b.id)) return false;
         seenIds.add(b.id);
         return true;
+      });
+
+      // List businesses with genuine published emails first, then sort by relevanceScore
+      dedupedBizs.sort((a: any, b: any) => {
+        const aHasEmail = Boolean((a.email && String(a.email).includes("@")) || a.presence?.hasEmail) ? 1 : 0;
+        const bHasEmail = Boolean((b.email && String(b.email).includes("@")) || b.presence?.hasEmail) ? 1 : 0;
+        if (bHasEmail !== aHasEmail) return bHasEmail - aHasEmail;
+        return (b.relevanceScore || 0) - (a.relevanceScore || 0);
       });
 
       // Save to short-term search cache

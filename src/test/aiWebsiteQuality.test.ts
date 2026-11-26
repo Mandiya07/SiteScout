@@ -22,6 +22,8 @@ import { resolveHeroImageUrl, getCategoryHeroImage, getCategorySectionImages, is
 import { generateClientMockSite } from "../lib/clientFallback";
 import { generateStaticHtml, escapeHtml, sanitizeUrl } from "../lib/htmlGenerator";
 import { filterWebsites } from "../components/MyWebsites";
+import { filterAndRankSearchResults, hasAuthenticBusinessEmail } from "../lib/searchNormalization";
+import { getAuthenticDirectoryBusinesses } from "../lib/authenticDirectory";
 import { Business, GeneratedSite, BusinessTruthProfile } from "../types";
 
 describe("MICRO-PHASE 19C: AI Website Generation & Visual Quality Validation", () => {
@@ -520,6 +522,63 @@ describe("MICRO-PHASE 19C: AI Website Generation & Visual Quality Validation", (
       const myWebsitesSrc = fs.readFileSync(path.resolve(process.cwd(), "src/components/MyWebsites.tsx"), "utf-8");
       assert.ok(myWebsitesSrc.includes('aria-label="Filter websites by business name or tags"'));
       assert.ok(myWebsitesSrc.includes('placeholder="Search by business name or tags..."'));
+    });
+  });
+
+  describe("I. Email-First Search Ranking & Prioritization", () => {
+    it("ranks businesses with genuine email addresses first in search results and directory listings", () => {
+      const query = { city: "Mbabane", country: "Eswatini", category: "Construction" };
+      const rawResults = [
+        {
+          name: "Mbabane No-Email Builders",
+          category: "Construction",
+          address: "Mbabane CBD, Eswatini",
+          phone: "+268 2404 1111",
+          email: null,
+          rating: 4.9
+        },
+        {
+          name: "Swazi Unlisted Email Construction",
+          category: "Construction",
+          address: "Mbabane Industrial, Eswatini",
+          phone: "+268 2404 2222",
+          email: "Unlisted",
+          rating: 4.8
+        },
+        {
+          name: "Capital Civil Contractors",
+          category: "Construction",
+          address: "Mbabane, Eswatini",
+          phone: "+268 2404 3333",
+          email: "tenders@capitalcivil.co.sz",
+          rating: 4.2
+        }
+      ];
+
+      const ranked = filterAndRankSearchResults(rawResults, query, "Yellow Pages Eswatini");
+      assert.strictEqual(ranked.length, 3);
+      assert.strictEqual(ranked[0].name, "Capital Civil Contractors", "Business with valid email must be ranked first");
+      assert.strictEqual(hasAuthenticBusinessEmail(ranked[0]), true);
+      assert.strictEqual(hasAuthenticBusinessEmail(ranked[1]), false);
+      assert.strictEqual(hasAuthenticBusinessEmail(ranked[2]), false);
+
+      // Verify directory lookup never places non-email items ahead of email items on page 1
+      const directoryResults = getAuthenticDirectoryBusinesses("Mbabane", "Construction", "Eswatini", "", 1);
+      if (directoryResults.some(hasAuthenticBusinessEmail)) {
+        let seenNoEmail = false;
+        for (const biz of directoryResults) {
+          const hasEmail = hasAuthenticBusinessEmail(biz);
+          if (!hasEmail) seenNoEmail = true;
+          if (hasEmail && seenNoEmail) {
+            assert.fail(`Found emailable business '${biz.name}' listed after non-emailable business`);
+          }
+        }
+      }
+
+      // Verify BusinessFinder defaults to email_first sortOrder
+      const finderSrc = fs.readFileSync(path.resolve(process.cwd(), "src/components/BusinessFinder.tsx"), "utf-8");
+      assert.ok(finderSrc.includes("useState<'email_first'"), "BusinessFinder must default sortOrder to email_first");
+      assert.ok(finderSrc.includes('value="email_first"'), "BusinessFinder sort dropdown must include email_first option");
     });
   });
 

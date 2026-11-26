@@ -1805,6 +1805,14 @@ export function getAuthenticDirectoryBusinesses(
     return locationMatches && catMatches && kwMatches;
   });
 
+  // Prioritize businesses that have a genuine, sanitized email address first
+  matched.sort((a, b) => {
+    const aHasEmail = Boolean(sanitizeAuthenticEmail(a.email, a.name)) ? 1 : 0;
+    const bHasEmail = Boolean(sanitizeAuthenticEmail(b.email, b.name)) ? 1 : 0;
+    if (bHasEmail !== aHasEmail) return bHasEmail - aHasEmail;
+    return 0;
+  });
+
   // Calculate pagination window
   const pageSize = 10;
   const startIdx = (Math.max(1, page) - 1) * pageSize;

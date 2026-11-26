@@ -425,7 +425,43 @@ export function normalizeSearchResult(
 }
 
 /**
- * Filters out completely irrelevant search results and ranks relevant businesses by relevance score.
+ * Determines whether a business record has a genuine, usable email address.
+ */
+export function hasAuthenticBusinessEmail(
+  biz: { email?: string | null; presence?: { hasEmail?: boolean } | null; contactProfile?: any } | null | undefined
+): boolean {
+  if (!biz) return false;
+  const rawEmail = typeof biz.email === "string" ? biz.email.trim() : "";
+  const lower = rawEmail.toLowerCase();
+  const hasEmailString =
+    rawEmail.length > 0 &&
+    rawEmail.includes("@") &&
+    !["unlisted", "none", "n/a", "null", "undefined", "not listed"].includes(lower);
+  const hasProfileEmail = Boolean(
+    biz.contactProfile?.primaryEmail?.normalizedValue ||
+    biz.contactProfile?.primaryEmail?.value
+  );
+  return hasEmailString || Boolean(biz.presence?.hasEmail) || hasProfileEmail;
+}
+
+/**
+ * Returns a new array with businesses that have valid email addresses listed first,
+ * preserving relative relevance/score ordering within each group.
+ */
+export function sortBusinessesEmailFirst<T extends { email?: string | null; presence?: { hasEmail?: boolean } | null; contactProfile?: any; relevanceScore?: number }>(
+  list: T[]
+): T[] {
+  return [...list].sort((a, b) => {
+    const aHasEmail = hasAuthenticBusinessEmail(a) ? 1 : 0;
+    const bHasEmail = hasAuthenticBusinessEmail(b) ? 1 : 0;
+    if (bHasEmail !== aHasEmail) return bHasEmail - aHasEmail;
+    return (b.relevanceScore || 0) - (a.relevanceScore || 0);
+  });
+}
+
+/**
+ * Filters out completely irrelevant search results and ranks businesses with emails first,
+ * followed by relevance score descending.
  */
 export function filterAndRankSearchResults(
   rawResults: any[],
@@ -455,10 +491,8 @@ export function filterAndRankSearchResults(
     }
   }
 
-  // Sort by relevance score descending
-  deduplicatedList.sort((a, b) => (b.relevanceScore || 0) - (a.relevanceScore || 0));
-
-  return deduplicatedList;
+  // Sort businesses with email addresses first, then by relevance score descending
+  return sortBusinessesEmailFirst(deduplicatedList);
 }
 
 /**

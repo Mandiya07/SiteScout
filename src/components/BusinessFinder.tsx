@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Business, SearchFilters, DigitalDeficitAudit } from '../types';
 import { SearchHistorySidebar } from './SearchHistorySidebar';
+import { hasAuthenticBusinessEmail } from '../lib/searchNormalization';
 
 interface BusinessFinderProps {
   businesses: Business[];
@@ -97,8 +98,9 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
   const [dataTypeFilter, setDataTypeFilter] = useState<'all' | 'real' | 'demo'>('all');
   const [branchFilter, setBranchFilter] = useState<'all' | 'branch_a' | 'branch_b'>('all');
   const [noWebsiteOnly, setNoWebsiteOnly] = useState<boolean>(false);
+  const [emailOnly, setEmailOnly] = useState<boolean>(false);
   const [showArchitectureGuide, setShowArchitectureGuide] = useState<boolean>(false);
-  const [sortOrder, setSortOrder] = useState<'deficits_desc' | 'rating_desc' | 'rating_asc' | 'score_asc'>('deficits_desc');
+  const [sortOrder, setSortOrder] = useState<'email_first' | 'deficits_desc' | 'rating_desc' | 'rating_asc' | 'score_asc'>('email_first');
   const [copiedExport, setCopiedExport] = useState(false);
   const [showFiltersPanel, setShowFiltersPanel] = useState(true);
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -153,6 +155,7 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
   // Pipeline Branch counts
   const branchACount = useMemo(() => businesses.filter(b => b.presence?.hasWebsite || b.pipelineBranch === "BRANCH_A_WEBSITE_AUDITED").length, [businesses]);
   const branchBCount = useMemo(() => businesses.filter(b => (!b.presence?.hasWebsite) || b.pipelineBranch === "BRANCH_B_CANDIDATE_VERIFIED").length, [businesses]);
+  const hasEmailCount = useMemo(() => businesses.filter(b => !isDemoBusiness(b) && hasAuthenticBusinessEmail(b)).length, [businesses]);
 
   // Memoized deficit cache using WeakMap for optimal garbage collection and rendering performance
   const deficitCache = useMemo(() => new WeakMap<Business, DigitalDeficitAudit>(), []);
@@ -202,6 +205,10 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
       result = result.filter(b => !b.presence?.hasWebsite);
     }
 
+    if (emailOnly) {
+      result = result.filter(b => hasAuthenticBusinessEmail(b));
+    }
+
     // Apply active deficit filters (must have ALL selected deficits)
     if (activeDeficitFilters.length > 0) {
       result = result.filter(biz => {
@@ -213,7 +220,14 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
     result.sort((a, b) => {
       const aDefs = a.deficitCount ?? Object.values(getBusinessDeficits(a)).filter(Boolean).length;
       const bDefs = b.deficitCount ?? Object.values(getBusinessDeficits(b)).filter(Boolean).length;
-      
+      const aHasEmail = hasAuthenticBusinessEmail(a) ? 1 : 0;
+      const bHasEmail = hasAuthenticBusinessEmail(b) ? 1 : 0;
+
+      if (sortOrder === 'email_first') {
+        if (bHasEmail !== aHasEmail) return bHasEmail - aHasEmail;
+        if (bDefs !== aDefs) return bDefs - aDefs;
+        return (b.rating || 0) - (a.rating || 0);
+      }
       if (sortOrder === 'deficits_desc') return bDefs - aDefs;
       if (sortOrder === 'score_asc') return (a.presenceScore || 50) - (b.presenceScore || 50);
       if (sortOrder === 'rating_asc') return a.rating - b.rating;
@@ -221,12 +235,12 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
     });
 
     return result;
-  }, [businesses, branchFilter, noWebsiteOnly, activeDeficitFilters, sortOrder, deficitCache]);
+  }, [businesses, branchFilter, noWebsiteOnly, emailOnly, activeDeficitFilters, sortOrder, deficitCache]);
 
   // Reset page when filter criteria change
   useEffect(() => {
     setCurrentPage(1);
-  }, [branchFilter, noWebsiteOnly, activeDeficitFilters, sortOrder, pageSize]);
+  }, [branchFilter, noWebsiteOnly, emailOnly, activeDeficitFilters, sortOrder, pageSize]);
 
   // High-performance client-side pagination slicing
   const totalPages = Math.max(1, Math.ceil(filteredAndSortedBusinesses.length / pageSize));
@@ -707,6 +721,7 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
                 onChange={(e) => setSortOrder(e.target.value as any)}
                 className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:border-blue-500"
               >
+                <option value="email_first">Has Email First (Ready for Outreach)</option>
                 <option value="deficits_desc">Most Deficits First (Highest Need)</option>
                 <option value="score_asc">Lowest Presence Score (Urgent)</option>
                 <option value="rating_desc">Highest Rated Reviews</option>
@@ -765,6 +780,20 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
               >
                 <Zap className="w-3.5 h-3.5" />
                 Branch B: No Website Discovered ({branchBCount})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setEmailOnly(prev => !prev)}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  emailOnly
+                    ? "bg-blue-600 text-white shadow-xs"
+                    : "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100"
+                }`}
+                title="Show only businesses that have a verified public email address for sending demo websites"
+              >
+                <Mail className="w-3.5 h-3.5" />
+                Has Email ({hasEmailCount})
               </button>
             </div>
 

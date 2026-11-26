@@ -6,6 +6,7 @@ import { Business, GeneratedSite, UserSession, SearchFilters, SalesStatus } from
 import { useAuth } from "./lib/AuthContext";
 import Auth from "./components/Auth";
 import Navbar from "./components/Navbar";
+import { OfflineIndicator } from "./components/OfflineIndicator";
 import Onboarding from "./components/Onboarding";
 import BusinessFinder from "./components/BusinessFinder";
 import { addSearchHistoryItem } from "./components/SearchHistorySidebar";
@@ -108,6 +109,51 @@ export interface SearchHistoryEntry {
 
 const SEARCH_HISTORY_STORAGE_KEY = 'sitescout_search_history_v1';
 const MAX_SEARCH_HISTORY = 5;
+const OFFLINE_SEARCH_CACHE_KEY = 'sitescout_search_cache_v1';
+const MAX_OFFLINE_SEARCH_CACHE = 15;
+
+function buildClientSearchCacheKey(filters: SearchFilters): string {
+  return [
+    (filters.country || 'Eswatini').trim().toLowerCase(),
+    (filters.city || 'Mbabane').trim().toLowerCase(),
+    (filters.town || '').trim().toLowerCase(),
+    (filters.category || 'Construction').trim().toLowerCase(),
+    (filters.keywords || '').trim().toLowerCase(),
+    String(filters.page || 1),
+  ].join('|');
+}
+
+function readOfflineSearchCache(filters: SearchFilters): { businesses: Business[]; source: string } | null {
+  try {
+    if (typeof localStorage === 'undefined') return null;
+    const raw = localStorage.getItem(OFFLINE_SEARCH_CACHE_KEY);
+    if (!raw) return null;
+    const entries = JSON.parse(raw);
+    if (!Array.isArray(entries)) return null;
+    const key = buildClientSearchCacheKey(filters);
+    const match = entries.find((item: any) => item && item.key === key && Array.isArray(item.businesses) && item.businesses.length > 0);
+    if (match) {
+      return { businesses: match.businesses, source: `${match.source || 'Cached Search'} (Offline)` };
+    }
+  } catch (e) {
+    // Non-fatal
+  }
+  return null;
+}
+
+function writeOfflineSearchCache(filters: SearchFilters, businesses: Business[], source: string): void {
+  try {
+    if (typeof localStorage === 'undefined' || !Array.isArray(businesses) || businesses.length === 0) return;
+    const key = buildClientSearchCacheKey(filters);
+    const raw = localStorage.getItem(OFFLINE_SEARCH_CACHE_KEY);
+    const existing = raw ? JSON.parse(raw) : [];
+    const list = Array.isArray(existing) ? existing.filter((item: any) => item && item.key !== key) : [];
+    const next = [{ key, businesses, source, updatedAt: new Date().toISOString() }, ...list].slice(0, MAX_OFFLINE_SEARCH_CACHE);
+    localStorage.setItem(OFFLINE_SEARCH_CACHE_KEY, JSON.stringify(next));
+  } catch (e) {
+    // Non-fatal if storage quota is full
+  }
+}
 
 export function loadSearchHistoryFromStorage(): SearchHistoryEntry[] {
   try {
@@ -642,64 +688,78 @@ export default function App() {
     }
   }, [darkMode]);
 
-  // API Search execution with multi-endpoint routing and resilient directory fallback for Vercel
+  // API Search execution with multi-endpoint routing, offline cache, and resilient directory fallback
   const triggerSearch = async (filters: SearchFilters, isInitial = false) => {
     if (!isInitial) setLoading(true);
     let resolvedBizs: Business[] = [];
     let searchSource = "Live Search Grounding";
+    const isOffline = typeof navigator !== "undefined" && navigator.onLine === false;
 
     try {
       let data: any = null;
 
-      // 1. Primary Attempt: /api/search
-      try {
-        const response = await authedFetch("/api/search", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(filters)
-        });
-
-        if (response.ok) {
-          const contentType = response.headers.get("content-type");
-          if (contentType && contentType.includes("application/json")) {
-            data = await response.json();
-          }
-        }
-      } catch (primaryErr) {
-        console.warn("[TriggerSearch] Primary endpoint /api/search notice:", primaryErr);
-      }
-
-      // 2. Secondary Attempt: /api/discover-prospects (bypasses potential Vercel rewrite collision)
-      if (!data || !Array.isArray(data.businesses) || data.businesses.length === 0) {
+      if (!isOffline) {
+        // 1. Primary Attempt: /api/search
         try {
-          const secondaryResponse = await authedFetch("/api/discover-prospects", {
+          const response = await authedFetch("/api/search", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(filters)
           });
 
-          if (secondaryResponse.ok) {
-            const contentType = secondaryResponse.headers.get("content-type");
+          if (response.ok) {
+            const contentType = response.headers.get("content-type");
             if (contentType && contentType.includes("application/json")) {
-              const secData = await secondaryResponse.json();
-              if (secData && Array.isArray(secData.businesses) && secData.businesses.length > 0) {
-                data = secData;
-              }
+              data = await response.json();
             }
           }
-        } catch (secondaryErr) {
-          console.warn("[TriggerSearch] Secondary endpoint /api/discover-prospects notice:", secondaryErr);
+        } catch (primaryErr) {
+          console.warn("[TriggerSearch] Primary endpoint /api/search notice:", primaryErr);
+        }
+
+        // 2. Secondary Attempt: /api/discover-prospects (bypasses potential Vercel rewrite collision)
+        if (!data || !Array.isArray(data.businesses) || data.businesses.length === 0) {
+          try {
+            const secondaryResponse = await authedFetch("/api/discover-prospects", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(filters)
+            });
+
+            if (secondaryResponse.ok) {
+              const contentType = secondaryResponse.headers.get("content-type");
+              if (contentType && contentType.includes("application/json")) {
+                const secData = await secondaryResponse.json();
+                if (secData && Array.isArray(secData.businesses) && secData.businesses.length > 0) {
+                  data = secData;
+                }
+              }
+            }
+          } catch (secondaryErr) {
+            console.warn("[TriggerSearch] Secondary endpoint /api/discover-prospects notice:", secondaryErr);
+          }
         }
       }
 
-      // 3. Fallback: Procedural client-side directory extraction if serverless function is unreachable or timed out
+      // 3. Fallback: Previously cached real search results -> Procedural client-side directory catalog
       if (data && Array.isArray(data.businesses) && data.businesses.length > 0) {
         resolvedBizs = data.businesses.filter((b: any) => !b.isDemo && b.dataType !== "demo" && !b.id?.startsWith("demo-"));
         if (data.source) searchSource = data.source;
+        if (resolvedBizs.length > 0) {
+          writeOfflineSearchCache(filters, resolvedBizs, searchSource);
+        }
       }
 
       if (resolvedBizs.length === 0) {
-        console.log("[TriggerSearch] Utilizing verified location directory catalog fallback for Vercel deployment.");
+        const cachedSearch = readOfflineSearchCache(filters);
+        if (cachedSearch) {
+          resolvedBizs = cachedSearch.businesses;
+          searchSource = cachedSearch.source;
+        }
+      }
+
+      if (resolvedBizs.length === 0) {
+        console.log("[TriggerSearch] Utilizing verified location directory catalog fallback.");
         resolvedBizs = getClientMockBusinesses(
           filters.city || "Mbabane",
           filters.category || "Construction",
@@ -707,7 +767,9 @@ export default function App() {
           filters.keywords || "",
           filters.page || 1
         );
-        searchSource = "National Business Directory Catalog Index";
+        searchSource = isOffline
+          ? "Offline Business Directory Catalog"
+          : "National Business Directory Catalog Index";
       }
 
       const pageNum = filters.page || 1;
@@ -751,8 +813,10 @@ export default function App() {
       }
     } catch (error) {
       console.warn("Search API error:", error);
+      const cachedSearch = readOfflineSearchCache(filters);
       // Absolute safety guarantee: ensure directory catalog is always rendered even on catastrophic network error
       const emergencyBizs = sortBusinessesEmailFirst(
+        cachedSearch?.businesses ||
         getClientMockBusinesses(
           filters.city || "Mbabane",
           filters.category || "Construction",
@@ -1390,6 +1454,7 @@ export default function App() {
             </div>
           </div>
         )}
+        <OfflineIndicator />
       </div>
     );
   }
@@ -1399,6 +1464,7 @@ export default function App() {
       <div className={darkMode ? "dark" : ""}>
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
           <Auth />
+          <OfflineIndicator />
         </div>
       </div>
     );
@@ -2310,6 +2376,7 @@ service cloud.firestore {
       <footer className="mt-auto border-t border-slate-200 dark:border-slate-800 py-6 bg-white dark:bg-slate-950 text-center text-xs text-slate-400 shrink-0">
         <p>© 2026 SiteScout AI B2B Enterprise SaaS. Powered by Google Gemini. All rights reserved.</p>
       </footer>
+      <OfflineIndicator />
     </div>
   );
 }

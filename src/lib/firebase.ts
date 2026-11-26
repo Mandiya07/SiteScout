@@ -86,6 +86,9 @@ export async function getAuthHeader(): Promise<Record<string, string>> {
 }
 
 export async function authedFetch(url: string, options: RequestInit = {}, retries = 2): Promise<Response> {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    throw new Error("Browser is offline");
+  }
   const authHeaders = await getAuthHeader();
   const headers = {
     ...(options.headers || {}),
@@ -95,6 +98,9 @@ export async function authedFetch(url: string, options: RequestInit = {}, retrie
     try {
       return await fetch(url, { ...options, headers });
     } catch (err: any) {
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        throw err;
+      }
       if (attempt < retries) {
         await new Promise(r => setTimeout(r, (attempt + 1) * 350));
         continue;

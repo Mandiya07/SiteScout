@@ -1,4 +1,5 @@
 import express from "express";
+import http from "http";
 import crypto from "crypto";
 import { safeFetchUrl } from "./server/ssrfGuard";
 import { generateStaticHtml, escapeHtml } from "./src/lib/htmlGenerator";
@@ -5985,9 +5986,23 @@ app.post("/api/portal/account/reactivate", verifyAuthToken, async (req: Authenti
 
 // Vite middleware for development vs server static files for production
 async function startServer() {
+  const httpServer = http.createServer(app);
+
   if (process.env.NODE_ENV !== "production") {
+    const hmrDisabled = process.env.DISABLE_HMR === "true";
+    if (hmrDisabled) {
+      // Prevent @vite/client from opening a doomed WebSocket to port 24678 when HMR is disabled
+      app.get("/@vite/client", (_req, res) => {
+        res.type("application/javascript").send(
+          `export class ErrorOverlay extends HTMLElement {}export function createHotContext(){return{accept(){},dispose(){},prune(){},invalidate(){},on(){},off(){},send(){}};}export function updateStyle(id,css){let el=document.querySelector(\`style[data-vite-dev-id="\${id}"]\`);if(!el){el=document.createElement("style");el.setAttribute("data-vite-dev-id",id);document.head.appendChild(el);}el.textContent=css;}export function removeStyle(id){const el=document.querySelector(\`style[data-vite-dev-id="\${id}"]\`);if(el)el.remove();}export function injectQuery(url){return url;}\n`
+        );
+      });
+    }
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: hmrDisabled ? false : { server: httpServer },
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);
@@ -6001,7 +6016,7 @@ async function startServer() {
     }
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on port ${PORT}`);
   });
 }

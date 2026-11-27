@@ -709,6 +709,7 @@ export default function App() {
     provider?: string;
     sentAt?: string;
   }) => {
+    console.log("[App] handleRecordOutreachDispatch CALLED with payload:", JSON.stringify(dispatch, null, 2));
     const sentAt = dispatch.sentAt || new Date().toISOString();
     const dispatchId = dispatch.dispatchId || `disp_${Date.now()}`;
     const nextFollowUp = new Date();
@@ -727,12 +728,20 @@ export default function App() {
       const existingRaw = localStorage.getItem(key);
       const existing = existingRaw ? JSON.parse(existingRaw) : [];
       localStorage.setItem(key, JSON.stringify([logEntry, ...(Array.isArray(existing) ? existing : [])].slice(0, 100)));
-    } catch (e) {}
+      console.log("[App] Outreach dispatch saved to localStorage successfully.");
+    } catch (e) {
+      console.error("[App] Failed to save outreach dispatch to localStorage:", e);
+    }
 
     if (session && db && auth.currentUser && !session.uid.startsWith("preview_")) {
-      setDoc(doc(db, "users", session.uid, "outreachDispatches", dispatchId), logEntry, { merge: true }).catch(err => {
+      console.log("[App] Writing outreach dispatch to Firestore for user:", session.uid);
+      setDoc(doc(db, "users", session.uid, "outreachDispatches", dispatchId), logEntry, { merge: true }).then(() => {
+        console.log("[App] Outreach dispatch written to Firestore successfully.");
+      }).catch(err => {
         console.warn("[OutreachDispatch] Firestore log notice:", err);
       });
+    } else {
+      console.log("[App] Skipped Firestore write for outreach dispatch (preview mode or unauthenticated user).");
     }
 
     // 2. Sync matching site status & contact details
@@ -742,6 +751,8 @@ export default function App() {
         (dispatch.businessId && s.businessId === dispatch.businessId) ||
         (s.businessName || "").trim().toLowerCase() === (dispatch.businessName || "").trim().toLowerCase()
     ) || (generatedSite && generatedSite.id === dispatch.siteId ? generatedSite : null);
+
+    console.log("[App] Outreach dispatch matchedSite lookup result:", matchedSite ? matchedSite.id : "NOT_FOUND");
 
     if (matchedSite) {
       await handleSaveDraft({
@@ -754,6 +765,7 @@ export default function App() {
           email: dispatch.recipientEmail || matchedSite.contactPage?.email || null
         }
       });
+      console.log("[App] matchedSite updated with PREVIEW_SENT status.");
     }
 
     // 3. Sync matching prospect in pipeline & CRM
@@ -762,6 +774,8 @@ export default function App() {
         (dispatch.businessId && b.id === dispatch.businessId) ||
         (b.name || "").trim().toLowerCase() === (dispatch.businessName || "").trim().toLowerCase()
     ) || (selectedBusiness && (selectedBusiness.id === dispatch.businessId || selectedBusiness.name === dispatch.businessName) ? selectedBusiness : null);
+
+    console.log("[App] Outreach dispatch matchedBiz lookup result:", matchedBiz ? matchedBiz.id : "NOT_FOUND");
 
     if (matchedBiz) {
       const currentStage = toCanonicalStage(matchedBiz.salesStage || matchedBiz.prospectStatus);
@@ -783,7 +797,9 @@ export default function App() {
         nextFollowUpDate,
         prospectNotes: matchedBiz.prospectNotes ? `${matchedBiz.prospectNotes}\n• ${note}` : `• ${note}`
       });
+      console.log("[App] matchedBiz pipeline stage updated to PREVIEW_SENT.");
     }
+    console.log("[App] handleRecordOutreachDispatch completed successfully.");
   };
 
   const handleImportLeads = async (incomingLeads: Business[]) => {

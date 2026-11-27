@@ -3905,8 +3905,11 @@ Return a strict JSON object with this exact structure:
 });
 
 // Send created demo website directly to provided email address or phone/WhatsApp/SMS contact details
-app.post("/api/send-demo-website", verifyAuthToken, salesLimiter, async (req: AuthenticatedRequest, res) => {
+app.post("/api/send-demo-website", verifyAuthToken, previewLimiter, async (req: AuthenticatedRequest, res) => {
   try {
+    console.log("[Server] POST /api/send-demo-website RECEIVED request from user:", req.user?.uid || "anonymous");
+    console.log("[Server] Request body payload:", JSON.stringify(req.body, null, 2));
+
     const {
       siteId,
       businessId,
@@ -3921,26 +3924,21 @@ app.post("/api/send-demo-website", verifyAuthToken, salesLimiter, async (req: Au
     } = req.body || {};
 
     const normalizedChannel = String(channel || "email").toLowerCase();
+    console.log("[Server] Normalized delivery channel:", normalizedChannel);
     if (!["email", "whatsapp", "sms"].includes(normalizedChannel)) {
       return res.status(400).json({ error: "Unsupported delivery channel. Use email, whatsapp, or sms." });
     }
 
     const safeBusinessName = String(businessName || "Your Business").replace(/[\r\n]/g, " ").trim().slice(0, 140);
     const rawPreviewUrl = String(previewUrl || "").trim();
-    let safePreviewUrl = rawPreviewUrl;
+    let safePreviewUrl = rawPreviewUrl || "/preview/demo";
     if (rawPreviewUrl) {
-      if (rawPreviewUrl.startsWith("/preview/")) {
+      if (rawPreviewUrl.startsWith("/preview/") || rawPreviewUrl.startsWith("http://") || rawPreviewUrl.startsWith("https://")) {
         safePreviewUrl = rawPreviewUrl;
+      } else if (rawPreviewUrl.startsWith("preview/")) {
+        safePreviewUrl = `/${rawPreviewUrl}`;
       } else {
-        try {
-          const parsedPreview = new URL(rawPreviewUrl);
-          if (!["http:", "https:"].includes(parsedPreview.protocol)) {
-            return res.status(400).json({ error: "Invalid preview URL protocol." });
-          }
-          safePreviewUrl = parsedPreview.toString();
-        } catch {
-          return res.status(400).json({ error: "Invalid preview URL format." });
-        }
+        safePreviewUrl = rawPreviewUrl.startsWith("/") ? rawPreviewUrl : `/preview/${rawPreviewUrl}`;
       }
     }
 
@@ -4049,8 +4047,7 @@ app.post("/api/send-demo-website", verifyAuthToken, salesLimiter, async (req: Au
       }
     }
 
-    // Client handles authenticated Firestore persistence into /users/{uid}/outreachDispatches, /sites/{id}, /publicPreviews/{token}, and /businesses/{id}/activities.
-    return res.json({
+    const responsePayload = {
       success: true,
       dispatchId,
       channel: normalizedChannel,
@@ -4065,7 +4062,9 @@ app.post("/api/send-demo-website", verifyAuthToken, salesLimiter, async (req: Au
           : deliveryMode === "webhook"
             ? `Demo website dispatched via outreach relay to ${recipient}.`
             : `Demo dispatch prepared for ${recipient}. Complete delivery in your ${normalizedChannel === "email" ? "email" : normalizedChannel === "whatsapp" ? "WhatsApp" : "SMS"} app.`
-    });
+    };
+    console.log("[Server] POST /api/send-demo-website SUCCESS response:", JSON.stringify(responsePayload, null, 2));
+    return res.json(responsePayload);
   } catch (error: any) {
     console.error("Error in /api/send-demo-website:", error);
     return res.status(500).json({ error: error.message || "Failed to send demo website." });

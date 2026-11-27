@@ -13,32 +13,70 @@ interface SalesAssistantProps {
   business?: Business | null;
   onBack: () => void;
   onUpdateSite?: (updated: GeneratedSite) => void;
+  onOutreachSent?: (dispatch: {
+    dispatchId?: string;
+    siteId?: string;
+    businessId?: string;
+    businessName: string;
+    channel: "email" | "whatsapp" | "sms";
+    recipient: string;
+    recipientEmail?: string;
+    recipientPhone?: string;
+    previewUrl: string;
+    subject?: string;
+    deliveryMode?: string;
+    provider?: string;
+    sentAt?: string;
+  }) => void;
 }
 
 type ChannelType = "whatsapp" | "email" | "sms" | "coldCall" | "followUp" | "linkedin" | "messenger";
 type ViewMode = "channels" | "templates";
 
-export default function SalesAssistant({ site, business, onBack, onUpdateSite }: SalesAssistantProps) {
+const pickCleanEmail = (...vals: (string | null | undefined)[]): string => {
+  for (const v of vals) {
+    if (typeof v === "string") {
+      const trimmed = v.trim();
+      const lower = trimmed.toLowerCase();
+      if (trimmed && trimmed.includes("@") && !["unlisted", "none", "n/a", "null", "undefined", "not listed"].includes(lower)) {
+        return trimmed;
+      }
+    }
+  }
+  return "";
+};
+
+const pickCleanPhone = (...vals: (string | null | undefined)[]): string => {
+  for (const v of vals) {
+    if (typeof v === "string") {
+      const trimmed = v.trim();
+      if (trimmed && trimmed.toLowerCase() !== "unlisted" && trimmed.toLowerCase() !== "null") {
+        return trimmed;
+      }
+    }
+  }
+  return "";
+};
+
+export default function SalesAssistant({ site, business, onBack, onUpdateSite, onOutreachSent }: SalesAssistantProps) {
   const [tone, setTone] = useState<string>("Persuasive");
   const [loading, setLoading] = useState<boolean>(false);
   const [copiedSection, setCopiedSection] = useState<string>("");
   const [activeChannel, setActiveChannel] = useState<ChannelType>("whatsapp");
   const [viewMode, setViewMode] = useState<ViewMode>("channels");
   const [outreach, setOutreach] = useState<SalesOutreach | null>(null);
-  const [recipientEmail, setRecipientEmail] = useState<string>(site.contactPage?.email || business?.email || "");
+  const [recipientEmail, setRecipientEmail] = useState<string>(
+    pickCleanEmail(site.contactPage?.email, business?.email, site.truthProfile?.email?.value)
+  );
   const [recipientPhone, setRecipientPhone] = useState<string>(
-    (site.phone && site.phone.toLowerCase() !== "unlisted" ? site.phone : "") ||
-    (business?.phone && business.phone.toLowerCase() !== "unlisted" ? business.phone : "")
+    pickCleanPhone(site.phone, business?.phone, site.truthProfile?.phone?.value)
   );
   const [sendingChannel, setSendingChannel] = useState<null | "email" | "whatsapp" | "sms">(null);
   const [sendFeedback, setSendFeedback] = useState<{ type: "success" | "error"; text: string; handoffUrl?: string; channel?: string } | null>(null);
 
   useEffect(() => {
-    setRecipientEmail(site.contactPage?.email || business?.email || "");
-    setRecipientPhone(
-      (site.phone && site.phone.toLowerCase() !== "unlisted" ? site.phone : "") ||
-      (business?.phone && business.phone.toLowerCase() !== "unlisted" ? business.phone : "")
-    );
+    setRecipientEmail(pickCleanEmail(site.contactPage?.email, business?.email, site.truthProfile?.email?.value));
+    setRecipientPhone(pickCleanPhone(site.phone, business?.phone, site.truthProfile?.phone?.value));
     setSendFeedback(null);
   }, [site.id, site.contactPage?.email, site.phone, business?.email, business?.phone]);
 
@@ -192,6 +230,24 @@ export default function SalesAssistant({ site, business, onBack, onUpdateSite }:
             ...site.contactPage,
             email: cleanEmail || site.contactPage?.email || null
           }
+        });
+      }
+
+      if (onOutreachSent) {
+        onOutreachSent({
+          dispatchId: data.dispatchId,
+          siteId: site.id,
+          businessId: site.businessId || business?.id,
+          businessName: site.businessName,
+          channel,
+          recipient: data.recipient || (channel === "email" ? cleanEmail : cleanPhone),
+          recipientEmail: cleanEmail || undefined,
+          recipientPhone: cleanPhone || undefined,
+          previewUrl: getPreviewUrl(),
+          subject,
+          deliveryMode: data.deliveryMode,
+          provider: data.provider,
+          sentAt: data.sentAt
         });
       }
 

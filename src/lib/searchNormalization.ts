@@ -3,6 +3,7 @@ import { resolveDeterministicBusinessId, GENERIC_PLATFORM_DOMAINS } from "./busi
 import { buildBusinessTruthProfile, normalizeUrl, extractDomain } from "./businessTruth";
 import { evaluateProspectQualification } from "./prospectQualification";
 import { assignIndustryTag } from "./industryTagger";
+import { sanitizeAuthenticEmail } from "./authenticDirectory";
 
 export interface SearchQuery {
   category: string;
@@ -262,6 +263,8 @@ export function normalizeSearchResult(
   const isGeneric = candidateDomain ? GENERIC_PLATFORM_DOMAINS.has(candidateDomain) : false;
   const providerId = rawBusiness.sourceId || rawBusiness.id || (candidateDomain && !isGeneric ? candidateDomain : undefined);
 
+  const cleanEmail = sanitizeAuthenticEmail(rawBusiness.email, rawBusiness.name || rawBusiness.title);
+
   // Build Provenance Evidence
   const evidenceList: EvidenceItem[] = Array.isArray(rawBusiness.evidenceList) ? [...rawBusiness.evidenceList] : [];
   if (assignedSourceUrl) {
@@ -278,6 +281,7 @@ export function normalizeSearchResult(
         "name",
         "address",
         ...(rawBusiness.phone && rawBusiness.phone !== "Unlisted" ? ["phone"] : []),
+        ...(cleanEmail ? ["email"] : []),
         ...(rawWebUrl ? ["website"] : []),
         ...(category ? ["category"] : [])
       ],
@@ -290,7 +294,7 @@ export function normalizeSearchResult(
   let verificationState: BusinessVerificationState = "CANDIDATE";
   if (rawBusiness.isDemo || rawBusiness.dataType === "demo") {
     verificationState = "DEMO";
-  } else if (rawBusiness.phone && rawBusiness.phone !== "Unlisted" && assignedSourceUrl) {
+  } else if (((rawBusiness.phone && rawBusiness.phone !== "Unlisted") || cleanEmail) && assignedSourceUrl) {
     verificationState = "CONTACT_READY";
   } else {
     verificationState = "CANDIDATE";
@@ -316,7 +320,7 @@ export function normalizeSearchResult(
     presence: {
       hasWebsite: !!rawWebUrl,
       websiteUrl: rawWebUrl,
-      hasEmail: false,
+      hasEmail: Boolean(cleanEmail),
       facebookStatus: "none",
       instagramStatus: "none",
       googleProfileQuality: "fair",
@@ -324,7 +328,7 @@ export function normalizeSearchResult(
       photosStatus: "sufficient",
       descriptionQuality: "fair",
       openingHoursStatus: "missing",
-      contactCompleteness: rawBusiness.phone && rawBusiness.phone !== "Unlisted" ? "partial" : "missing"
+      contactCompleteness: (rawBusiness.phone && rawBusiness.phone !== "Unlisted") || cleanEmail ? "partial" : "missing"
     } as any
   });
 
@@ -343,9 +347,7 @@ export function normalizeSearchResult(
 
   const rating = typeof rawBusiness.rating === "number" ? Math.max(0, Math.min(5, rawBusiness.rating)) : 0;
   const reviewsCount = typeof rawBusiness.reviewsCount === "number" ? Math.max(0, rawBusiness.reviewsCount) : 0;
-  const rawEmail = rawBusiness.email && typeof rawBusiness.email === "string" && rawBusiness.email.trim() !== "" && rawBusiness.email.toLowerCase() !== "null" && rawBusiness.email.toLowerCase() !== "unlisted"
-    ? rawBusiness.email.trim()
-    : undefined;
+  const rawEmail = cleanEmail;
 
   let websiteStatus: any = "WEBSITE_NOT_DISCOVERED";
   if (rawBusiness.websiteStatus) {

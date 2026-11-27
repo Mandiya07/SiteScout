@@ -453,11 +453,21 @@ export async function fetchUserBusinesses(userId?: string): Promise<Business[]> 
     snap.forEach(d => remoteList.push(d.data() as Business));
 
     if (remoteList.length > 0) {
-      // Reconcile remote records with local cache
+      // Reconcile remote records with local cache via canonical merge so found emails/phones and outreach updates are never lost
       const map = new Map<string, Business>();
       remoteList.forEach(b => map.set(b.id, b));
-      cachedList.forEach(b => {
-        if (!map.has(b.id)) map.set(b.id, b);
+      cachedList.forEach(localBiz => {
+        const remoteBiz = map.get(localBiz.id);
+        if (!remoteBiz) {
+          map.set(localBiz.id, localBiz);
+        } else {
+          const localTime = localBiz.updatedAt ? new Date(localBiz.updatedAt).getTime() : 0;
+          const remoteTime = remoteBiz.updatedAt ? new Date(remoteBiz.updatedAt).getTime() : 0;
+          const merged = remoteTime > localTime
+            ? mergeBusinessRecords(localBiz, remoteBiz)
+            : mergeBusinessRecords(remoteBiz, localBiz);
+          map.set(localBiz.id, merged);
+        }
       });
       const reconciled = Array.from(map.values());
       setLocalBusinessCache(reconciled);

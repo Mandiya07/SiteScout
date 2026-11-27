@@ -22,8 +22,9 @@ import { resolveHeroImageUrl, getCategoryHeroImage, getCategorySectionImages, is
 import { generateClientMockSite } from "../lib/clientFallback";
 import { generateStaticHtml, escapeHtml, sanitizeUrl } from "../lib/htmlGenerator";
 import { filterWebsites } from "../components/MyWebsites";
-import { filterAndRankSearchResults, hasAuthenticBusinessEmail } from "../lib/searchNormalization";
+import { filterAndRankSearchResults, hasAuthenticBusinessEmail, normalizeSearchResult } from "../lib/searchNormalization";
 import { getAuthenticDirectoryBusinesses } from "../lib/authenticDirectory";
+import { buildBusinessTruthProfile } from "../lib/businessTruth";
 import { generateWhatsappLink } from "../lib/formatters";
 import { Business, GeneratedSite, BusinessTruthProfile } from "../types";
 
@@ -669,6 +670,76 @@ describe("MICRO-PHASE 19C: AI Website Generation & Visual Quality Validation", (
 
       const draftSrc = fs.readFileSync(path.resolve(process.cwd(), "src/components/DraftEmailModal.tsx"), "utf-8");
       assert.ok(draftSrc.includes("/api/send-demo-website") && draftSrc.includes("Send Demo Email"), "DraftEmailModal must support sending demo email via /api/send-demo-website");
+    });
+  });
+
+  describe("L. Preserving Search-Found Emails & Contact Details End-to-End", () => {
+    it("retains directory info@/contact@ emails in truthProfile, search normalization, and editor re-normalization while rejecting unproven fake emails", () => {
+      const bareFakeTruth = buildBusinessTruthProfile({
+        name: "Fake Email Shop",
+        email: "contact@fakecorp.com"
+      });
+      assert.strictEqual(bareFakeTruth.email.value, null, "Unproven bare contact@ email without evidence must still be blocked");
+
+      const dirBusinesses = getAuthenticDirectoryBusinesses("Mbabane", "Lawyers", "Eswatini", "", 1);
+      const emailBiz = dirBusinesses.find(b => Boolean(b.email && b.email.includes("@")));
+      assert.ok(emailBiz, "Directory search should return at least one legal business with a real public email");
+      assert.ok(
+        emailBiz!.evidenceList?.[0]?.supports?.includes("email"),
+        "Directory business evidenceList must cite email support"
+      );
+      assert.strictEqual(
+        emailBiz!.truthProfile?.email?.value,
+        emailBiz!.email,
+        "truthProfile must preserve directory-cited info@/contact@ emails"
+      );
+
+      const normalizedLive = normalizeSearchResult(
+        {
+          name: "Swazi Solar Tech",
+          category: "Electrician",
+          address: "Industrial Site, Matsapha, Eswatini",
+          phone: "+268 7612 4400",
+          email: "info@swazisolartech.co.sz",
+          sourceUrl: "https://swaziyellowpages.com/listings/swazi-solar-tech"
+        },
+        { category: "Electrician", city: "Matsapha", country: "Eswatini" }
+      );
+      assert.strictEqual(normalizedLive.email, "info@swazisolartech.co.sz", "Live search normalization must preserve authentic info@ email");
+      assert.strictEqual(normalizedLive.presence?.hasEmail, true, "presence.hasEmail must be true when authentic email was found");
+      assert.strictEqual(normalizedLive.verificationState, "CONTACT_READY", "Search result with phone/email + sourceUrl must be CONTACT_READY");
+      assert.strictEqual(normalizedLive.truthProfile?.email?.value, "info@swazisolartech.co.sz", "Normalized search truthProfile must retain found email");
+
+      const initialSite = normalizeWebsiteSchema({}, normalizedLive, false);
+      assert.strictEqual(initialSite.contactPage.email, "info@swazisolartech.co.sz", "Generated site must receive search-found email");
+
+      const reNormalizedWithoutBiz = normalizeWebsiteSchema(initialSite, null, false);
+      assert.strictEqual(
+        reNormalizedWithoutBiz.contactPage.email,
+        "info@swazisolartech.co.sz",
+        "Re-normalizing saved site without business argument must preserve verified info@ email"
+      );
+
+      const unprovenSite = normalizeWebsiteSchema(
+        { businessName: "Test Auto", contactPage: { title: "Contact", description: "Contact us", email: "contact@testauto.com" } },
+        null,
+        false
+      );
+      assert.strictEqual(unprovenSite.contactPage.email, null, "Unproven LLM placeholder contact@ email must still be stripped");
+    });
+
+    it("wires search-found contacts across MyWebsites, ProspectPipeline, BusinessFinder, and App outreach sync", () => {
+      const myWebsitesSrc = fs.readFileSync(path.resolve(process.cwd(), "src/components/MyWebsites.tsx"), "utf-8");
+      assert.ok(myWebsitesSrc.includes("/api/send-demo-website") && myWebsitesSrc.includes("Send Demo"), "MyWebsites must allow dispatching demos directly using found contact details");
+
+      const pipelineSrc = fs.readFileSync(path.resolve(process.cwd(), "src/components/ProspectPipeline.tsx"), "utf-8");
+      assert.ok(pipelineSrc.includes("handleQuickSendDemoEmail") && pipelineSrc.includes("Send Demo to"), "ProspectPipeline must support direct 1-click demo email send when email was found");
+
+      const finderSrc = fs.readFileSync(path.resolve(process.cwd(), "src/components/BusinessFinder.tsx"), "utf-8");
+      assert.ok(finderSrc.includes("Send Demo"), "BusinessFinder must surface Send Demo action when a prospect already has a generated site");
+
+      const appSrc = fs.readFileSync(path.resolve(process.cwd(), "src/App.tsx"), "utf-8");
+      assert.ok(appSrc.includes("handleRecordOutreachDispatch") && appSrc.includes("[session?.uid]"), "App must sync outreach dispatches and avoid overwriting active search lists on tab switch");
     });
   });
 

@@ -15,6 +15,22 @@ interface DraftEmailModalProps {
   business: Business;
   site?: GeneratedSite;
   onUpdateProspect: (updated: Business) => void;
+  onBuildDemoFirst?: (business: Business) => void;
+  onOutreachSent?: (dispatch: {
+    dispatchId?: string;
+    siteId?: string;
+    businessId?: string;
+    businessName: string;
+    channel: "email" | "whatsapp" | "sms";
+    recipient: string;
+    recipientEmail?: string;
+    recipientPhone?: string;
+    previewUrl: string;
+    subject?: string;
+    deliveryMode?: string;
+    provider?: string;
+    sentAt?: string;
+  }) => void;
 }
 
 interface DraftEmailResponse {
@@ -39,13 +55,20 @@ export default function DraftEmailModal({
   onClose,
   business,
   site,
-  onUpdateProspect
+  onUpdateProspect,
+  onBuildDemoFirst,
+  onOutreachSent
 }: DraftEmailModalProps) {
+  const resolvedInitialEmail =
+    (business.email && business.email.includes("@") ? business.email.trim() : "") ||
+    (site?.contactPage?.email && site.contactPage.email.includes("@") ? site.contactPage.email.trim() : "") ||
+    (site?.truthProfile?.email?.value && String(site.truthProfile.email.value).includes("@") ? String(site.truthProfile.email.value).trim() : "");
+
   const [activeTab, setActiveTab] = useState<"initial" | "followUp">("initial");
   const [selectedTone, setSelectedTone] = useState<string>("Consultative");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [copiedSection, setCopiedSection] = useState<string>("");
-  const [recipientEmail, setRecipientEmail] = useState<string>(business.email || "");
+  const [recipientEmail, setRecipientEmail] = useState<string>(resolvedInitialEmail);
   const [subject, setSubject] = useState<string>("");
   const [body, setBody] = useState<string>("");
   const [followUpSubject, setFollowUpSubject] = useState<string>("");
@@ -101,12 +124,12 @@ export default function DraftEmailModal({
   // Initialize selected gaps on open
   useEffect(() => {
     if (isOpen) {
-      setRecipientEmail(business.email || "");
+      setRecipientEmail(resolvedInitialEmail);
       const defs = getAvailableDeficitOptions().filter(d => d.active).map(d => d.label);
       setSelectedGaps(defs.length > 0 ? defs : ["No Mobile Website", "No WhatsApp 1-Tap CTA", "No Online Booking"]);
       generateEmailDraft(selectedTone, defs);
     }
-  }, [isOpen, business.id]);
+  }, [isOpen, business.id, resolvedInitialEmail]);
 
   const generateEmailDraft = async (tone: string, customGaps?: string[]) => {
     setIsLoading(true);
@@ -275,6 +298,24 @@ export default function DraftEmailModal({
         handoffUrl: data.protocolUrl
       });
 
+      if (onOutreachSent) {
+        onOutreachSent({
+          dispatchId: data.dispatchId,
+          siteId: site?.id,
+          businessId: business.id,
+          businessName: business.name,
+          channel: "email",
+          recipient: cleanEmail,
+          recipientEmail: cleanEmail,
+          recipientPhone: business.phone && business.phone !== "Unlisted" ? business.phone : undefined,
+          previewUrl,
+          subject: activeSubject,
+          deliveryMode: data.deliveryMode,
+          provider: data.provider,
+          sentAt: data.sentAt
+        });
+      }
+
       handleLogAsSent(`Demo Website dispatched via ${data.provider || "email"} to ${cleanEmail} on ${new Date().toLocaleDateString()} ("${activeSubject}").`);
     } catch (err: any) {
       setSendFeedback({
@@ -345,6 +386,29 @@ export default function DraftEmailModal({
 
         {/* Modal Body: Scrollable area */}
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
+
+          {!site && (
+            <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-900 dark:text-amber-200">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <span>
+                  <strong>No demo website generated yet</strong> for {business.name}. Build their demo website first so the preview link in your email opens a live custom site.
+                </span>
+              </div>
+              {onBuildDemoFirst && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onBuildDemoFirst(business);
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold shrink-0 cursor-pointer"
+                >
+                  Build Demo Website First
+                </button>
+              )}
+            </div>
+          )}
           
           {/* Business Gaps & Quality Score Banner */}
           <div className="p-4 rounded-xl bg-gradient-to-r from-blue-50/80 via-indigo-50/40 to-slate-50 dark:from-blue-950/30 dark:via-indigo-950/20 dark:to-slate-900 border border-blue-100 dark:border-blue-900/40">

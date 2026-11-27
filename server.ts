@@ -1650,7 +1650,7 @@ function generateDefaultTemplateSite(business: any) {
     contactPage: {
       title: `Get in Touch with ${name}`,
       description: `Have questions or need an on-site quotation? Contact our team in ${city} today.`,
-      email: business.email || null
+      email: sanitizeAuthenticEmail(business.email, business.name) || null
     },
     privacyPolicy: "We respect your privacy and process personal information strictly to respond to your service requests and inquiries.",
     termsOfService: "Services are rendered based on agreed project scope and specifications provided upon quotation confirmation.",
@@ -3226,9 +3226,15 @@ app.post("/api/generate-site", optionalAuthToken, generateSiteLimiter, async (re
       gallery: enrichedGallery,
       contactPage: {
         ...(data.contactPage || {}),
-        email: (data.contactPage?.email && String(data.contactPage.email).includes("@"))
-          ? data.contactPage.email
-          : (business.email || null)
+        email:
+          sanitizeAuthenticEmail(business.email, business.name) ||
+          (() => {
+            const aiEmail = sanitizeAuthenticEmail(data.contactPage?.email, business.name);
+            if (!aiEmail) return null;
+            const lowerAi = aiEmail.toLowerCase();
+            if (lowerAi.startsWith("contact@") || lowerAi.startsWith("info@")) return null;
+            return aiEmail;
+          })()
       },
       truthProfile: buildBusinessTruthProfile(business),
       presence: business.presence || null,
@@ -4043,46 +4049,7 @@ app.post("/api/send-demo-website", verifyAuthToken, salesLimiter, async (req: Au
       }
     }
 
-    // Best-effort Firestore dispatch log & site status update
-    if (db) {
-      try {
-        await setDoc(doc(db, "outreachDispatches", dispatchId), {
-          dispatchId,
-          siteId: siteId || null,
-          businessId: businessId || null,
-          businessName: safeBusinessName,
-          channel: normalizedChannel,
-          recipient,
-          previewUrl: safePreviewUrl,
-          subject: safeSubject,
-          deliveryMode,
-          provider,
-          actorUid: req.user?.uid || null,
-          sentAt
-        });
-
-        if (siteId && typeof siteId === "string") {
-          const siteUpdate: Record<string, any> = {
-            salesStatus: "Contacted",
-            salesStage: "PREVIEW_SENT",
-            lastContactedAt: sentAt,
-            lastSentContact: recipient,
-            lastSentChannel: normalizedChannel,
-            updatedAt: sentAt
-          };
-          if (cleanEmail) {
-            siteUpdate["contactPage.email"] = cleanEmail;
-          }
-          if (e164Digits) {
-            siteUpdate.phone = `+${e164Digits}`;
-          }
-          await updateDoc(doc(db, "sites", siteId), siteUpdate).catch(() => {});
-        }
-      } catch (persistErr) {
-        console.warn("[SendDemoWebsite] Non-fatal Firestore logging warning:", persistErr);
-      }
-    }
-
+    // Client handles authenticated Firestore persistence into /users/{uid}/outreachDispatches, /sites/{id}, /publicPreviews/{token}, and /businesses/{id}/activities.
     return res.json({
       success: true,
       dispatchId,

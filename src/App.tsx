@@ -29,7 +29,7 @@ import MyWebsites from "./components/MyWebsites";
 import ThreeStepRevenueEngine from "./components/ThreeStepRevenueEngine";
 import { generateClientMockSite, resolveEffectiveCategory, getClientMockBusinesses } from "./lib/clientFallback";
 import { generateSecurePreviewToken, sanitizePublicPreview } from "./lib/security";
-import { toCanonicalStage } from "./lib/prospectCrm";
+import { toCanonicalStage, canonicalToProspectStatus } from "./lib/prospectCrm";
 import { deduplicateAndIngestBusinesses } from "./lib/businessIdentity";
 import { fetchUserBusinesses, saveBusinessRecord, ingestAndPersistBusinesses } from "./lib/businessPersistence";
 import { applyWebsiteUpdate } from "./lib/websiteVersioning";
@@ -578,19 +578,28 @@ export default function App() {
       };
       fetchUserSites();
 
-      // Load user's saved businesses from canonical persistence layer
+      // Load user's saved businesses from canonical persistence layer (merging so active search lists are preserved)
       const loadUserBusinesses = async () => {
         try {
           const bizList = await fetchUserBusinesses(session.uid);
           const realList = (bizList || []).filter(b => !b.isDemo && b.dataType !== "demo" && !b.id?.startsWith("demo-"));
-          setBusinesses(realList);
+          if (realList.length > 0) {
+            setBusinesses(prev => {
+              if (!prev || prev.length === 0) return sortBusinessesEmailFirst(realList);
+              const mergedMap = new Map(realList.map(b => [b.id, b]));
+              prev.forEach(p => {
+                if (!mergedMap.has(p.id)) mergedMap.set(p.id, p);
+              });
+              return sortBusinessesEmailFirst(Array.from(mergedMap.values()));
+            });
+          }
         } catch (err) {
           console.error("Error loading user businesses:", err);
         }
       };
       loadUserBusinesses();
     }
-  }, [session, activeTab]);
+  }, [session?.uid]);
 
   // Stats monitoring
   const [stats, setStats] = useState({
@@ -626,7 +635,7 @@ export default function App() {
       setSelectedBusiness(persisted);
     }
 
-    if (session && !persisted.isDemo && db) {
+    if (session && !persisted.isDemo && db && auth.currentUser && !session.uid.startsWith("preview_")) {
       try {
         // Record activity in subcollection: /businesses/{businessId}/activities/{activityId}
         const actId = `act-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -646,6 +655,134 @@ export default function App() {
       } catch (err) {
         console.warn("Activity log error:", err);
       }
+    }
+  };
+
+  const resolveBusinessForSite = (site: GeneratedSite | null | undefined): Business | null => {
+    if (!site) return null;
+    if (
+      selectedBusiness &&
+      (selectedBusiness.id === site.businessId ||
+        (selectedBusiness.name || "").trim().toLowerCase() === (site.businessName || "").trim().toLowerCase())
+    ) {
+      return selectedBusiness;
+    }
+    return (
+      businesses.find(
+        b =>
+          b.id === site.businessId ||
+          (b.name || "").trim().toLowerCase() === (site.businessName || "").trim().toLowerCase()
+      ) || null
+    );
+  };
+
+  const resolveEmailForSite = (site: GeneratedSite | null | undefined, biz: Business | null): string | null => {
+    const candidates = [
+      site?.contactPage?.email,
+      biz?.email,
+      site?.truthProfile?.email?.value
+    ];
+    for (const c of candidates) {
+      if (typeof c === "string") {
+        const t = c.trim();
+        const l = t.toLowerCase();
+        if (t && t.includes("@") && !["unlisted", "none", "n/a", "null", "undefined", "not listed"].includes(l)) {
+          return t;
+        }
+      }
+    }
+    return null;
+  };
+
+  const handleRecordOutreachDispatch = async (dispatch: {
+    dispatchId?: string;
+    siteId?: string;
+    businessId?: string;
+    businessName: string;
+    channel: "email" | "whatsapp" | "sms";
+    recipient: string;
+    recipientEmail?: string;
+    recipientPhone?: string;
+    previewUrl: string;
+    subject?: string;
+    deliveryMode?: string;
+    provider?: string;
+    sentAt?: string;
+  }) => {
+    const sentAt = dispatch.sentAt || new Date().toISOString();
+    const dispatchId = dispatch.dispatchId || `disp_${Date.now()}`;
+    const nextFollowUp = new Date();
+    nextFollowUp.setDate(nextFollowUp.getDate() + 2);
+    const nextFollowUpDate = nextFollowUp.toISOString().split("T")[0];
+
+    // 1. Local & authenticated Firestore outreach log (/users/{uid}/outreachDispatches/{dispatchId})
+    const logEntry = {
+      ...dispatch,
+      dispatchId,
+      sentAt,
+      actorUid: session?.uid || null
+    };
+    try {
+      const key = "sitescout_outreach_dispatches";
+      const existingRaw = localStorage.getItem(key);
+      const existing = existingRaw ? JSON.parse(existingRaw) : [];
+      localStorage.setItem(key, JSON.stringify([logEntry, ...(Array.isArray(existing) ? existing : [])].slice(0, 100)));
+    } catch (e) {}
+
+    if (session && db && auth.currentUser && !session.uid.startsWith("preview_")) {
+      setDoc(doc(db, "users", session.uid, "outreachDispatches", dispatchId), logEntry, { merge: true }).catch(err => {
+        console.warn("[OutreachDispatch] Firestore log notice:", err);
+      });
+    }
+
+    // 2. Sync matching site status & contact details
+    const matchedSite = userSites.find(
+      s =>
+        (dispatch.siteId && s.id === dispatch.siteId) ||
+        (dispatch.businessId && s.businessId === dispatch.businessId) ||
+        (s.businessName || "").trim().toLowerCase() === (dispatch.businessName || "").trim().toLowerCase()
+    ) || (generatedSite && generatedSite.id === dispatch.siteId ? generatedSite : null);
+
+    if (matchedSite) {
+      await handleSaveDraft({
+        ...matchedSite,
+        phone: dispatch.recipientPhone || matchedSite.phone,
+        salesStatus: "Contacted",
+        salesStage: "PREVIEW_SENT",
+        contactPage: {
+          ...matchedSite.contactPage,
+          email: dispatch.recipientEmail || matchedSite.contactPage?.email || null
+        }
+      });
+    }
+
+    // 3. Sync matching prospect in pipeline & CRM
+    const matchedBiz = businesses.find(
+      b =>
+        (dispatch.businessId && b.id === dispatch.businessId) ||
+        (b.name || "").trim().toLowerCase() === (dispatch.businessName || "").trim().toLowerCase()
+    ) || (selectedBusiness && (selectedBusiness.id === dispatch.businessId || selectedBusiness.name === dispatch.businessName) ? selectedBusiness : null);
+
+    if (matchedBiz) {
+      const currentStage = toCanonicalStage(matchedBiz.salesStage || matchedBiz.prospectStatus);
+      const targetStage = ["DISCOVERED", "VERIFICATION_REQUIRED", "VERIFIED", "AUDIT_COMPLETE", "OPPORTUNITY_IDENTIFIED", "WEBSITE_GENERATED", "PREVIEW_READY"].includes(currentStage)
+        ? "PREVIEW_SENT"
+        : currentStage;
+      const note = `Demo Website sent via ${dispatch.channel} (${dispatch.recipient}) on ${new Date(sentAt).toLocaleDateString()}.`;
+      await handleUpdateProspect({
+        ...matchedBiz,
+        email: dispatch.recipientEmail || matchedBiz.email,
+        phone: dispatch.recipientPhone || matchedBiz.phone,
+        presence: {
+          ...matchedBiz.presence,
+          hasEmail: Boolean(dispatch.recipientEmail || matchedBiz.email || matchedBiz.presence?.hasEmail)
+        },
+        salesStage: targetStage,
+        prospectStatus: canonicalToProspectStatus(targetStage),
+        lastContactedAt: sentAt,
+        nextFollowUpDate,
+        prospectNotes: matchedBiz.prospectNotes ? `${matchedBiz.prospectNotes}\n• ${note}` : `• ${note}`
+      });
     }
   };
 
@@ -956,8 +1093,20 @@ export default function App() {
 
       if (response.ok) {
         const data = await response.json();
+        const foundEmail = (data.site?.contactPage?.email && String(data.site.contactPage.email).includes("@"))
+          ? data.site.contactPage.email
+          : (biz.email && biz.email.includes("@") ? biz.email : null);
+        const foundPhone = (data.site?.phone && String(data.site.phone).toLowerCase() !== "unlisted")
+          ? data.site.phone
+          : biz.phone;
         const siteWithClassification: GeneratedSite = {
           ...data.site,
+          phone: foundPhone,
+          contactPage: {
+            ...(data.site?.contactPage || {}),
+            email: foundEmail
+          },
+          truthProfile: data.site?.truthProfile || biz.truthProfile,
           isDemo: biz.isDemo ?? false,
           dataType: biz.dataType || (biz.isDemo ? "demo" : "real")
         };
@@ -1490,8 +1639,20 @@ export default function App() {
       }
 
       const data = await response.json();
+      const foundEmail = (data.site?.contactPage?.email && String(data.site.contactPage.email).includes("@"))
+        ? data.site.contactPage.email
+        : (selectedBusiness.email && selectedBusiness.email.includes("@") ? selectedBusiness.email : null);
+      const foundPhone = (data.site?.phone && String(data.site.phone).toLowerCase() !== "unlisted")
+        ? data.site.phone
+        : selectedBusiness.phone;
       const siteWithClassification: GeneratedSite = {
         ...data.site,
+        phone: foundPhone,
+        contactPage: {
+          ...(data.site?.contactPage || {}),
+          email: foundEmail
+        },
+        truthProfile: data.site?.truthProfile || selectedBusiness.truthProfile,
         isDemo: selectedBusiness.isDemo ?? false,
         dataType: selectedBusiness.dataType || (selectedBusiness.isDemo ? "demo" : "real")
       };
@@ -1508,6 +1669,9 @@ export default function App() {
       mockSite.dataType = selectedBusiness.dataType || (selectedBusiness.isDemo ? "demo" : "real");
       if (selectedBusiness.email && !mockSite.contactPage?.email) {
         mockSite.contactPage = { ...mockSite.contactPage, email: selectedBusiness.email };
+      }
+      if (selectedBusiness.phone && selectedBusiness.phone !== "Unlisted" && (!mockSite.phone || mockSite.phone === "Unlisted")) {
+        mockSite.phone = selectedBusiness.phone;
       }
       setGeneratedSite(mockSite);
       await handleSaveDraft(mockSite);
@@ -2030,6 +2194,7 @@ export default function App() {
               userName={session?.displayName || session?.email || "Agent"}
               onUpdateProspect={handleUpdateProspect}
               onImportLeads={handleImportLeads}
+              onOutreachSent={handleRecordOutreachDispatch}
               onOpenReviewQueue={() => setActiveTab("review_queue")}
               onViewAudit={(biz) => {
                 setSelectedBusiness(biz);
@@ -2040,16 +2205,23 @@ export default function App() {
                 setActiveTab("generator");
               }}
               onOpenSalesAssistant={(biz) => {
-                const matched = userSites.find(s => s.businessName.toLowerCase() === biz.name.toLowerCase());
+                const matched = userSites.find(
+                  s =>
+                    s.businessId === biz.id ||
+                    s.businessName.toLowerCase() === biz.name.toLowerCase()
+                );
+                setSelectedBusiness(biz);
                 if (matched) {
                   setGeneratedSite(matched);
-                } else {
-                  setSelectedBusiness(biz);
                 }
                 setActiveTab("sales");
               }}
               onOpenProposal={(biz) => {
-                const matched = userSites.find(s => s.businessName.toLowerCase() === biz.name.toLowerCase());
+                const matched = userSites.find(
+                  s =>
+                    s.businessId === biz.id ||
+                    s.businessName.toLowerCase() === biz.name.toLowerCase()
+                );
                 if (matched) {
                   setGeneratedSite(matched);
                 }
@@ -2075,6 +2247,7 @@ export default function App() {
           {activeTab === "websites" && (
             <MyWebsites 
               sites={userSites}
+              businesses={businesses}
               onEditSite={(site) => {
                 setGeneratedSite(site);
                 setActiveTab("editor");
@@ -2100,6 +2273,7 @@ export default function App() {
               onCreateNewPreview={() => setActiveTab("finder")}
               onUpdateSiteStatus={handleUpdateSiteStatus}
               onUpdateSite={handleSaveDraft}
+              onOutreachSent={handleRecordOutreachDispatch}
             />
           )}
 
@@ -2109,7 +2283,13 @@ export default function App() {
               businesses={businesses} 
               loading={loading} 
               onSearch={(filters) => triggerSearch(filters, false)} 
-              onAnalyze={handleAnalyze} 
+              onAnalyze={handleAnalyze}
+              userSites={userSites}
+              onOpenPreview={(site, biz) => {
+                if (biz) setSelectedBusiness(biz);
+                setGeneratedSite(site);
+                setActiveTab("preview");
+              }}
             />
           )}
 
@@ -2147,35 +2327,36 @@ export default function App() {
           )}
 
           {/* View: Share Presentation Portal */}
-          {activeTab === "preview" && generatedSite && (
-            <ShareablePreview 
-              site={generatedSite}
-              businessEmail={
-                (selectedBusiness?.id === generatedSite.businessId ? selectedBusiness.email : undefined) ||
-                businesses.find(b => b.id === generatedSite.businessId)?.email ||
-                null
-              }
-              onBackToEditor={() => setActiveTab("editor")}
-              onGoToSalesAssistant={() => setActiveTab("sales")}
-              onGoToProposals={() => setActiveTab("proposals")}
-              onOpenPortal={() => setActiveTab("portal")}
-              onUpdateSite={handleSaveDraft}
-            />
-          )}
+          {activeTab === "preview" && generatedSite && (() => {
+            const matchedBiz = resolveBusinessForSite(generatedSite);
+            return (
+              <ShareablePreview 
+                site={generatedSite}
+                business={matchedBiz}
+                businessEmail={resolveEmailForSite(generatedSite, matchedBiz)}
+                onBackToEditor={() => setActiveTab("editor")}
+                onGoToSalesAssistant={() => setActiveTab("sales")}
+                onGoToProposals={() => setActiveTab("proposals")}
+                onOpenPortal={() => setActiveTab("portal")}
+                onUpdateSite={handleSaveDraft}
+                onOutreachSent={handleRecordOutreachDispatch}
+              />
+            );
+          })()}
 
           {/* View: Sales outreach assistance copywriting */}
-          {activeTab === "sales" && generatedSite && (
-            <SalesAssistant 
-              site={generatedSite}
-              business={
-                (selectedBusiness?.id === generatedSite.businessId ? selectedBusiness : undefined) ||
-                businesses.find(b => b.id === generatedSite.businessId) ||
-                null
-              }
-              onBack={() => setActiveTab("preview")}
-              onUpdateSite={handleSaveDraft}
-            />
-          )}
+          {activeTab === "sales" && generatedSite && (() => {
+            const matchedBiz = resolveBusinessForSite(generatedSite);
+            return (
+              <SalesAssistant 
+                site={generatedSite}
+                business={matchedBiz}
+                onBack={() => setActiveTab("preview")}
+                onUpdateSite={handleSaveDraft}
+                onOutreachSent={handleRecordOutreachDispatch}
+              />
+            );
+          })()}
 
           {/* View: Proposals contracts & estimators */}
           {activeTab === "proposals" && (

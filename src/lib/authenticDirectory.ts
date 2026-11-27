@@ -1884,12 +1884,17 @@ export function getAuthenticDirectoryBusinesses(
             url: item.sourceUrl,
             sourceTitle: `${item.name} - ${item.directorySource}`,
             retrievedAt: new Date().toISOString(),
-            supports: ["name", "address", ...(phoneValidation.isValid ? ["phone"] : [])],
+            supports: [
+              "name",
+              "address",
+              ...(phoneValidation.isValid ? ["phone"] : []),
+              ...(cleanEmail ? ["email"] : [])
+            ],
             associationMethod: "EXACT_URL",
             confidence: 0.95
           }
         ],
-        verificationState: phoneValidation.isValid ? "CONTACT_READY" : "CANDIDATE",
+        verificationState: (phoneValidation.isValid || Boolean(cleanEmail)) ? "CONTACT_READY" : "CANDIDATE",
         salesStage: "DISCOVERED",
         isDemo: false,
         dataType: "real",

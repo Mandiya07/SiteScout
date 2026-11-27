@@ -301,9 +301,13 @@ function isFakeEmail(emailStr: string, biz: any): boolean {
     const evidenceList = Array.isArray(biz?.evidenceList) ? biz.evidenceList : [];
     const websiteUrl = biz?.presence?.websiteUrl || biz?.websiteUrl || "";
     const hasDomainEvidence =
-      evidenceList.some((e: any) => e.url && e.url.toLowerCase().includes(emailDomain)) ||
+      evidenceList.some((e: any) => (e?.url || e?.sourceUrl || "").toLowerCase().includes(emailDomain)) ||
       websiteUrl.toLowerCase().includes(emailDomain);
-    if (!hasDomainEvidence && !biz?.isOwnerEmail) return true;
+    const hasDirectoryEmailEvidence = evidenceList.some((e: any) => {
+      const supports = Array.isArray(e?.supports) ? e.supports : [];
+      return supports.includes("email") && Boolean(e?.url || e?.sourceUrl || e?.sourceTitle || e?.title);
+    });
+    if (!hasDomainEvidence && !hasDirectoryEmailEvidence && !biz?.isOwnerEmail && !biz?.isUserSupplied) return true;
   }
   return false;
 }

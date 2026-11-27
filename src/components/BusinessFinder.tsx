@@ -5,7 +5,7 @@ import {
   ShoppingBag, Calendar, Mail, Smartphone, ShieldAlert, Zap, SlidersHorizontal,
   ChevronDown, Database, ExternalLink, CheckCircle2, XCircle, ChevronLeft, ChevronRight
 } from 'lucide-react';
-import { Business, SearchFilters, DigitalDeficitAudit } from '../types';
+import { Business, SearchFilters, DigitalDeficitAudit, GeneratedSite } from '../types';
 import { SearchHistorySidebar } from './SearchHistorySidebar';
 import { hasAuthenticBusinessEmail } from '../lib/searchNormalization';
 
@@ -14,6 +14,8 @@ interface BusinessFinderProps {
   loading: boolean;
   onSearch: (filters: SearchFilters) => void;
   onAnalyze: (business: Business) => void;
+  userSites?: GeneratedSite[];
+  onOpenPreview?: (site: GeneratedSite, business?: Business) => void;
 }
 
 const DIRECTORY_CATEGORIES = [
@@ -81,7 +83,7 @@ const DEFICIT_DEFINITIONS: { key: keyof DigitalDeficitAudit; label: string; icon
   { key: "missingContact", label: "No Contact Links", icon: Phone, tip: "No tel: or mailto: links detected on page" }
 ];
 
-export default function BusinessFinder({ businesses, loading, onSearch, onAnalyze }: BusinessFinderProps) {
+export default function BusinessFinder({ businesses, loading, onSearch, onAnalyze, userSites = [], onOpenPreview }: BusinessFinderProps) {
   const [filters, setFilters] = useState<SearchFilters>({
     country: 'Eswatini',
     city: 'Mbabane',
@@ -987,18 +989,39 @@ export default function BusinessFinder({ businesses, loading, onSearch, onAnalyz
                       </td>
 
                       <td className="px-5 py-4 text-right">
-                        <button
-                          onClick={() => onAnalyze(biz)}
-                          className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-xs ${
-                            (!biz.presence?.hasWebsite || biz.pipelineBranch === "BRANCH_B_CANDIDATE_VERIFIED")
-                              ? "bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-500/10"
-                              : "bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/10"
-                          }`}
-                        >
-                          {(!biz.presence?.hasWebsite || biz.pipelineBranch === "BRANCH_B_CANDIDATE_VERIFIED")
-                            ? "Generate Website"
-                            : "Audit Deficits & Pitch"} <ArrowRight className="h-3.5 w-3.5" />
-                        </button>
+                        {(() => {
+                          const existingSite = userSites.find(
+                            s =>
+                              s.businessId === biz.id ||
+                              (s.businessName || "").trim().toLowerCase() === (biz.name || "").trim().toLowerCase()
+                          );
+                          return (
+                            <div className="inline-flex flex-col sm:flex-row items-end sm:items-center gap-2 justify-end">
+                              {existingSite && onOpenPreview && (
+                                <button
+                                  type="button"
+                                  onClick={() => onOpenPreview(existingSite, biz)}
+                                  className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-all cursor-pointer shadow-xs"
+                                  title={hasAuthenticBusinessEmail(biz) ? `Send demo preview to ${biz.email}` : "Open demo preview & send to client"}
+                                >
+                                  Send Demo
+                                </button>
+                              )}
+                              <button
+                                onClick={() => onAnalyze(biz)}
+                                className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-xs ${
+                                  (!biz.presence?.hasWebsite || biz.pipelineBranch === "BRANCH_B_CANDIDATE_VERIFIED")
+                                    ? "bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-500/10"
+                                    : "bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/10"
+                                }`}
+                              >
+                                {(!biz.presence?.hasWebsite || biz.pipelineBranch === "BRANCH_B_CANDIDATE_VERIFIED")
+                                  ? "Generate Website"
+                                  : "Audit Deficits & Pitch"} <ArrowRight className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          );
+                        })()}
                       </td>
                     </tr>
                   );

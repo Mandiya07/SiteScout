@@ -663,14 +663,27 @@ export function normalizeWebsiteSchema(
       ];
 
   // 11. Contact Page, Policy, Terms, 404
-  const validContactEmail =
-    business?.email && business.email.includes("@")
-      ? business.email.trim()
-      : site.contactPage?.email && site.contactPage.email.includes("@")
-        ? (site.isUserSupplied || !(site.contactPage.email.startsWith("contact@") || site.contactPage.email.startsWith("info@"))
-            ? site.contactPage.email.trim()
-            : null)
-        : null;
+  const rawBizEmail =
+    business?.email && business.email.includes("@") ? business.email.trim() : null;
+  const rawSiteEmail =
+    site.contactPage?.email && site.contactPage.email.includes("@")
+      ? site.contactPage.email.trim()
+      : null;
+  const isSiteEmailVerified =
+    Boolean(rawSiteEmail) &&
+    (
+      Boolean(site.isUserSupplied) ||
+      existingProvenance.contactEmail === "VERIFIED" ||
+      existingProvenance.contactEmail === "BUSINESS_SUPPLIED" ||
+      (typeof truthProf?.email?.value === "string" &&
+        truthProf.email.value.trim().toLowerCase() === rawSiteEmail!.toLowerCase()) ||
+      !(
+        rawSiteEmail!.toLowerCase().startsWith("contact@") ||
+        rawSiteEmail!.toLowerCase().startsWith("info@")
+      )
+    );
+
+  const validContactEmail = rawBizEmail || (isSiteEmailVerified ? rawSiteEmail : null);
 
   const contactPage = {
     title: site.contactPage?.title || `Get in Touch with ${name}`,

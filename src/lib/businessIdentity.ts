@@ -576,6 +576,19 @@ export function mergeBusinessRecords(
     merged.directorySource = incoming.directorySource;
   }
 
+  if (merged.email && merged.email.includes("@")) {
+    merged.presence = {
+      ...(existing.presence || incoming.presence),
+      hasEmail: true
+    } as any;
+  }
+  if (incoming.lastContactedAt) {
+    merged.lastContactedAt = incoming.lastContactedAt;
+  }
+  if (incoming.nextFollowUpDate !== undefined) {
+    merged.nextFollowUpDate = incoming.nextFollowUpDate;
+  }
+
   // 8. Ownership & System Stamps
   merged.userId = existing.userId || incoming.userId;
   merged.ownerId = existing.ownerId || incoming.ownerId;

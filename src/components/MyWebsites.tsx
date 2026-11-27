@@ -1,17 +1,20 @@
 import { useState } from "react";
-import { GeneratedSite, SalesStatus } from "../types";
+import { Business, GeneratedSite, SalesStatus } from "../types";
 import { toCanonicalStage, canonicalToSalesStatus } from "../lib/prospectCrm";
+import { authedFetch } from "../lib/firebase";
+import { generateWhatsappLink, normalizePhoneNumber } from "../lib/formatters";
 import { 
   Globe, ExternalLink, Edit3, MessageSquare, FileText, 
   Trash2, Copy, Check, Sparkles, Eye, ShieldCheck, Tag,
   Plus, X, ChevronDown, Filter, CheckCircle2, XCircle,
   MessageCircle, Send, Target, Search, Layers, TrendingUp,
   BarChart3, Calendar, Clock, Smartphone, Laptop, ChevronRight,
-  ShieldAlert, Sparkle, RefreshCw
+  ShieldAlert, Sparkle, RefreshCw, Mail, Phone, Loader2
 } from "lucide-react";
 
 interface MyWebsitesProps {
   sites: GeneratedSite[];
+  businesses?: Business[];
   onEditSite: (site: GeneratedSite) => void;
   onOpenPreview: (site: GeneratedSite) => void;
   onOpenSalesAssistant: (site: GeneratedSite) => void;
@@ -20,6 +23,21 @@ interface MyWebsitesProps {
   onCreateNewPreview: () => void;
   onUpdateSiteStatus?: (siteId: string, status: SalesStatus, tags?: string[]) => void;
   onUpdateSite?: (updatedSite: GeneratedSite) => void;
+  onOutreachSent?: (dispatch: {
+    dispatchId?: string;
+    siteId?: string;
+    businessId?: string;
+    businessName: string;
+    channel: "email" | "whatsapp" | "sms";
+    recipient: string;
+    recipientEmail?: string;
+    recipientPhone?: string;
+    previewUrl: string;
+    subject?: string;
+    deliveryMode?: string;
+    provider?: string;
+    sentAt?: string;
+  }) => void;
 }
 
 export const SALES_STATUS_CONFIG: Record<SalesStatus, {
@@ -142,6 +160,7 @@ export function filterWebsites(
 
 export default function MyWebsites({
   sites,
+  businesses = [],
   onEditSite,
   onOpenPreview,
   onOpenSalesAssistant,
@@ -149,7 +168,8 @@ export default function MyWebsites({
   onDeleteSite,
   onCreateNewPreview,
   onUpdateSiteStatus,
-  onUpdateSite
+  onUpdateSite,
+  onOutreachSent
 }: MyWebsitesProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>("");
@@ -166,6 +186,188 @@ export default function MyWebsites({
   const [modalSalesStatus, setModalSalesStatus] = useState<SalesStatus>("Lead");
   const [modalTags, setModalTags] = useState<string[]>([]);
   const [customTagInput, setCustomTagInput] = useState<string>("");
+
+  // Direct Send Demo Website modal state
+  const [sendDemoSite, setSendDemoSite] = useState<GeneratedSite | null>(null);
+  const [sendEmailInput, setSendEmailInput] = useState<string>("");
+  const [sendPhoneInput, setSendPhoneInput] = useState<string>("");
+  const [sendingChannel, setSendingChannel] = useState<null | "email" | "whatsapp" | "sms">(null);
+  const [sendFeedback, setSendFeedback] = useState<{ type: "success" | "error"; text: string; handoffUrl?: string; channel?: string } | null>(null);
+
+  const resolveSiteContacts = (site: GeneratedSite) => {
+    const matchedBiz = businesses.find(
+      b =>
+        b.id === site.businessId ||
+        (b.name || "").trim().toLowerCase() === (site.businessName || "").trim().toLowerCase()
+    );
+    const emailCandidates = [
+      site.contactPage?.email,
+      matchedBiz?.email,
+      site.truthProfile?.email?.value
+    ];
+    let cleanEmail = "";
+    for (const c of emailCandidates) {
+      if (typeof c === "string") {
+        const t = c.trim();
+        const l = t.toLowerCase();
+        if (t && t.includes("@") && !["unlisted", "none", "n/a", "null", "undefined", "not listed"].includes(l)) {
+          cleanEmail = t;
+          break;
+        }
+      }
+    }
+    const phoneCandidates = [
+      site.phone,
+      matchedBiz?.phone,
+      site.truthProfile?.phone?.value
+    ];
+    let cleanPhone = "";
+    for (const p of phoneCandidates) {
+      if (typeof p === "string") {
+        const t = p.trim();
+        if (t && t.toLowerCase() !== "unlisted" && t.toLowerCase() !== "null") {
+          cleanPhone = t;
+          break;
+        }
+      }
+    }
+    return { email: cleanEmail, phone: cleanPhone, matchedBusiness: matchedBiz };
+  };
+
+  const openSendDemoModal = (site: GeneratedSite) => {
+    const contacts = resolveSiteContacts(site);
+    setSendDemoSite(site);
+    setSendEmailInput(contacts.email);
+    setSendPhoneInput(contacts.phone);
+    setSendFeedback(null);
+  };
+
+  const handleDispatchFromCard = async (channel: "email" | "whatsapp" | "sms") => {
+    if (!sendDemoSite) return;
+    const cleanEmail = sendEmailInput.trim();
+    const cleanPhone = sendPhoneInput.trim();
+
+    if (channel === "email" && (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail))) {
+      setSendFeedback({ type: "error", text: "Please enter a valid recipient email address." });
+      return;
+    }
+    if ((channel === "whatsapp" || channel === "sms") && normalizePhoneNumber(cleanPhone, sendDemoSite.address).length < 7) {
+      setSendFeedback({ type: "error", text: "Please enter a valid recipient phone or WhatsApp number." });
+      return;
+    }
+
+    const previewUrl = `${window.location.origin}/preview/${sendDemoSite.previewToken || sendDemoSite.id}`;
+    const subject = `Free Website Preview for ${sendDemoSite.businessName}`;
+    const message =
+      channel === "email"
+        ? `Hi ${sendDemoSite.businessName} Team,\n\nI created a free website preview for your business matching your verified local details:\n\n${previewUrl}\n\nOnce you review and approve it, we can customize and launch it on your domain!\n\nBest regards,\nWeb Design Team`
+        : channel === "whatsapp"
+          ? `Hi ${sendDemoSite.businessName}! I created a free website preview for your business: ${previewUrl} - once you approve it, let's customize and launch it!`
+          : `Hi ${sendDemoSite.businessName}! I created a free website preview for your business: ${previewUrl}`;
+
+    setSendingChannel(channel);
+    setSendFeedback(null);
+
+    try {
+      const res = await authedFetch("/api/send-demo-website", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          siteId: sendDemoSite.id,
+          businessId: sendDemoSite.businessId,
+          businessName: sendDemoSite.businessName,
+          previewUrl,
+          channel,
+          recipientEmail: cleanEmail,
+          recipientPhone: cleanPhone,
+          address: sendDemoSite.address,
+          subject,
+          message
+        })
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Could not dispatch demo website.");
+      }
+
+      if (onUpdateSite) {
+        onUpdateSite({
+          ...sendDemoSite,
+          phone: cleanPhone || sendDemoSite.phone,
+          salesStatus: "Contacted",
+          salesStage: "PREVIEW_SENT",
+          contactPage: {
+            ...sendDemoSite.contactPage,
+            email: cleanEmail || sendDemoSite.contactPage?.email || null
+          }
+        });
+      }
+
+      if (onOutreachSent) {
+        onOutreachSent({
+          dispatchId: data.dispatchId,
+          siteId: sendDemoSite.id,
+          businessId: sendDemoSite.businessId,
+          businessName: sendDemoSite.businessName,
+          channel,
+          recipient: data.recipient || (channel === "email" ? cleanEmail : cleanPhone),
+          recipientEmail: cleanEmail || undefined,
+          recipientPhone: cleanPhone || undefined,
+          previewUrl,
+          subject,
+          deliveryMode: data.deliveryMode,
+          provider: data.provider,
+          sentAt: data.sentAt
+        });
+      }
+
+      if (data.deliveryMode === "client_handoff" && data.protocolUrl) {
+        if (
+          data.protocolUrl.startsWith("mailto:") ||
+          data.protocolUrl.startsWith("sms:") ||
+          data.protocolUrl.startsWith("https://wa.me/")
+        ) {
+          const a = document.createElement("a");
+          a.href = data.protocolUrl;
+          if (channel === "whatsapp") {
+            a.target = "_blank";
+            a.rel = "noopener noreferrer";
+          }
+          a.style.display = "none";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }
+        setSendFeedback({
+          type: "success",
+          text: data.message || `Prepared demo link for ${data.recipient}.`,
+          handoffUrl: data.protocolUrl,
+          channel
+        });
+      } else {
+        setSendFeedback({
+          type: "success",
+          text: data.message || `Demo website sent to ${data.recipient}.`
+        });
+      }
+    } catch (err: any) {
+      const fallbackUrl =
+        channel === "email"
+          ? `mailto:${cleanEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`
+          : channel === "whatsapp"
+            ? generateWhatsappLink(cleanPhone, message, sendDemoSite.address)
+            : `sms:+${normalizePhoneNumber(cleanPhone, sendDemoSite.address)}?body=${encodeURIComponent(message)}`;
+      setSendFeedback({
+        type: "error",
+        text: err?.message || "Failed to send demo website.",
+        handoffUrl: fallbackUrl,
+        channel
+      });
+    } finally {
+      setSendingChannel(null);
+    }
+  };
 
   // Extract all unique custom tags present across all user projects
   const allExistingCustomTags = Array.from(
@@ -201,7 +403,7 @@ export default function MyWebsites({
 
   const handleCopyLink = (site: GeneratedSite) => {
     const origin = window.location.origin;
-    const url = `${origin}/preview/${site.id}`;
+    const url = `${origin}/preview/${site.previewToken || site.id}`;
     navigator.clipboard.writeText(url);
     setCopiedId(site.id);
     setTimeout(() => setCopiedId(null), 2000);
@@ -477,11 +679,12 @@ export default function MyWebsites({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredSites.map((site) => {
-            const previewUrl = `${window.location.origin}/preview/${site.id}`;
+            const previewUrl = `${window.location.origin}/preview/${site.previewToken || site.id}`;
             const isCopied = copiedId === site.id;
             const currentStatus = getSiteSalesStatus(site);
             const statusConfig = SALES_STATUS_CONFIG[currentStatus];
             const isMenuOpen = activeMenuSiteId === site.id;
+            const contacts = resolveSiteContacts(site);
 
             return (
               <div
@@ -591,6 +794,22 @@ export default function MyWebsites({
                     </div>
 
                     <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="flex items-center gap-1 shrink-0">
+                          <Mail className="w-3 h-3 text-blue-500" /> Email:
+                        </span>
+                        <span className={`font-mono text-[11px] truncate ${contacts.email ? "text-blue-600 dark:text-blue-400 font-semibold" : "text-slate-400 italic"}`}>
+                          {contacts.email || "Unlisted"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="flex items-center gap-1 shrink-0">
+                          <Phone className="w-3 h-3 text-emerald-500" /> Phone:
+                        </span>
+                        <span className="font-mono text-[11px] text-slate-700 dark:text-slate-300 truncate">
+                          {contacts.phone || "Unlisted"}
+                        </span>
+                      </div>
                       <div className="flex items-center justify-between">
                         <span>Services listed:</span>
                         <span className="font-semibold text-slate-700 dark:text-slate-300">{site.services?.length || 3} items</span>
@@ -644,6 +863,15 @@ export default function MyWebsites({
                       <span>Quick Edit</span>
                     </button>
                   </div>
+
+                  <button
+                    onClick={() => openSendDemoModal(site)}
+                    className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs transition-colors cursor-pointer"
+                    title={contacts.email ? `Send demo preview to ${contacts.email}` : "Send demo preview to business email or WhatsApp"}
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>{contacts.email ? `Send Demo (${contacts.email})` : "Send Demo to Client"}</span>
+                  </button>
 
                   <button
                     onClick={() => setSelectedAnalyticsSite(site)}
@@ -1138,6 +1366,123 @@ export default function MyWebsites({
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* Send Demo Website Modal */}
+      {sendDemoSite && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 max-w-md w-full shadow-2xl overflow-hidden p-6 space-y-4 text-left">
+            <div className="flex items-start justify-between">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                  <Send className="w-3 h-3" />
+                  <span>Deliver Website Preview</span>
+                </span>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white mt-0.5">
+                  Send Demo to {sendDemoSite.businessName}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Uses the contact email and phone found during search. You can review or edit them before sending.
+                </p>
+              </div>
+              <button
+                onClick={() => setSendDemoSite(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800">
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+                  Recipient Email Address
+                </label>
+                <input
+                  type="email"
+                  value={sendEmailInput}
+                  onChange={(e) => setSendEmailInput(e.target.value)}
+                  placeholder="owner@business.com"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+                  WhatsApp / SMS Number
+                </label>
+                <input
+                  type="tel"
+                  value={sendPhoneInput}
+                  onChange={(e) => setSendPhoneInput(e.target.value)}
+                  placeholder="+268 7600 0000"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+            </div>
+
+            {sendFeedback && (
+              <div
+                className={`p-3 rounded-xl border text-xs space-y-1.5 ${
+                  sendFeedback.type === "success"
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-900 dark:bg-emerald-950/30 dark:border-emerald-900/50 dark:text-emerald-200"
+                    : "bg-rose-50 border-rose-200 text-rose-900 dark:bg-rose-950/30 dark:border-rose-900/50 dark:text-rose-200"
+                }`}
+              >
+                <p className="font-medium leading-relaxed">{sendFeedback.text}</p>
+                {sendFeedback.handoffUrl && (
+                  <a
+                    href={sendFeedback.handoffUrl}
+                    target={sendFeedback.channel === "whatsapp" ? "_blank" : undefined}
+                    rel={sendFeedback.channel === "whatsapp" ? "noopener noreferrer" : undefined}
+                    className="inline-flex items-center gap-1 font-bold underline"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    {sendFeedback.channel === "email"
+                      ? "Open in Email App"
+                      : sendFeedback.channel === "whatsapp"
+                        ? "Open in WhatsApp"
+                        : "Open SMS App"}
+                  </a>
+                )}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => handleDispatchFromCard("email")}
+                disabled={sendingChannel !== null}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white py-2.5 text-xs font-bold transition-all cursor-pointer"
+              >
+                {sendingChannel === "email" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                <span>{sendingChannel === "email" ? "Sending Demo Email..." : "Send Demo via Email"}</span>
+              </button>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleDispatchFromCard("whatsapp")}
+                  disabled={sendingChannel !== null}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white py-2.5 text-xs font-bold transition-all cursor-pointer"
+                >
+                  {sendingChannel === "whatsapp" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MessageSquare className="w-3.5 h-3.5" />}
+                  <span>WhatsApp</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleDispatchFromCard("sms")}
+                  disabled={sendingChannel !== null}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-60 text-slate-700 dark:text-slate-200 py-2.5 text-xs font-bold transition-all cursor-pointer"
+                >
+                  {sendingChannel === "sms" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5 text-purple-500" />}
+                  <span>SMS</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

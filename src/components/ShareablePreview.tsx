@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { GeneratedSite } from "../types";
+import { Business, GeneratedSite } from "../types";
 import WebsiteView from "./WebsiteView";
 import { authedFetch } from "../lib/firebase";
 import { generateWhatsappLink, normalizePhoneNumber } from "../lib/formatters";
@@ -11,39 +11,85 @@ import {
 
 interface ShareablePreviewProps {
   site: GeneratedSite;
+  business?: Business | null;
   businessEmail?: string | null;
   onBackToEditor: () => void;
   onGoToSalesAssistant: () => void;
   onGoToProposals: () => void;
   onOpenPortal: () => void;
   onUpdateSite?: (updated: GeneratedSite) => void;
+  onOutreachSent?: (dispatch: {
+    dispatchId?: string;
+    siteId?: string;
+    businessId?: string;
+    businessName: string;
+    channel: "email" | "whatsapp" | "sms";
+    recipient: string;
+    recipientEmail?: string;
+    recipientPhone?: string;
+    previewUrl: string;
+    subject?: string;
+    deliveryMode?: string;
+    provider?: string;
+    sentAt?: string;
+  }) => void;
 }
+
+const resolveCleanEmail = (...candidates: (string | null | undefined)[]): string => {
+  for (const c of candidates) {
+    if (typeof c === "string") {
+      const trimmed = c.trim();
+      const lower = trimmed.toLowerCase();
+      if (trimmed && trimmed.includes("@") && !["unlisted", "none", "n/a", "null", "undefined", "not listed"].includes(lower)) {
+        return trimmed;
+      }
+    }
+  }
+  return "";
+};
+
+const resolveCleanPhone = (...candidates: (string | null | undefined)[]): string => {
+  for (const c of candidates) {
+    if (typeof c === "string") {
+      const trimmed = c.trim();
+      if (trimmed && trimmed.toLowerCase() !== "unlisted" && trimmed.toLowerCase() !== "null") {
+        return trimmed;
+      }
+    }
+  }
+  return "";
+};
 
 export default function ShareablePreview({
   site,
+  business,
   businessEmail,
   onBackToEditor,
   onGoToSalesAssistant,
   onGoToProposals,
   onOpenPortal,
-  onUpdateSite
+  onUpdateSite,
+  onOutreachSent
 }: ShareablePreviewProps) {
+  const initialEmail = resolveCleanEmail(site.contactPage?.email, businessEmail, business?.email, site.truthProfile?.email?.value);
+  const initialPhone = resolveCleanPhone(site.phone, business?.phone, site.truthProfile?.phone?.value);
+
   const [copied, setCopied] = useState(false);
   const [copiedMsg, setCopiedMsg] = useState(false);
   const [pitchChannel, setPitchChannel] = useState<"whatsapp" | "sms" | "email" | "call">("whatsapp");
   const [showQr, setShowQr] = useState(false);
   const [expiry, setExpiry] = useState("14");
   const [previewDevice, setPreviewDevice] = useState<"mockup" | "desktop" | "mobile">("mockup");
-  const [recipientEmail, setRecipientEmail] = useState<string>(site.contactPage?.email || businessEmail || "");
-  const [recipientPhone, setRecipientPhone] = useState<string>(site.phone && site.phone.toLowerCase() !== "unlisted" ? site.phone : "");
+  const [recipientEmail, setRecipientEmail] = useState<string>(initialEmail);
+  const [recipientPhone, setRecipientPhone] = useState<string>(initialPhone);
   const [sendingChannel, setSendingChannel] = useState<null | "email" | "whatsapp" | "sms">(null);
   const [sendFeedback, setSendFeedback] = useState<{ type: "success" | "error"; text: string; handoffUrl?: string; channel?: string } | null>(null);
 
   useEffect(() => {
-    setRecipientEmail(site.contactPage?.email || businessEmail || "");
-    setRecipientPhone(site.phone && site.phone.toLowerCase() !== "unlisted" ? site.phone : "");
+    setRecipientEmail(resolveCleanEmail(site.contactPage?.email, businessEmail, business?.email, site.truthProfile?.email?.value));
+    setRecipientPhone(resolveCleanPhone(site.phone, business?.phone, site.truthProfile?.phone?.value));
     setSendFeedback(null);
-  }, [site.id, site.contactPage?.email, site.phone, businessEmail]);
+  }, [site.id, site.contactPage?.email, site.phone, businessEmail, business?.email, business?.phone]);
 
   const customLink = site.previewToken 
     ? `${window.location.origin}/preview/${site.previewToken}` 
@@ -166,6 +212,24 @@ export default function ShareablePreview({
             ...site.contactPage,
             email: cleanEmail || site.contactPage?.email || null
           }
+        });
+      }
+
+      if (onOutreachSent) {
+        onOutreachSent({
+          dispatchId: data.dispatchId,
+          siteId: site.id,
+          businessId: site.businessId || business?.id,
+          businessName: site.businessName,
+          channel,
+          recipient: data.recipient || (channel === "email" ? cleanEmail : cleanPhone),
+          recipientEmail: cleanEmail || undefined,
+          recipientPhone: cleanPhone || undefined,
+          previewUrl: customLink,
+          subject: emailSubject,
+          deliveryMode: data.deliveryMode,
+          provider: data.provider,
+          sentAt: data.sentAt
         });
       }
 
@@ -637,6 +701,11 @@ export default function ShareablePreview({
 
             {/* Editable Contact Details */}
             <div className="space-y-2.5 mb-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-150 dark:border-slate-800">
+              {(initialEmail || initialPhone) && (
+                <p className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+                  ✓ Pre-filled with search-discovered contact details
+                </p>
+              )}
               <div>
                 <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
                   Recipient Email Address

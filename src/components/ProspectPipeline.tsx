@@ -1,12 +1,13 @@
 import { useState, useMemo } from "react";
 import { Business, ProspectStatus, GeneratedSite, CanonicalSalesStage, QualificationStatus } from "../types";
-import { generateWhatsappLink } from "../lib/formatters";
+import { generateWhatsappLink, normalizePhoneNumber } from "../lib/formatters";
+import { authedFetch } from "../lib/firebase";
 import { 
   Building2, Phone, MapPin, Globe, ArrowRight, MessageSquare, 
   Calendar, CheckCircle2, Clock, Flame, Filter, Plus, FileText, 
   Sparkles, ExternalLink, RefreshCw, XCircle, AlertCircle, Eye,
   Check, ChevronRight, Mail, ShieldCheck, Zap, Layers, History,
-  Award, ArrowUpDown, ClipboardCheck, Upload, FileSpreadsheet
+  Award, ArrowUpDown, ClipboardCheck, Upload, FileSpreadsheet, Send, Loader2
 } from "lucide-react";
 import DraftEmailModal from "./DraftEmailModal";
 import OpportunityScoreModal from "./OpportunityScoreModal";
@@ -34,6 +35,21 @@ interface ProspectPipelineProps {
   onViewAudit?: (business: Business) => void;
   onOpenReviewQueue?: () => void;
   onImportLeads?: (leads: Business[]) => Promise<{ addedCount: number; updatedCount: number } | void> | void;
+  onOutreachSent?: (dispatch: {
+    dispatchId?: string;
+    siteId?: string;
+    businessId?: string;
+    businessName: string;
+    channel: "email" | "whatsapp" | "sms";
+    recipient: string;
+    recipientEmail?: string;
+    recipientPhone?: string;
+    previewUrl: string;
+    subject?: string;
+    deliveryMode?: string;
+    provider?: string;
+    sentAt?: string;
+  }) => void;
   userSites: GeneratedSite[];
   userId?: string;
   userName?: string;
@@ -48,6 +64,7 @@ export default function ProspectPipeline({
   onViewAudit,
   onOpenReviewQueue,
   onImportLeads,
+  onOutreachSent,
   userSites,
   userId,
   userName
@@ -61,6 +78,8 @@ export default function ProspectPipeline({
   const [tempNotes, setTempNotes] = useState<string>("");
   const [schedulingBizId, setSchedulingBizId] = useState<string | null>(null);
   const [draftEmailBiz, setDraftEmailBiz] = useState<Business | null>(null);
+  const [sendingDemoBizId, setSendingDemoBizId] = useState<string | null>(null);
+  const [quickSendFeedback, setQuickSendFeedback] = useState<Record<string, { type: "success" | "error"; text: string }>>({});
   
   // Phase 5 Modals & Drawers
   const [scoreModalBiz, setScoreModalBiz] = useState<Business | null>(null);
@@ -178,6 +197,92 @@ export default function ProspectPipeline({
       : window.location.origin;
     const msg = `Hi! I noticed something specific about ${biz.name}'s online presence in ${biz.address} and thought I could help you improve it. I put together a live interactive preview customized for your business: ${previewUrl}`;
     return generateWhatsappLink(biz.phone, msg, biz.address);
+  };
+
+  const handleQuickSendDemoEmail = async (biz: Business, site: GeneratedSite) => {
+    const cleanEmail = (biz.email && biz.email.includes("@") ? biz.email.trim() : "") ||
+      (site.contactPage?.email && site.contactPage.email.includes("@") ? site.contactPage.email.trim() : "");
+    if (!cleanEmail) {
+      setDraftEmailBiz(biz);
+      return;
+    }
+
+    const previewUrl = site.previewToken
+      ? `${window.location.origin}/preview/${site.previewToken}`
+      : `${window.location.origin}/preview/${site.id}`;
+    const subject = `Free Website Preview for ${biz.name}`;
+    const message = `Hi ${biz.name} Team,\n\nI noticed you don't currently have a modern website capturing local search traffic, so I created a free interactive demo website tailored for ${biz.name}:\n\n${previewUrl}\n\nOnce you review and approve it, we can customize and launch it on your domain!\n\nBest regards,\nWeb Design Team`;
+
+    setSendingDemoBizId(biz.id);
+    try {
+      const res = await authedFetch("/api/send-demo-website", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          siteId: site.id,
+          businessId: biz.id,
+          businessName: biz.name,
+          previewUrl,
+          channel: "email",
+          recipientEmail: cleanEmail,
+          recipientPhone: biz.phone,
+          address: biz.address,
+          subject,
+          message
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Could not send demo email.");
+      }
+
+      if (data.deliveryMode === "client_handoff" && data.protocolUrl && data.protocolUrl.startsWith("mailto:")) {
+        const a = document.createElement("a");
+        a.href = data.protocolUrl;
+        a.style.display = "none";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+
+      if (onOutreachSent) {
+        onOutreachSent({
+          dispatchId: data.dispatchId,
+          siteId: site.id,
+          businessId: biz.id,
+          businessName: biz.name,
+          channel: "email",
+          recipient: cleanEmail,
+          recipientEmail: cleanEmail,
+          recipientPhone: biz.phone && biz.phone !== "Unlisted" ? biz.phone : undefined,
+          previewUrl,
+          subject,
+          deliveryMode: data.deliveryMode,
+          provider: data.provider,
+          sentAt: data.sentAt
+        });
+      } else {
+        onUpdateProspect({
+          ...biz,
+          email: cleanEmail,
+          salesStage: "PREVIEW_SENT",
+          prospectStatus: canonicalToProspectStatus("PREVIEW_SENT"),
+          lastContactedAt: new Date().toISOString()
+        });
+      }
+
+      setQuickSendFeedback(prev => ({
+        ...prev,
+        [biz.id]: { type: "success", text: data.message || `Demo sent to ${cleanEmail}` }
+      }));
+    } catch (err: any) {
+      setQuickSendFeedback(prev => ({
+        ...prev,
+        [biz.id]: { type: "error", text: err?.message || "Failed to send demo" }
+      }));
+    } finally {
+      setSendingDemoBizId(null);
+    }
   };
 
   return (
@@ -461,6 +566,14 @@ export default function ProspectPipeline({
                         );
                       })()}
                     </div>
+                    <div className="flex items-center gap-1.5 truncate">
+                      <Mail className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                      {biz.email && biz.email.includes("@") ? (
+                        <span className="truncate font-mono text-blue-600 dark:text-blue-400 font-medium">{biz.email}</span>
+                      ) : (
+                        <span className="truncate text-slate-400 italic">No public email listed</span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-1.5">
                       <Globe className="w-3.5 h-3.5 text-rose-500 shrink-0" />
                       <span className="text-rose-600 dark:text-rose-400 font-medium">
@@ -727,6 +840,40 @@ export default function ProspectPipeline({
                     )}
                   </div>
 
+                  {/* Instant Send Demo to Discovered Email when website preview exists */}
+                  {site && ((biz.email && biz.email.includes("@")) || (site.contactPage?.email && site.contactPage.email.includes("@"))) && (
+                    <button
+                      type="button"
+                      onClick={() => handleQuickSendDemoEmail(biz, site)}
+                      disabled={sendingDemoBizId === biz.id}
+                      className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white transition-all cursor-pointer shadow-xs"
+                      title={`Send generated demo website directly to ${biz.email || site.contactPage?.email}`}
+                    >
+                      {sendingDemoBizId === biz.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Send className="w-3.5 h-3.5" />
+                      )}
+                      <span className="truncate">
+                        {sendingDemoBizId === biz.id
+                          ? "Sending Demo..."
+                          : `Send Demo to ${biz.email || site.contactPage?.email}`}
+                      </span>
+                    </button>
+                  )}
+
+                  {quickSendFeedback[biz.id] && (
+                    <p
+                      className={`text-[11px] font-medium px-2.5 py-1.5 rounded-lg border ${
+                        quickSendFeedback[biz.id].type === "success"
+                          ? "bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/30 dark:border-emerald-900/50 dark:text-emerald-300"
+                          : "bg-rose-50 border-rose-200 text-rose-800 dark:bg-rose-950/30 dark:border-rose-900/50 dark:text-rose-300"
+                      }`}
+                    >
+                      {quickSendFeedback[biz.id].text}
+                    </p>
+                  )}
+
                   {/* AI Email Drafter based on Digital Gaps */}
                   <button
                     onClick={() => setDraftEmailBiz(biz)}
@@ -739,7 +886,7 @@ export default function ProspectPipeline({
                   </button>
 
                   {/* 1-Click WhatsApp Instant Pitch */}
-                  {biz.phone === "Unlisted" ? (
+                  {normalizePhoneNumber(biz.phone, biz.address).length < 7 ? (
                     <button
                       type="button"
                       onClick={() => onViewAudit && onViewAudit(biz)}
@@ -748,16 +895,6 @@ export default function ProspectPipeline({
                     >
                       <Phone className="w-3.5 h-3.5 text-slate-400" />
                       <span>Phone Unlisted — Run Audit</span>
-                    </button>
-                  ) : biz.verificationState !== "CONTACT_READY" && biz.verificationState !== "VERIFIED" ? (
-                    <button
-                      type="button"
-                      onClick={() => onViewAudit && onViewAudit(biz)}
-                      className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-bold bg-sky-50 hover:bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:hover:bg-sky-900/50 dark:text-sky-300 border border-sky-200 dark:border-sky-800 transition-colors cursor-pointer"
-                      title="Verify contact line and business identity before outreach"
-                    >
-                      <ShieldCheck className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
-                      <span>Audit Contact Before Outreach</span>
                     </button>
                   ) : (
                     <a
@@ -817,6 +954,8 @@ export default function ProspectPipeline({
           onClose={() => setDraftEmailBiz(null)}
           business={draftEmailBiz}
           site={getSiteForBusiness(draftEmailBiz)}
+          onBuildDemoFirst={(biz) => onSelectBusinessForWebsite(biz)}
+          onOutreachSent={onOutreachSent}
           onUpdateProspect={(updated) => {
             onUpdateProspect(updated);
             setDraftEmailBiz(updated);

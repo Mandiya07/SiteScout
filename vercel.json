@@ -18,8 +18,16 @@
       "destination": "/api/discover-prospects"
     },
     {
+      "source": "/api/send-demo-website",
+      "destination": "/api/send-demo-website"
+    },
+    {
+      "source": "/api/send-demo-website/(.*)",
+      "destination": "/api/send-demo-website"
+    },
+    {
       "source": "/api/(.*)",
-      "destination": "/api/index"
+      "destination": "/api/index?__path=$1"
     },
     {
       "source": "/(.*)",
@@ -29,7 +37,8 @@
   "functions": {
     "api/*.ts": {
       "maxDuration": 60,
-      "memory": 1024
+      "memory": 1024,
+      "includeFiles": "firebase-applet-config.json"
     }
   }
 }

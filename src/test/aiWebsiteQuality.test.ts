@@ -741,6 +741,25 @@ describe("MICRO-PHASE 19C: AI Website Generation & Visual Quality Validation", (
       const appSrc = fs.readFileSync(path.resolve(process.cwd(), "src/App.tsx"), "utf-8");
       assert.ok(appSrc.includes("handleRecordOutreachDispatch") && appSrc.includes("[session?.uid]"), "App must sync outreach dispatches and avoid overwriting active search lists on tab switch");
     });
+
+    it("configures Vercel serverless routing for /api/send-demo-website and /api/index path restoration", () => {
+      const vercelCfg = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), "vercel.json"), "utf-8"));
+      const rewrites = vercelCfg.rewrites || [];
+      assert.ok(
+        rewrites.some((r: any) => r.source === "/api/send-demo-website" && r.destination === "/api/send-demo-website"),
+        "vercel.json must route /api/send-demo-website directly to its serverless handler"
+      );
+      assert.ok(
+        rewrites.some((r: any) => r.source === "/api/(.*)" && r.destination === "/api/index?__path=$1"),
+        "vercel.json catch-all /api/(.*) rewrite must forward __path to /api/index"
+      );
+
+      const dedicatedHandler = fs.readFileSync(path.resolve(process.cwd(), "api/send-demo-website.ts"), "utf-8");
+      assert.ok(dedicatedHandler.includes('req.url = "/api/send-demo-website"'), "api/send-demo-website.ts must normalize req.url for Express");
+
+      const indexHandler = fs.readFileSync(path.resolve(process.cwd(), "api/index.ts"), "utf-8");
+      assert.ok(indexHandler.includes('searchParams.get("__path")'), "api/index.ts must restore req.url from __path rewrite param");
+    });
   });
 
 });

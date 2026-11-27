@@ -197,9 +197,20 @@ export default function ShareablePreview({
         body: JSON.stringify(payload)
       });
 
-      const data = await res.json().catch(() => ({}));
+      const rawText = await res.text().catch(() => "");
+      let data: any = {};
+      try {
+        data = rawText ? JSON.parse(rawText) : {};
+      } catch {
+        data = {};
+      }
       if (!res.ok) {
-        throw new Error(data.error || "Could not dispatch demo website.");
+        console.error("[ShareablePreview] /api/send-demo-website failed:", {
+          status: res.status,
+          url: res.url,
+          bodyPreview: rawText.slice(0, 300)
+        });
+        throw new Error(data.error || `Could not dispatch demo website (HTTP ${res.status}).`);
       }
 
       if (onUpdateSite) {

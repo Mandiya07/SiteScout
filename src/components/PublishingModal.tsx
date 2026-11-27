@@ -3,7 +3,7 @@ import { GeneratedSite } from "../types";
 import { MessageCircle, Mail, Smartphone, CheckCircle2, Link as LinkIcon, ShieldAlert, ShieldCheck, Wrench, AlertTriangle, Send, ExternalLink } from "lucide-react";
 import { runPrePublicationIntegrityScan, normalizeWebsiteSchema } from "../lib/websiteSchema";
 import { authedFetch } from "../lib/firebase";
-import { normalizePhoneNumber } from "../lib/formatters";
+import { normalizePhoneNumber, generateWhatsappLink } from "../lib/formatters";
 
 interface PublishingModalProps {
   site: GeneratedSite;
@@ -109,9 +109,20 @@ export default function PublishingModal({ site, onClose, onSavePublish }: Publis
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-      const data = await res.json().catch(() => ({}));
+      const rawText = await res.text().catch(() => "");
+      let data: any = {};
+      try {
+        data = rawText ? JSON.parse(rawText) : {};
+      } catch {
+        data = {};
+      }
       if (!res.ok) {
-        throw new Error(data.error || "Could not dispatch demo website.");
+        console.error("[PublishingModal] /api/send-demo-website failed:", {
+          status: res.status,
+          url: res.url,
+          bodyPreview: rawText.slice(0, 300)
+        });
+        throw new Error(data.error || `Could not dispatch demo website (HTTP ${res.status}).`);
       }
 
       const updated = {
@@ -158,9 +169,22 @@ export default function PublishingModal({ site, onClose, onSavePublish }: Publis
         });
       }
     } catch (err: any) {
+      const subject = `Free Website Preview for ${currentSite.businessName}`;
+      const bodyMsg = channel === "email"
+        ? `Hi ${currentSite.businessName} Team,\n\nI created a custom website preview for your business:\n\n${previewUrl}\n\nOnce you review and approve it, we can customize and launch it for you.`
+        : channel === "whatsapp"
+          ? `Hi ${currentSite.businessName}! I created a custom website preview for your business: ${previewUrl} - once you approve it, let's customize and launch it!`
+          : `Hi ${currentSite.businessName}! I created a custom website preview for your business: ${previewUrl}`;
+      const fallbackUrl = channel === "email"
+        ? `mailto:${cleanEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyMsg)}`
+        : channel === "whatsapp"
+          ? generateWhatsappLink(cleanPhone, bodyMsg, currentSite.address)
+          : `sms:+${normalizePhoneNumber(cleanPhone, currentSite.address)}?body=${encodeURIComponent(bodyMsg)}`;
       setSendFeedback({
         type: "error",
-        text: err?.message || "Failed to send demo website."
+        text: err?.message || "Failed to send demo website.",
+        handoffUrl: fallbackUrl,
+        channel
       });
     } finally {
       setSendingChannel(null);

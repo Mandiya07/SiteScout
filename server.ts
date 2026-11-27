@@ -118,7 +118,6 @@ import {
   getCanonicalBackup
 } from "./src/lib/backupRecovery";
 import path from "path";
-import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import { initializeServerConfig, formatSafeConfigSummary, getServerConfig } from "./server/config";
@@ -206,6 +205,16 @@ app.use(configureCorsAndCsrf({
 
 // Vercel serverless compatibility: avoid body-parser hang on already-parsed stream
 app.use((req: any, _res: any, next: any) => {
+  if (typeof req.body === "string") {
+    const trimmed = req.body.trim();
+    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+      try {
+        req.body = JSON.parse(trimmed);
+      } catch {
+        // Leave string body untouched if not valid JSON
+      }
+    }
+  }
   if (req.body && typeof req.body === "object") {
     req._body = true;
   }
@@ -3971,9 +3980,20 @@ app.post("/api/send-demo-website", verifyAuthToken, previewLimiter, async (req: 
     const sentAt = new Date().toISOString();
     const recipient = normalizedChannel === "email" ? cleanEmail : `+${e164Digits}`;
 
+    const buildClientHandoffUrl = () => {
+      if (normalizedChannel === "email") {
+        return `mailto:${cleanEmail}?subject=${encodeURIComponent(safeSubject)}&body=${encodeURIComponent(safeMessage)}`;
+      }
+      if (normalizedChannel === "whatsapp") {
+        return generateWhatsappLink(`+${e164Digits}`, safeMessage, typeof address === "string" ? address : "");
+      }
+      return `sms:+${e164Digits}?body=${encodeURIComponent(safeMessage)}`;
+    };
+
     let deliveryMode: "direct_email" | "webhook" | "client_handoff" = "client_handoff";
     let provider = "device_app";
     let protocolUrl: string | undefined;
+    let fallbackReason: string | undefined;
 
     if (normalizedChannel === "email" && process.env.RESEND_API_KEY) {
       const fromAddress = process.env.OUTREACH_FROM_EMAIL || "SiteScout AI <onboarding@resend.dev>";
@@ -3983,68 +4003,79 @@ app.post("/api/send-demo-website", verifyAuthToken, previewLimiter, async (req: 
         : "";
       const htmlBody = `<div style="font-family:sans-serif;line-height:1.6;color:#0f172a;max-width:600px;">${htmlParagraphs}${previewCtaHtml}</div>`;
 
-      const resendRes = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          from: fromAddress,
-          to: [cleanEmail],
-          subject: safeSubject,
-          text: safeMessage,
-          html: htmlBody
-        })
-      });
+      try {
+        const resendRes = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            from: fromAddress,
+            to: [cleanEmail],
+            subject: safeSubject,
+            text: safeMessage,
+            html: htmlBody
+          })
+        });
 
-      if (!resendRes.ok) {
-        const errText = await resendRes.text().catch(() => "");
-        console.error("[SendDemoWebsite] Resend delivery failed:", resendRes.status, errText);
-        return res.status(502).json({ error: "Email provider could not deliver to that address right now." });
+        if (resendRes.ok) {
+          deliveryMode = "direct_email";
+          provider = "resend";
+        } else {
+          const errText = await resendRes.text().catch(() => "");
+          console.warn("[SendDemoWebsite] Resend delivery declined, falling back to client handoff:", resendRes.status, errText);
+          fallbackReason = "Direct email relay declined by provider; prepared email app handoff instead.";
+          protocolUrl = buildClientHandoffUrl();
+        }
+      } catch (resendErr: any) {
+        console.warn("[SendDemoWebsite] Resend request failed, falling back to client handoff:", resendErr?.message || resendErr);
+        fallbackReason = "Direct email relay unreachable; prepared email app handoff instead.";
+        protocolUrl = buildClientHandoffUrl();
       }
-      deliveryMode = "direct_email";
-      provider = "resend";
     } else if (process.env.OUTREACH_WEBHOOK_URL) {
-      const webhookUrl = new URL(process.env.OUTREACH_WEBHOOK_URL);
-      if (!["http:", "https:"].includes(webhookUrl.protocol)) {
-        return res.status(500).json({ error: "Configured outreach webhook URL is invalid." });
+      try {
+        const webhookUrl = new URL(process.env.OUTREACH_WEBHOOK_URL);
+        if (!["http:", "https:"].includes(webhookUrl.protocol)) {
+          throw new Error("Configured outreach webhook URL has invalid protocol.");
+        }
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (process.env.OUTREACH_WEBHOOK_SECRET) {
+          headers["x-webhook-secret"] = process.env.OUTREACH_WEBHOOK_SECRET;
+        }
+        const hookRes = await fetch(webhookUrl.toString(), {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            dispatchId,
+            siteId,
+            businessId,
+            businessName: safeBusinessName,
+            channel: normalizedChannel,
+            recipientEmail: cleanEmail || null,
+            recipientPhone: e164Digits ? `+${e164Digits}` : null,
+            previewUrl: safePreviewUrl,
+            subject: safeSubject,
+            message: safeMessage,
+            sentAt,
+            actorUid: req.user?.uid || "anonymous"
+          })
+        });
+        if (hookRes.ok) {
+          deliveryMode = "webhook";
+          provider = "webhook";
+        } else {
+          console.warn("[SendDemoWebsite] Outreach webhook returned status", hookRes.status, "- falling back to client handoff.");
+          fallbackReason = "Outreach webhook unavailable; prepared device app handoff instead.";
+          protocolUrl = buildClientHandoffUrl();
+        }
+      } catch (hookErr: any) {
+        console.warn("[SendDemoWebsite] Outreach webhook error, falling back to client handoff:", hookErr?.message || hookErr);
+        fallbackReason = "Outreach webhook unavailable; prepared device app handoff instead.";
+        protocolUrl = buildClientHandoffUrl();
       }
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (process.env.OUTREACH_WEBHOOK_SECRET) {
-        headers["x-webhook-secret"] = process.env.OUTREACH_WEBHOOK_SECRET;
-      }
-      const hookRes = await fetch(webhookUrl.toString(), {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          dispatchId,
-          siteId,
-          businessId,
-          businessName: safeBusinessName,
-          channel: normalizedChannel,
-          recipientEmail: cleanEmail || null,
-          recipientPhone: e164Digits ? `+${e164Digits}` : null,
-          previewUrl: safePreviewUrl,
-          subject: safeSubject,
-          message: safeMessage,
-          sentAt,
-          actorUid: req.user?.uid || "anonymous"
-        })
-      });
-      if (!hookRes.ok) {
-        return res.status(502).json({ error: "Outreach webhook delivery failed." });
-      }
-      deliveryMode = "webhook";
-      provider = "webhook";
     } else {
-      if (normalizedChannel === "email") {
-        protocolUrl = `mailto:${cleanEmail}?subject=${encodeURIComponent(safeSubject)}&body=${encodeURIComponent(safeMessage)}`;
-      } else if (normalizedChannel === "whatsapp") {
-        protocolUrl = generateWhatsappLink(`+${e164Digits}`, safeMessage, typeof address === "string" ? address : "");
-      } else {
-        protocolUrl = `sms:+${e164Digits}?body=${encodeURIComponent(safeMessage)}`;
-      }
+      protocolUrl = buildClientHandoffUrl();
     }
 
     const responsePayload = {
@@ -4057,11 +4088,12 @@ app.post("/api/send-demo-website", verifyAuthToken, previewLimiter, async (req: 
       protocolUrl,
       sentAt,
       message:
-        deliveryMode === "direct_email"
+        fallbackReason ||
+        (deliveryMode === "direct_email"
           ? `Demo website sent directly to ${recipient}.`
           : deliveryMode === "webhook"
             ? `Demo website dispatched via outreach relay to ${recipient}.`
-            : `Demo dispatch prepared for ${recipient}. Complete delivery in your ${normalizedChannel === "email" ? "email" : normalizedChannel === "whatsapp" ? "WhatsApp" : "SMS"} app.`
+            : `Demo dispatch prepared for ${recipient}. Complete delivery in your ${normalizedChannel === "email" ? "email" : normalizedChannel === "whatsapp" ? "WhatsApp" : "SMS"} app.`)
     };
     console.log("[Server] POST /api/send-demo-website SUCCESS response:", JSON.stringify(responsePayload, null, 2));
     return res.json(responsePayload);
@@ -6180,6 +6212,7 @@ async function startServer() {
         );
       });
     }
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: {
         middlewareMode: true,

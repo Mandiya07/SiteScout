@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 import { GeneratedSite } from "../types";
-import { MessageCircle, Mail, Smartphone, CheckCircle2, Link as LinkIcon, ShieldAlert, ShieldCheck, Wrench, AlertTriangle } from "lucide-react";
+import { MessageCircle, Mail, Smartphone, CheckCircle2, Link as LinkIcon, ShieldAlert, ShieldCheck, Wrench, AlertTriangle, Send, ExternalLink } from "lucide-react";
 import { runPrePublicationIntegrityScan, normalizeWebsiteSchema } from "../lib/websiteSchema";
+import { authedFetch } from "../lib/firebase";
+import { normalizePhoneNumber } from "../lib/formatters";
 
 interface PublishingModalProps {
   site: GeneratedSite;
@@ -12,40 +14,165 @@ interface PublishingModalProps {
 export default function PublishingModal({ site, onClose, onSavePublish }: PublishingModalProps) {
   const [currentSite, setCurrentSite] = useState<GeneratedSite>(site);
   const [copied, setCopied] = useState(false);
-  const [actionStatus, setActionStatus] = useState<string>("");
+  const [emailInput, setEmailInput] = useState(site?.contactPage?.email || site?.truthProfile?.email?.value || "");
+  const [phoneInput, setPhoneInput] = useState(site?.phone || "");
+  const [sendingChannel, setSendingChannel] = useState<"email" | "whatsapp" | "sms" | null>(null);
+  const [sendFeedback, setSendFeedback] = useState<{ type: "success" | "error"; text: string; handoffUrl?: string; channel?: string } | null>(null);
 
-  const scanResult = runPrePublicationIntegrityScan(currentSite, currentSite.truthProfile);
+  const scanResult = runPrePublicationIntegrityScan(currentSite || {}, currentSite?.truthProfile);
+  const previewUrl = currentSite?.id ? `${window.location.origin}/preview/${currentSite.previewToken || currentSite.id}` : "";
+
+  // Critical Data Validation Check for Send Preview feature
+  const isSiteValid = Boolean(currentSite && currentSite.id && currentSite.businessName);
+  const hasContactInfo = Boolean(emailInput.trim() || phoneInput.trim());
+  const isCriticalDataComplete = isSiteValid && hasContactInfo;
 
   const handleAutoSanitize = () => {
+    if (!currentSite) return;
     const sanitized = normalizeWebsiteSchema(currentSite, null, false);
     setCurrentSite(sanitized);
     onSavePublish(sanitized);
-    setActionStatus("Sanitized unsupported claims! Publication gate unlocked.");
-    setTimeout(() => setActionStatus(""), 3000);
+    setSendFeedback({ type: "success", text: "Sanitized unsupported claims! Publication gate unlocked." });
+    setTimeout(() => setSendFeedback(null), 3000);
   };
 
   const handleCopy = () => {
-    if (!scanResult.canPublish) return;
-    navigator.clipboard.writeText(`https://${currentSite.businessName.toLowerCase().replace(/[^a-z0-9]/g, "")}.sitescout.app/preview`);
+    if (!scanResult.canPublish || !previewUrl) return;
+    navigator.clipboard.writeText(previewUrl);
     setCopied(true);
-    setActionStatus("Link Copied!");
+    setSendFeedback({ type: "success", text: "Preview link copied to clipboard!" });
     setTimeout(() => {
       setCopied(false);
-      setActionStatus("");
-    }, 2000);
+      setSendFeedback(null);
+    }, 2500);
   };
 
-  const handleAction = (platform: string) => {
-    if (!scanResult.canPublish) return;
-    setActionStatus(`Opening ${platform}...`);
-    setTimeout(() => setActionStatus(""), 2000);
+  const handleSendDemo = async (channel: "email" | "whatsapp" | "sms") => {
+    // Validation check before triggering send preview feature
+    if (!currentSite || !currentSite.id) {
+      setSendFeedback({
+        type: "error",
+        text: "Validation Error: publicPreviewSite object is missing or uninitialized."
+      });
+      return;
+    }
+    if (!emailInput.trim() && !phoneInput.trim()) {
+      setSendFeedback({
+        type: "error",
+        text: "Validation Error: Recipient contact information (Email or Phone) is required before sending preview."
+      });
+      return;
+    }
+    if (!scanResult.canPublish) {
+      setSendFeedback({
+        type: "error",
+        text: "Publication blocked by Pre-Publication Integrity Gate. Resolve or auto-sanitize claims first."
+      });
+      return;
+    }
+
+    const cleanEmail = emailInput.trim();
+    const cleanPhone = phoneInput.trim();
+
+    if (channel === "email" && (!cleanEmail || !cleanEmail.includes("@"))) {
+      setSendFeedback({ type: "error", text: "Please provide a valid recipient email address." });
+      return;
+    }
+    if ((channel === "whatsapp" || channel === "sms") && normalizePhoneNumber(cleanPhone, currentSite.address).length < 7) {
+      setSendFeedback({ type: "error", text: "Please provide a valid recipient phone or WhatsApp number." });
+      return;
+    }
+
+    setSendingChannel(channel);
+    setSendFeedback(null);
+
+    try {
+      const payload = {
+        siteId: currentSite.id,
+        businessId: currentSite.businessId,
+        businessName: currentSite.businessName,
+        previewUrl,
+        channel,
+        recipientEmail: cleanEmail,
+        recipientPhone: cleanPhone,
+        address: currentSite.address,
+        subject: `Free Website Preview for ${currentSite.businessName}`,
+        message: channel === "email"
+          ? `Hi ${currentSite.businessName} Team,\n\nI created a custom website preview for your business:\n\n${previewUrl}\n\nOnce you review and approve it, we can customize and launch it for you.`
+          : channel === "whatsapp"
+            ? `Hi ${currentSite.businessName}! I created a custom website preview for your business: ${previewUrl} - once you approve it, let's customize and launch it!`
+            : `Hi ${currentSite.businessName}! I created a custom website preview for your business: ${previewUrl}`
+      };
+
+      const res = await authedFetch("/api/send-demo-website", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Could not dispatch demo website.");
+      }
+
+      const updated = {
+        ...currentSite,
+        phone: cleanPhone || currentSite.phone,
+        salesStatus: "Contacted" as any,
+        salesStage: "PREVIEW_SENT" as any,
+        contactPage: {
+          ...currentSite.contactPage,
+          email: cleanEmail || currentSite.contactPage?.email || null
+        },
+        nextFollowUpDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
+      };
+      setCurrentSite(updated);
+      onSavePublish(updated);
+
+      if (data.deliveryMode === "client_handoff" && data.protocolUrl) {
+        if (
+          data.protocolUrl.startsWith("mailto:") ||
+          data.protocolUrl.startsWith("sms:") ||
+          data.protocolUrl.startsWith("https://wa.me/")
+        ) {
+          const a = document.createElement("a");
+          a.href = data.protocolUrl;
+          if (channel === "whatsapp") {
+            a.target = "_blank";
+            a.rel = "noopener noreferrer";
+          }
+          a.style.display = "none";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }
+        setSendFeedback({
+          type: "success",
+          text: data.message || `Prepared demo link for ${data.recipient}.`,
+          handoffUrl: data.protocolUrl,
+          channel
+        });
+      } else {
+        setSendFeedback({
+          type: "success",
+          text: data.message || `Demo website sent to ${data.recipient}.`
+        });
+      }
+    } catch (err: any) {
+      setSendFeedback({
+        type: "error",
+        text: err?.message || "Failed to send demo website."
+      });
+    } finally {
+      setSendingChannel(null);
+    }
   };
 
   const markAsSent = () => {
-    if (!scanResult.canPublish) return;
+    if (!scanResult.canPublish || !currentSite) return;
     const updated = {
       ...currentSite,
-      prospectStatus: "Preview Sent" as any,
+      salesStatus: "Contacted" as any,
+      salesStage: "PREVIEW_SENT" as any,
       nextFollowUpDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
     };
     onSavePublish(updated);
@@ -58,7 +185,7 @@ export default function PublishingModal({ site, onClose, onSavePublish }: Publis
         {/* Close Button */}
         <button 
           onClick={onClose}
-          className="absolute top-4 right-4 rounded-full p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          className="absolute top-4 right-4 rounded-full p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
         >
           ✕
         </button>
@@ -79,9 +206,24 @@ export default function PublishingModal({ site, onClose, onSavePublish }: Publis
         </h2>
         <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
           {scanResult.canPublish 
-            ? `The custom prototype for ${currentSite.businessName} has passed content integrity and is ready to share.`
-            : `SiteScout detected unsupported factual claim(s) on ${currentSite.businessName}. Resolve or auto-sanitize to unlock publishing.`}
+            ? `The custom prototype for ${currentSite?.businessName || "Business"} is ready for preview dispatch.`
+            : `SiteScout detected unsupported factual claim(s) on ${currentSite?.businessName || "Business"}. Resolve or auto-sanitize to unlock publishing.`}
         </p>
+
+        {/* Visual Alert Banner if Critical Data is Missing */}
+        {!isCriticalDataComplete && (
+          <div className="rounded-2xl bg-amber-50 dark:bg-amber-950/40 p-4 text-left border border-amber-300 dark:border-amber-800 mb-6 space-y-1.5 text-xs text-amber-900 dark:text-amber-200 animate-pulse">
+            <div className="flex items-center gap-2 font-extrabold">
+              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+              <span>Missing Critical Data for Send Preview</span>
+            </div>
+            <p className="text-amber-700 dark:text-amber-300 leading-relaxed">
+              {!isSiteValid 
+                ? "The preview site object (publicPreviewSite) is missing or uninitialized." 
+                : "Recipient contact information is missing. Please provide at least an email address or phone/WhatsApp number below before sending the preview."}
+            </p>
+          </div>
+        )}
 
         {/* Pre-Publication Integrity Gate Alert Banner */}
         {!scanResult.canPublish && (
@@ -127,11 +269,41 @@ export default function PublishingModal({ site, onClose, onSavePublish }: Publis
           </div>
         )}
 
+        {/* Contact Input Form */}
+        {scanResult.canPublish && (
+          <div className="space-y-3 mb-6 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 text-left">
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+                Recipient Email Address <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="email"
+                value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)}
+                placeholder="owner@business.com"
+                className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+                WhatsApp / SMS Phone Number <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="tel"
+                value={phoneInput}
+                onChange={(e) => setPhoneInput(e.target.value)}
+                placeholder="+268 7600 0000"
+                className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              />
+            </div>
+          </div>
+        )}
+
         {/* Actions Grid */}
-        <div className={`grid grid-cols-2 gap-3 mb-6 ${!scanResult.canPublish ? "opacity-50 pointer-events-none" : ""}`}>
+        <div className={`grid grid-cols-2 gap-3 mb-6 ${!scanResult.canPublish || !isCriticalDataComplete ? "opacity-60" : ""}`}>
           <button
             onClick={handleCopy}
-            disabled={!scanResult.canPublish}
+            disabled={!scanResult.canPublish || !isCriticalDataComplete}
             className="flex flex-col items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:border-blue-500 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-blue-500/50 dark:hover:bg-slate-700/50 transition-all group cursor-pointer"
           >
             <div className="rounded-full bg-slate-100 p-3 group-hover:bg-blue-100 dark:bg-slate-700 dark:group-hover:bg-blue-900/40 text-slate-600 group-hover:text-blue-600 dark:text-slate-300 dark:group-hover:text-blue-400 transition-colors">
@@ -141,43 +313,64 @@ export default function PublishingModal({ site, onClose, onSavePublish }: Publis
           </button>
           
           <button
-            onClick={() => handleAction("WhatsApp")}
-            disabled={!scanResult.canPublish}
+            onClick={() => handleSendDemo("whatsapp")}
+            disabled={!scanResult.canPublish || !isCriticalDataComplete || sendingChannel === "whatsapp"}
             className="flex flex-col items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:border-green-500 hover:bg-green-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-green-500/50 dark:hover:bg-slate-700/50 transition-all group cursor-pointer"
           >
             <div className="rounded-full bg-slate-100 p-3 group-hover:bg-green-100 dark:bg-slate-700 dark:group-hover:bg-green-900/40 text-slate-600 group-hover:text-green-600 dark:text-slate-300 dark:group-hover:text-green-400 transition-colors">
               <MessageCircle className="h-5 w-5" />
             </div>
-            <span className="text-sm font-bold text-slate-700 dark:text-slate-300">WhatsApp</span>
+            <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
+              {sendingChannel === "whatsapp" ? "Opening..." : "WhatsApp"}
+            </span>
           </button>
 
           <button
-            onClick={() => handleAction("Email")}
-            disabled={!scanResult.canPublish}
+            onClick={() => handleSendDemo("email")}
+            disabled={!scanResult.canPublish || !isCriticalDataComplete || sendingChannel === "email"}
             className="flex flex-col items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:border-amber-500 hover:bg-amber-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-amber-500/50 dark:hover:bg-slate-700/50 transition-all group cursor-pointer"
           >
             <div className="rounded-full bg-slate-100 p-3 group-hover:bg-amber-100 dark:bg-slate-700 dark:group-hover:bg-amber-900/40 text-slate-600 group-hover:text-amber-600 dark:text-slate-300 dark:group-hover:text-amber-400 transition-colors">
               <Mail className="h-5 w-5" />
             </div>
-            <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Email</span>
+            <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
+              {sendingChannel === "email" ? "Sending..." : "Email"}
+            </span>
           </button>
 
           <button
-            onClick={() => handleAction("SMS")}
-            disabled={!scanResult.canPublish}
+            onClick={() => handleSendDemo("sms")}
+            disabled={!scanResult.canPublish || !isCriticalDataComplete || sendingChannel === "sms"}
             className="flex flex-col items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:border-purple-500 hover:bg-purple-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-purple-500/50 dark:hover:bg-slate-700/50 transition-all group cursor-pointer"
           >
             <div className="rounded-full bg-slate-100 p-3 group-hover:bg-purple-100 dark:bg-slate-700 dark:group-hover:bg-purple-900/40 text-slate-600 group-hover:text-purple-600 dark:text-slate-300 dark:group-hover:text-purple-400 transition-colors">
               <Smartphone className="h-5 w-5" />
             </div>
-            <span className="text-sm font-bold text-slate-700 dark:text-slate-300">SMS</span>
+            <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
+              {sendingChannel === "sms" ? "Sending..." : "SMS"}
+            </span>
           </button>
         </div>
 
         {/* Action Status Feedback */}
-        {actionStatus && (
-          <div className="text-xs font-bold text-blue-600 dark:text-blue-400 mb-6 animate-pulse">
-            {actionStatus}
+        {sendFeedback && (
+          <div className={`mb-6 p-3.5 rounded-xl border text-xs space-y-1.5 text-left ${
+            sendFeedback.type === "success"
+              ? "bg-emerald-50 border-emerald-200 text-emerald-900 dark:bg-emerald-950/30 dark:border-emerald-900/50 dark:text-emerald-200"
+              : "bg-rose-50 border-rose-200 text-rose-900 dark:bg-rose-950/30 dark:border-rose-900/50 dark:text-rose-200"
+          }`}>
+            <p className="font-medium">{sendFeedback.text}</p>
+            {sendFeedback.handoffUrl && (
+              <a
+                href={sendFeedback.handoffUrl}
+                target={sendFeedback.channel === "whatsapp" ? "_blank" : undefined}
+                rel={sendFeedback.channel === "whatsapp" ? "noopener noreferrer" : undefined}
+                className="inline-flex items-center gap-1 font-bold underline mt-1"
+              >
+                <ExternalLink className="h-3 w-3" />
+                {sendFeedback.channel === "email" ? "Open in Email App" : sendFeedback.channel === "whatsapp" ? "Open WhatsApp Chat" : "Open SMS App"}
+              </a>
+            )}
           </div>
         )}
 
@@ -200,13 +393,16 @@ export default function PublishingModal({ site, onClose, onSavePublish }: Publis
         
         {/* Done / Mark as Sent Button */}
         <button
-          onClick={markAsSent}
-          disabled={!scanResult.canPublish}
+          onClick={() => {
+            markAsSent();
+            onClose();
+          }}
+          disabled={!scanResult.canPublish || !isCriticalDataComplete}
           className={`w-full mt-6 rounded-xl py-3.5 text-sm font-bold text-white transition-colors shadow-md shadow-blue-500/20 cursor-pointer ${
-            scanResult.canPublish ? "bg-blue-600 hover:bg-blue-500" : "bg-slate-300 dark:bg-slate-800 text-slate-500 cursor-not-allowed"
+            scanResult.canPublish && isCriticalDataComplete ? "bg-blue-600 hover:bg-blue-500" : "bg-slate-300 dark:bg-slate-800 text-slate-500 cursor-not-allowed"
           }`}
         >
-          {scanResult.canPublish ? "Confirm & Close" : "Resolve Unsupported Claims to Publish"}
+          {!isCriticalDataComplete ? "Provide Contact Data to Send" : scanResult.canPublish ? "Confirm & Close" : "Resolve Unsupported Claims to Publish"}
         </button>
 
       </div>
